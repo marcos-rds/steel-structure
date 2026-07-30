@@ -18,6 +18,9 @@
 - Esc cancela o segmento após o primeiro ponto e fecha a ferramenta ao aguardar o primeiro ponto.
 - Limpeza diferida contra Access violation preservada no encerramento da ferramenta.
 - Captura ainda baseada em projeção da vista, sem snap geométrico.
+- Snap geométrico básico em vértices e extremidades de arestas.
+- Marcador Coin3D leve no ponto exato, com projeção da vista como fallback.
+- Metadados de snap mantidos somente durante a sessão de criação.
 
 ## 0.3.0 — 30/07/2026
 

@@ -19,7 +19,18 @@ class PreviewTracker:
         self._coordinates = coin_module.SoCoordinate3()
         self._line = coin_module.SoLineSet()
         self._line.numVertices.setValues(0, 1, [2])
-        for node in (self._style, self._color, self._coordinates, self._line):
+        self._marker_coordinates = coin_module.SoCoordinate3()
+        self._marker = coin_module.SoPointSet()
+        self._marker.numPoints = 0
+        self._style.pointSize = 7.0
+        for node in (
+            self._style,
+            self._color,
+            self._coordinates,
+            self._line,
+            self._marker_coordinates,
+            self._marker,
+        ):
             self._root.addChild(node)
         self._attached = False
         self._visible = False
@@ -52,6 +63,15 @@ class PreviewTracker:
         if self._attached:
             self._line.numVertices.setValues(0, 1, [0])
         self._visible = False
+
+    def show_snap_marker(self, point):
+        self.attach()
+        self._marker_coordinates.point.setValues(0, 1, [self._xyz(point)])
+        self._marker.numPoints = 1
+
+    def hide_snap_marker(self):
+        if self._attached:
+            self._marker.numPoints = 0
 
     def detach(self):
         if not self._attached:

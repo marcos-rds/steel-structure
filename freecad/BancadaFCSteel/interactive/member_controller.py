@@ -74,6 +74,9 @@ class MemberController:
         self.point_capture = None
         self.preview_tracker = None
         self._interactive_start = None
+        self._interactive_start_snap = None
+        self._interactive_candidate_snap = None
+        self._interactive_end_snap = None
         self._capture_generation = 0
         self._pending_stop_generation = None
         self._defer = None
@@ -111,8 +114,10 @@ class MemberController:
         result = self._create(options, success_state, previous_state)
         if success_state is ControllerState.WAITING_FIRST_POINT:
             self._interactive_start = None
+            self._clear_snap_segment()
             if self.preview_tracker is not None:
                 self.preview_tracker.hide()
+                self._hide_snap_marker()
             self._notify_state()
         return result
 
@@ -192,6 +197,7 @@ class MemberController:
                     self.preview_tracker = None
             raise
         self._interactive_start = None
+        self._clear_snap_segment()
         self._pending_stop_generation = None
         self.state = ControllerState.WAITING_FIRST_POINT
         self._notify_state()
@@ -208,6 +214,7 @@ class MemberController:
         self.state = ControllerState.STOPPING
         self._pending_stop_generation = generation
         self._interactive_start = None
+        self._clear_snap_segment()
         if self.point_capture is not None:
             self.point_capture.deactivate()
         if self.preview_tracker is not None:
@@ -227,6 +234,7 @@ class MemberController:
         self.state = ControllerState.STOPPING
         self._pending_stop_generation = generation
         self._interactive_start = None
+        self._clear_snap_segment()
         if self.point_capture is not None:
             self.point_capture.deactivate()
         if self.preview_tracker is not None:
@@ -274,6 +282,7 @@ class MemberController:
     def _cleanup_capture(self):
         capture, tracker = self.point_capture, self.preview_tracker
         self._interactive_start = None
+        self._clear_snap_segment()
         if capture is not None:
             capture.deactivate()
             capture.stop()
@@ -284,19 +293,54 @@ class MemberController:
         self._defer = None
         self._request_close = None
 
-    def handle_mouse_move(self, point):
+    @staticmethod
+    def _resolved_point(result):
+        return getattr(result, "point", result)
+
+    def _update_snap_marker(self, result):
+        if self.preview_tracker is None:
+            return
+        if bool(getattr(result, "snapped", False)):
+            show_marker = getattr(self.preview_tracker, "show_snap_marker", None)
+            if show_marker is not None:
+                show_marker(self._resolved_point(result))
+        else:
+            self._hide_snap_marker()
+
+    def _hide_snap_marker(self):
+        if self.preview_tracker is None:
+            return
+        hide_marker = getattr(self.preview_tracker, "hide_snap_marker", None)
+        if hide_marker is not None:
+            hide_marker()
+
+    def _clear_snap_segment(self):
+        self._interactive_start_snap = None
+        self._interactive_candidate_snap = None
+        self._interactive_end_snap = None
+
+    def handle_mouse_move(self, result):
+        point = self._resolved_point(result)
         if self.state is ControllerState.WAITING_FIRST_POINT:
+            self._interactive_candidate_snap = result
+            self._update_snap_marker(result)
             if self.panel is not None:
                 self.panel.update_candidate_start(point)
         elif self.state is ControllerState.WAITING_SECOND_POINT:
+            self._interactive_candidate_snap = result
+            self._update_snap_marker(result)
             if self.preview_tracker is not None:
                 self.preview_tracker.update(self._interactive_start, point)
             if self.panel is not None:
                 self.panel.update_candidate_point(point)
 
-    def handle_click(self, point):
+    def handle_click(self, result):
+        point = self._resolved_point(result)
+        self._update_snap_marker(result)
         if self.state is ControllerState.WAITING_FIRST_POINT:
             self._interactive_start = point
+            self._interactive_start_snap = result
+            self._interactive_candidate_snap = None
             self.state = ControllerState.WAITING_SECOND_POINT
             if self.panel is not None:
                 self.panel.update_captured_start(point)
@@ -305,6 +349,7 @@ class MemberController:
         if self.state is not ControllerState.WAITING_SECOND_POINT:
             return None
         self.validate_points(self._interactive_start, point)
+        self._interactive_end_snap = result
         return self.create_interactive_member(self._interactive_start, point)
 
     def create_interactive_member(self, start, end):
@@ -317,8 +362,10 @@ class MemberController:
             self.state = ControllerState.WAITING_SECOND_POINT
             raise
         self._interactive_start = None
+        self._clear_snap_segment()
         if self.preview_tracker is not None:
             self.preview_tracker.hide()
+            self._hide_snap_marker()
         self.panel.interactive_creation_succeeded(result)
         self._notify_state()
         return result
@@ -326,8 +373,10 @@ class MemberController:
     def cancel_current_segment(self):
         if self.state is ControllerState.WAITING_SECOND_POINT:
             self._interactive_start = None
+            self._clear_snap_segment()
             if self.preview_tracker is not None:
                 self.preview_tracker.hide()
+                self._hide_snap_marker()
             self.state = ControllerState.WAITING_FIRST_POINT
             self._notify_state()
         elif self.state is ControllerState.WAITING_FIRST_POINT:

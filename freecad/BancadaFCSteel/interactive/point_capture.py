@@ -21,6 +21,8 @@ class PointCapture:
         is_view_current=None,
         on_view_lost=None,
         on_error=None,
+        snap_adapter=None,
+        document=None,
     ):
         self.view = view
         self._on_move = on_move
@@ -30,6 +32,11 @@ class PointCapture:
         self._is_view_current = is_view_current
         self._on_view_lost = on_view_lost
         self._on_error = on_error
+        if snap_adapter is None:
+            from .snap_adapter import SnapAdapter
+            snap_adapter = SnapAdapter()
+        self._snap_adapter = snap_adapter
+        self._document = document
         self._callbacks = []
         self._accept_events = False
         self._started_once = False
@@ -105,16 +112,39 @@ class PointCapture:
             return int(x), int(y)
 
     def resolve_point(self, position):
-        """Resolve a screen position through the view projection API."""
+        """Resolve a screen position through snap or view projection."""
         if position is None:
             return None
         try:
-            point = self.view.getPoint(*position)
+            result = self._snap_adapter.resolve(
+                self.view,
+                position,
+                self._document,
+            )
         except Exception:
-            return None
-        if point is not None and self._on_status is not None:
-            self._on_status("Ponto obtido por projeção da vista, sem snap geométrico.")
-        return point
+            self._report_traceback()
+            try:
+                from .snap_adapter import SnapResult
+
+                projected = self.view.getPoint(*position)
+                result = (
+                    SnapResult(point=projected, snapped=False, projected=True)
+                    if projected is not None
+                    else None
+                )
+            except Exception:
+                result = None
+        if result is not None and self._on_status is not None:
+            if result.snapped:
+                self._on_status(
+                    "Snap: extremidade — "
+                    f"{result.object_name}/{result.subelement_name}"
+                )
+            else:
+                self._on_status(
+                    "Ponto projetado pela vista, sem snap geométrico."
+                )
+        return result
 
     def _view_is_current(self):
         if not self._accept_events:

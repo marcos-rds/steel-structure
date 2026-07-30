@@ -10,6 +10,7 @@ from .member_controller import (
 )
 from .point_capture import PointCapture
 from .preview_tracker import PreviewTracker
+from .snap_adapter import SNAP_TOLERANCE_PX, SnapAdapter, SnapResult
 
 __all__ = [
     "ControllerState",
@@ -19,4 +20,7 @@ __all__ = [
     "next_default_label",
     "PointCapture",
     "PreviewTracker",
+    "SNAP_TOLERANCE_PX",
+    "SnapAdapter",
+    "SnapResult",
 ]

@@ -45,6 +45,7 @@ ESSENTIAL_FILES = (
     "freecad/BancadaFCSteel/interactive/member_task_panel.py",
     "freecad/BancadaFCSteel/interactive/point_capture.py",
     "freecad/BancadaFCSteel/interactive/preview_tracker.py",
+    "freecad/BancadaFCSteel/interactive/snap_adapter.py",
     "freecad/BancadaFCSteel/member.py",
     "freecad/BancadaFCSteel/profile_catalog.py",
     "freecad/BancadaFCSteel/paths.py",

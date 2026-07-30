@@ -309,6 +309,7 @@ class MemberTaskPanel:
                 lambda: self._active_view() is view,
                 self.controller.request_close_capture,
                 self._capture_error,
+                document=self.document,
             )
             self.controller.start_capture(
                 capture,

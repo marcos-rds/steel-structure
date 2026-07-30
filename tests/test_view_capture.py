@@ -93,13 +93,32 @@ class Line(Node):
         self.numVertices = Field()
 
 
+class PointSet(Node):
+    def __init__(self):
+        super().__init__()
+        self.numPoints = 0
+
+
 COIN = types.SimpleNamespace(
     SoSeparator=Node,
     SoDrawStyle=DrawStyle,
     SoBaseColor=Color,
     SoCoordinate3=Coordinates,
     SoLineSet=Line,
+    SoPointSet=PointSet,
 )
+
+
+class ProjectAdapter:
+    def __init__(self):
+        self.calls = []
+
+    def resolve(self, view, position, document=None):
+        self.calls.append((position, document))
+        if view.fail_point:
+            return None
+        point = view.getPoint(*position)
+        return types.SimpleNamespace(point=point, snapped=False, projected=True)
 
 
 class PointCaptureTests(unittest.TestCase):
@@ -113,6 +132,7 @@ class PointCaptureTests(unittest.TestCase):
             self.clicks.append,
             lambda: self.escapes.append(True),
             self.messages.append,
+            snap_adapter=ProjectAdapter(),
         )
         self.capture._accept_events = True
 
@@ -135,14 +155,14 @@ class PointCaptureTests(unittest.TestCase):
         self.capture._mouse_event({"Button": "BUTTON1", "State": "UP", "Position": (4, 5)})
         self.capture._mouse_event({"Button": "BUTTON2", "State": "DOWN", "Position": (6, 7)})
         self.capture._mouse_event({"Button": "BUTTON3", "State": "DOWN", "Position": (8, 9)})
-        self.assertEqual([(p.x, p.y) for p in self.clicks], [(2, 3)])
+        self.assertEqual([(r.point.x, r.point.y) for r in self.clicks], [(2, 3)])
 
     def test_movement_and_escape_are_forwarded(self):
         self.capture._location_event({"position": [10, 20]})
         self.capture._keyboard_event({"key": "ESCAPE", "state": "PRESSED"})
-        self.assertEqual((self.moves[0].x, self.moves[0].y), (10, 20))
+        self.assertEqual((self.moves[0].point.x, self.moves[0].point.y), (10, 20))
         self.assertEqual(self.escapes, [True])
-        self.assertIn("projeção", self.messages[0])
+        self.assertIn("projetado", self.messages[0])
 
     def test_resolution_failure_does_not_invent_or_forward_point(self):
         self.view.fail_point = True
@@ -159,6 +179,7 @@ class PointCaptureTests(unittest.TestCase):
             lambda: None,
             is_view_current=lambda: False,
             on_view_lost=lambda: lost.append(True),
+            snap_adapter=ProjectAdapter(),
         )
         capture._accept_events = True
         capture._location_event({"Position": (1, 2)})
@@ -173,6 +194,7 @@ class PointCaptureTests(unittest.TestCase):
             self.clicks.append,
             lambda: None,
             on_error=errors.append,
+            snap_adapter=ProjectAdapter(),
         )
         capture._accept_events = True
         capture._location_event({"Position": (1, 2)})
@@ -192,11 +214,32 @@ class PointCaptureTests(unittest.TestCase):
         old_ids = [item[2] for item in self.capture._callbacks]
         self.capture.stop()
         second = self.module.PointCapture(
-            self.view, self.moves.append, self.clicks.append, lambda: None
+            self.view,
+            self.moves.append,
+            self.clicks.append,
+            lambda: None,
+            snap_adapter=ProjectAdapter(),
         )
         second.start()
         new_ids = [item[2] for item in second._callbacks]
         self.assertTrue(set(old_ids).isdisjoint(new_ids))
+
+    def test_movement_and_click_resolve_independently_without_extra_callbacks(self):
+        adapter = ProjectAdapter()
+        capture = self.module.PointCapture(
+            self.view,
+            self.moves.append,
+            self.clicks.append,
+            lambda: None,
+            snap_adapter=adapter,
+        )
+        capture.start()
+        capture._location_event({"Position": (4, 5)})
+        capture._mouse_event(
+            {"Button": "BUTTON1", "State": "DOWN", "Position": (4, 5)}
+        )
+        self.assertEqual(len(adapter.calls), 2)
+        self.assertEqual(len(self.view.added), 3)
 
 
 class PreviewTrackerTests(unittest.TestCase):
@@ -222,6 +265,17 @@ class PreviewTrackerTests(unittest.TestCase):
         self.tracker.detach()
         self.tracker.detach()
         self.assertEqual(self.view.graph.removed, [self.tracker.root])
+
+    def test_snap_marker_is_created_once_updated_in_place_and_hidden(self):
+        marker = self.tracker._marker
+        coordinates = self.tracker._marker_coordinates
+        self.tracker.show_snap_marker(Vector(1, 2, 3))
+        self.tracker.show_snap_marker(Vector(4, 5, 6))
+        self.assertIs(self.tracker._marker, marker)
+        self.assertEqual(len(coordinates.point.values), 2)
+        self.assertEqual(marker.numPoints, 1)
+        self.tracker.hide_snap_marker()
+        self.assertEqual(marker.numPoints, 0)
 
 
 class InteractiveControllerTests(unittest.TestCase):
@@ -260,9 +314,13 @@ class InteractiveControllerTests(unittest.TestCase):
             ),
         )
         self.preview = types.SimpleNamespace(
-            attaches=0, hides=0, detaches=0, updates=[],
+            attaches=0, hides=0, marker_hides=0, detaches=0, updates=[],
             attach=lambda: setattr(self.preview, "attaches", self.preview.attaches + 1),
             hide=lambda: setattr(self.preview, "hides", self.preview.hides + 1),
+            hide_snap_marker=lambda: setattr(
+                self.preview, "marker_hides", self.preview.marker_hides + 1
+            ),
+            show_snap_marker=lambda point: setattr(self.preview, "marker_point", point),
             detach=lambda: setattr(self.preview, "detaches", self.preview.detaches + 1),
             update=lambda a, b: self.preview.updates.append((a, b)),
         )
@@ -473,6 +531,45 @@ class InteractiveControllerTests(unittest.TestCase):
         self.controller.stop()
         self.assertEqual((self.capture.stops, self.preview.detaches), (1, 1))
         self.assertIs(self.controller.state, self.module.ControllerState.INACTIVE)
+
+    def test_snap_metadata_and_exact_points_are_used_then_cleared(self):
+        self.controller.start_capture(self.capture, self.preview)
+        start = types.SimpleNamespace(
+            point=Vector(10, 20, 30), snapped=True, snap_type="endpoint",
+            object_name="A", subelement_name="Vertex1",
+        )
+        end = types.SimpleNamespace(
+            point=Vector(40, 50, 60), snapped=True, snap_type="endpoint",
+            object_name="B", subelement_name="Edge1.Endpoint2",
+        )
+        self.controller.handle_click(start)
+        self.assertIs(self.controller._interactive_start_snap, start)
+        self.controller.handle_mouse_move(end)
+        self.assertIs(self.controller._interactive_candidate_snap, end)
+        self.controller.handle_click(end)
+        self.assertEqual(
+            (
+                self.calls[0]["start"].x,
+                self.calls[0]["start"].y,
+                self.calls[0]["end"].z,
+            ),
+            (10, 20, 60),
+        )
+        self.assertIsNone(self.controller._interactive_start_snap)
+        self.assertIsNone(self.controller._interactive_end_snap)
+
+    def test_escape_clears_snap_metadata_and_marker(self):
+        self.controller.start_capture(self.capture, self.preview)
+        snapped = types.SimpleNamespace(
+            point=Vector(1, 2, 3), snapped=True, snap_type="endpoint",
+            object_name="A", subelement_name="Vertex1",
+        )
+        self.controller.handle_click(snapped)
+        self.controller.handle_mouse_move(snapped)
+        self.controller.cancel_current_segment()
+        self.assertIsNone(self.controller._interactive_start_snap)
+        self.assertIsNone(self.controller._interactive_candidate_snap)
+        self.assertGreater(self.preview.marker_hides, 0)
 
 
 class FakePanel:
