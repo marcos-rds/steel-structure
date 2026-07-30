@@ -21,6 +21,10 @@
 - Snap geométrico básico em vértices e extremidades de arestas.
 - Marcador Coin3D leve no ponto exato, com projeção da vista como fallback.
 - Metadados de snap mantidos somente durante a sessão de criação.
+- Snapper nativo do Draft passa a ser o mecanismo principal da captura.
+- Modos, tolerância, marcadores e preferências de snap do Draft são respeitados.
+- Barra nativa Encaixe de Draft disponibilizada sem duplicar comandos.
+- Snap básico próprio permanece disponível somente como fallback.
 
 ## 0.3.0 — 30/07/2026
 

@@ -23,6 +23,7 @@ class PointCapture:
         on_error=None,
         snap_adapter=None,
         document=None,
+        lastpoint_provider=None,
     ):
         self.view = view
         self._on_move = on_move
@@ -37,6 +38,7 @@ class PointCapture:
             snap_adapter = SnapAdapter()
         self._snap_adapter = snap_adapter
         self._document = document
+        self._lastpoint_provider = lastpoint_provider
         self._callbacks = []
         self._accept_events = False
         self._started_once = False
@@ -49,6 +51,9 @@ class PointCapture:
             return
         if self._started_once:
             raise RuntimeError("Uma instância encerrada de PointCapture não pode ser reutilizada.")
+        starter = getattr(self._snap_adapter, "start", None)
+        if starter is not None:
+            starter()
         handlers = (self._location_event, self._mouse_event, self._keyboard_event)
         registered = []
         try:
@@ -61,6 +66,9 @@ class PointCapture:
                     view.removeEventCallback(event_type, callback_id)
                 except Exception:
                     pass
+            stopper = getattr(self._snap_adapter, "stop", None)
+            if stopper is not None:
+                stopper()
             raise
         self._callbacks = registered
         self._accept_events = True
@@ -82,6 +90,14 @@ class PointCapture:
                     first_error = exc
             else:
                 self._callbacks.remove(registration)
+        if not self._callbacks:
+            stopper = getattr(self._snap_adapter, "stop", None)
+            if stopper is not None:
+                try:
+                    stopper()
+                except Exception as exc:
+                    if first_error is None:
+                        first_error = exc
         if first_error is not None:
             raise first_error
 
@@ -111,15 +127,26 @@ class PointCapture:
                 return None
             return int(x), int(y)
 
-    def resolve_point(self, position):
+    def resolve_point(self, position, event=None):
         """Resolve a screen position through snap or view projection."""
         if position is None:
             return None
         try:
+            options = getattr(
+                self._snap_adapter, "event_options", lambda _event: (False, False)
+            )(event or {})
+            lastpoint = (
+                self._lastpoint_provider()
+                if self._lastpoint_provider is not None
+                else None
+            )
             result = self._snap_adapter.resolve(
                 self.view,
                 position,
                 self._document,
+                lastpoint=lastpoint,
+                active=options[0],
+                constrain=options[1],
             )
         except Exception:
             self._report_traceback()
@@ -135,7 +162,10 @@ class PointCapture:
             except Exception:
                 result = None
         if result is not None and self._on_status is not None:
-            if result.snapped:
+            status = getattr(self._snap_adapter, "status_message", None)
+            if status is not None:
+                self._on_status(status(result))
+            elif result.snapped:
                 self._on_status(
                     "Snap: extremidade — "
                     f"{result.object_name}/{result.subelement_name}"
@@ -189,7 +219,7 @@ class PointCapture:
     def _process_location_event(self, event):
         if not self._view_is_current():
             return
-        point = self.resolve_point(self._position(event))
+        point = self.resolve_point(self._position(event), event)
         if point is not None:
             self._on_move(point)
 
@@ -205,7 +235,7 @@ class PointCapture:
             return
         if str(state).upper() not in ("DOWN", "PRESSED", "PRESS", "1", "TRUE"):
             return
-        point = self.resolve_point(self._position(event))
+        point = self.resolve_point(self._position(event), event)
         if point is not None:
             self._on_click(point)
 

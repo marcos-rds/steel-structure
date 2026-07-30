@@ -113,7 +113,7 @@ class ProjectAdapter:
     def __init__(self):
         self.calls = []
 
-    def resolve(self, view, position, document=None):
+    def resolve(self, view, position, document=None, **_options):
         self.calls.append((position, document))
         if view.fail_point:
             return None
@@ -240,6 +240,24 @@ class PointCaptureTests(unittest.TestCase):
         )
         self.assertEqual(len(adapter.calls), 2)
         self.assertEqual(len(self.view.added), 3)
+
+    def test_native_adapter_stops_only_after_own_callbacks_are_removed(self):
+        order = []
+        adapter = ProjectAdapter()
+        adapter.start = lambda: order.append("adapter-start")
+        adapter.stop = lambda: order.append(
+            ("adapter-stop", len(self.view.removed))
+        )
+        capture = self.module.PointCapture(
+            self.view,
+            self.moves.append,
+            self.clicks.append,
+            lambda: None,
+            snap_adapter=adapter,
+        )
+        capture.start()
+        capture.stop()
+        self.assertEqual(order, ["adapter-start", ("adapter-stop", 3)])
 
 
 class PreviewTrackerTests(unittest.TestCase):
@@ -570,6 +588,20 @@ class InteractiveControllerTests(unittest.TestCase):
         self.assertIsNone(self.controller._interactive_start_snap)
         self.assertIsNone(self.controller._interactive_candidate_snap)
         self.assertGreater(self.preview.marker_hides, 0)
+
+    def test_native_snap_uses_native_marker_and_fallback_uses_own_marker(self):
+        self.controller.start_capture(self.capture, self.preview)
+        native = types.SimpleNamespace(
+            point=Vector(1, 2, 3), snapped=True, native=True
+        )
+        fallback = types.SimpleNamespace(
+            point=Vector(4, 5, 6), snapped=True, native=False
+        )
+        self.controller.handle_mouse_move(native)
+        self.assertGreater(self.preview.marker_hides, 0)
+        self.assertFalse(hasattr(self.preview, "marker_point"))
+        self.controller.handle_mouse_move(fallback)
+        self.assertIs(self.preview.marker_point, fallback.point)
 
 
 class FakePanel:

@@ -119,6 +119,16 @@ class ProjectLayoutTests(unittest.TestCase):
             with self.subTest(path=relative):
                 self.assertTrue((PROJECT_ROOT / relative).is_file(), relative)
 
+    def test_interactive_capture_does_not_use_native_get_point_callbacks(self):
+        source = "\n".join(
+            (PROJECT_ROOT / relative).read_text(encoding="utf-8")
+            for relative in (
+                "freecad/BancadaFCSteel/interactive/point_capture.py",
+                "freecad/BancadaFCSteel/interactive/snap_adapter.py",
+            )
+        )
+        self.assertNotIn("Snapper.getPoint(", source)
+
 
 if __name__ == "__main__":
     unittest.main()

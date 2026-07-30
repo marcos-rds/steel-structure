@@ -300,7 +300,9 @@ class MemberController:
     def _update_snap_marker(self, result):
         if self.preview_tracker is None:
             return
-        if bool(getattr(result, "snapped", False)):
+        if bool(getattr(result, "snapped", False)) and not bool(
+            getattr(result, "native", False)
+        ):
             show_marker = getattr(self.preview_tracker, "show_snap_marker", None)
             if show_marker is not None:
                 show_marker(self._resolved_point(result))

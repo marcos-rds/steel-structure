@@ -310,6 +310,7 @@ class MemberTaskPanel:
                 self.controller.request_close_capture,
                 self._capture_error,
                 document=self.document,
+                lastpoint_provider=lambda: self.controller._interactive_start,
             )
             self.controller.start_capture(
                 capture,
