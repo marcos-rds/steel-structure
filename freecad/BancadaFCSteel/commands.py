@@ -14,8 +14,13 @@ from .member import ELEMENT_TYPES, INSERTION_OPTIONS, create_member
 from .paths import MEMBER_ICON
 
 
+def compact_profile_designation(designation: str) -> str:
+    """Return a catalog designation without spaces for display purposes."""
+    return "".join(designation.split())
+
+
 def _next_default_label(document, element_type: str, designation: str) -> str:
-    """Return a readable, stable sequence such as 'Pilar 003 - W 200 x 26,6'."""
+    """Return a readable, stable sequence such as 'Pilar 003 - W200x26,6'."""
     pattern = re.compile(rf"^{re.escape(element_type)}\s+(\d+)\b", re.IGNORECASE)
     highest = 0
     for obj in document.Objects:
@@ -26,14 +31,17 @@ def _next_default_label(document, element_type: str, designation: str) -> str:
             match = pattern.match(candidate.strip())
             if match:
                 highest = max(highest, int(match.group(1)))
-    return f"{element_type} {highest + 1:03d} - {designation}"
+    return (
+        f"{element_type} {highest + 1:03d} - "
+        f"{compact_profile_designation(designation)}"
+    )
 
 
 class MemberDialog(QtWidgets.QDialog):
     def __init__(self, document, start=None, end=None, parent=None):
         super().__init__(parent)
         self.document = document
-        self.setWindowTitle("Metal Structure — Criar membro metálico")
+        self.setWindowTitle("Metal Structure — Criar elemento estrutural")
         self.setMinimumWidth(470)
         self._color = QtGui.QColor(184, 184, 194)
         self._name_custom = False
@@ -62,6 +70,7 @@ class MemberDialog(QtWidgets.QDialog):
 
         self.element_type = QtWidgets.QComboBox()
         self.element_type.addItems(ELEMENT_TYPES)
+        self.element_type.setCurrentText("Membro")
         self.element_type.currentTextChanged.connect(self._refresh_default_name)
 
         self.category = QtWidgets.QComboBox()
@@ -130,13 +139,17 @@ class MemberDialog(QtWidgets.QDialog):
         self._series_changed(self.series.currentText())
 
     def _series_changed(self, _text):
-        current = self.profile.currentText()
+        current = self.profile.currentData()
         self.profile.blockSignals(True)
         self.profile.clear()
-        self.profile.addItems(
-            profile_catalog.designations(self.category.currentText(), self.series.currentText())
-        )
-        index = self.profile.findText(current)
+        for designation in profile_catalog.designations(
+            self.category.currentText(), self.series.currentText()
+        ):
+            self.profile.addItem(
+                compact_profile_designation(designation),
+                designation,
+            )
+        index = self.profile.findData(current)
         if index >= 0:
             self.profile.setCurrentIndex(index)
         self.profile.blockSignals(False)
@@ -149,7 +162,7 @@ class MemberDialog(QtWidgets.QDialog):
     def _refresh_default_name(self, _text=None):
         if self._name_custom or not hasattr(self, "profile"):
             return
-        designation = self.profile.currentText().strip()
+        designation = self.profile_designation
         if not designation:
             self.name_edit.setText("")
             return
@@ -161,7 +174,7 @@ class MemberDialog(QtWidgets.QDialog):
         if not hasattr(self, "buttons"):
             return
         ok_button = self.buttons.button(QtWidgets.QDialogButtonBox.Ok)
-        ok_button.setEnabled(bool(self.profile.currentText().strip()))
+        ok_button.setEnabled(bool(self.profile_designation))
 
     def _point_group(self, parent_layout, title):
         group = QtWidgets.QGroupBox(title)
@@ -202,8 +215,13 @@ class MemberDialog(QtWidgets.QDialog):
         if value:
             return value
         return _next_default_label(
-            self.document, self.element_type.currentText(), self.profile.currentText()
+            self.document, self.element_type.currentText(), self.profile_designation
         )
+
+    @property
+    def profile_designation(self):
+        designation = self.profile.currentData()
+        return str(designation).strip() if designation is not None else ""
 
     @property
     def rgb(self):
@@ -218,8 +236,8 @@ class CreateMemberCommand:
     def GetResources(self):
         return {
             "Pixmap": MEMBER_ICON,
-            "MenuText": "Criar membro metálico",
-            "ToolTip": "Cria um membro estrutural paramétrico entre dois pontos.",
+            "MenuText": "Criar elemento estrutural",
+            "ToolTip": "Cria um elemento estrutural paramétrico entre dois pontos.",
             "Accel": "S, M",
         }
 
@@ -244,7 +262,7 @@ class CreateMemberCommand:
                 parent, "Metal Structure", "Os pontos inicial e final devem ser diferentes."
             )
             return
-        if not dialog.profile.currentText().strip():
+        if not dialog.profile_designation:
             QtWidgets.QMessageBox.warning(
                 parent,
                 "Metal Structure",
@@ -252,13 +270,13 @@ class CreateMemberCommand:
             )
             return
 
-        document.openTransaction("Criar membro metálico")
+        document.openTransaction("Criar elemento estrutural")
         try:
             member = create_member(
                 document=document,
                 start=dialog.start_point,
                 end=dialog.end_point,
-                designation=dialog.profile.currentText(),
+                designation=dialog.profile_designation,
                 element_type=dialog.element_type.currentText(),
                 insertion=dialog.insertion.currentText(),
                 rotation=dialog.rotation.value(),
