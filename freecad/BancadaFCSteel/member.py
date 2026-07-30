@@ -1,0 +1,408 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+"""Parametric structural member document object."""
+
+from __future__ import annotations
+
+from typing import Tuple
+
+import FreeCAD as App
+import Part
+
+from . import profile_catalog
+from .paths import OBJECT_ICON
+
+INSERTION_OPTIONS = [
+    "Centroide",
+    "Face esquerda",
+    "Face direita",
+    "Face superior",
+    "Face inferior",
+    "Canto superior esquerdo",
+    "Canto superior direito",
+    "Canto inferior esquerdo",
+    "Canto inferior direito",
+]
+
+ELEMENT_TYPES = ["Membro", "Pilar", "Viga", "Contraventamento"]
+MATERIALS = ["ASTM A572 Grau 50", "ASTM A36", "Personalizado"]
+EMPTY_SERIES = "— Nenhuma série cadastrada —"
+EMPTY_PROFILE = "— Nenhum perfil cadastrado —"
+
+
+def _add_property(obj, property_type: str, name: str, label: str, group: str, description: str) -> bool:
+    """Add a property when missing and return True only when it was created."""
+    if name in obj.PropertiesList:
+        return False
+    obj.addProperty(property_type, name, group, description)
+    # FreeCAD uses the final argument as the tooltip; the displayed property
+    # label is set separately to keep internal names stable between versions.
+    try:
+        obj.setPropertyStatus(name, "")
+    except Exception:
+        pass
+    return True
+
+
+def _set_enum(obj, name: str, options, preferred: str | None = None, empty_text: str | None = None):
+    options = list(options)
+    if not options and empty_text:
+        options = [empty_text]
+    current = str(getattr(obj, name)) if name in obj.PropertiesList else ""
+    setattr(obj, name, options)
+    selected = preferred if preferred in options else current if current in options else (options[0] if options else "")
+    if selected:
+        setattr(obj, name, selected)
+
+
+def _i_section_face(profile: profile_catalog.Profile) -> Part.Face:
+    """Create a sharp-cornered I section centered at its centroid."""
+    half_b = profile.bf / 2.0
+    half_d = profile.d / 2.0
+    half_tw = profile.tw / 2.0
+    tf = profile.tf
+
+    coordinates = [
+        (-half_b, -half_d),
+        (half_b, -half_d),
+        (half_b, -half_d + tf),
+        (half_tw, -half_d + tf),
+        (half_tw, half_d - tf),
+        (half_b, half_d - tf),
+        (half_b, half_d),
+        (-half_b, half_d),
+        (-half_b, half_d - tf),
+        (-half_tw, half_d - tf),
+        (-half_tw, -half_d + tf),
+        (-half_b, -half_d + tf),
+    ]
+    points = [App.Vector(x, y, 0.0) for x, y in coordinates]
+    points.append(points[0])
+    return Part.Face(Part.makePolygon(points))
+
+
+def _insertion_translation(profile: profile_catalog.Profile, mode: str) -> Tuple[float, float]:
+    half_b = profile.bf / 2.0
+    half_d = profile.d / 2.0
+    translations = {
+        "Centroide": (0.0, 0.0),
+        "Face esquerda": (half_b, 0.0),
+        "Face direita": (-half_b, 0.0),
+        "Face superior": (0.0, -half_d),
+        "Face inferior": (0.0, half_d),
+        "Canto superior esquerdo": (half_b, -half_d),
+        "Canto superior direito": (-half_b, -half_d),
+        "Canto inferior esquerdo": (half_b, half_d),
+        "Canto inferior direito": (-half_b, half_d),
+    }
+    return translations.get(mode, (0.0, 0.0))
+
+
+def _axis_rotation(direction: App.Vector) -> App.Rotation:
+    """Map the local +Z extrusion axis onto the global member direction."""
+    return App.Rotation(App.Vector(0.0, 0.0, 1.0), direction)
+
+
+class StructuralMemberProxy:
+    """Geometry and parametric behavior for a structural member."""
+
+    def __init__(self, obj):
+        self._updating = True
+        obj.Proxy = self
+        self._setup_properties(obj)
+        self._updating = False
+
+    def _setup_properties(self, obj):
+        """Create missing properties and migrate objects from v0.1.0."""
+        group_geometry = "Geometria"
+        group_section = "Seção"
+        group_identity = "Identificação"
+        group_quantities = "Quantitativos"
+
+        created_start = _add_property(obj, "App::PropertyVector", "StartPoint", "Ponto inicial", group_geometry, "Ponto inicial do eixo do elemento.")
+        created_end = _add_property(obj, "App::PropertyVector", "EndPoint", "Ponto final", group_geometry, "Ponto final do eixo do elemento.")
+        created_insertion = _add_property(obj, "App::PropertyEnumeration", "Insertion", "Inserção", group_geometry, "Posição do eixo em relação à seção.")
+        created_rotation = _add_property(obj, "App::PropertyAngle", "Rotation", "Rotação da seção", group_geometry, "Rotação da seção em torno do eixo longitudinal do membro.")
+        created_offset_x = _add_property(obj, "App::PropertyDistance", "OffsetX", "Deslocamento X local", group_geometry, "Deslocamento no eixo X local da seção.")
+        created_offset_y = _add_property(obj, "App::PropertyDistance", "OffsetY", "Deslocamento Y local", group_geometry, "Deslocamento no eixo Y local da seção.")
+        created_start_ext = _add_property(obj, "App::PropertyDistance", "StartExtension", "Extensão inicial", group_geometry, "Prolongamento além do ponto inicial.")
+        created_end_ext = _add_property(obj, "App::PropertyDistance", "EndExtension", "Extensão final", group_geometry, "Prolongamento além do ponto final.")
+
+        created_category = _add_property(obj, "App::PropertyEnumeration", "ProfileCategory", "Categoria do perfil", group_section, "Categoria tecnológica do perfil.")
+        created_series = _add_property(obj, "App::PropertyEnumeration", "ProfileSeries", "Série do perfil", group_section, "Série ou família comercial do perfil.")
+        created_profile = _add_property(obj, "App::PropertyEnumeration", "Profile", "Perfil", group_section, "Perfil estrutural do catálogo.")
+        _add_property(obj, "App::PropertyString", "Manufacturer", "Fabricante", group_section, "Fabricante do perfil.")
+        _add_property(obj, "App::PropertyString", "ProfileFamily", "Família", group_section, "Família técnica do perfil.")
+        created_material = _add_property(obj, "App::PropertyEnumeration", "Material", "Material", group_section, "Material atribuído ao elemento.")
+
+        created_type = _add_property(obj, "App::PropertyEnumeration", "ElementType", "Tipo", group_identity, "Classificação funcional do elemento.")
+        created_display_name = _add_property(obj, "App::PropertyString", "DisplayName", "Nome", group_identity, "Nome apresentado na árvore do documento.")
+        created_mark = _add_property(obj, "App::PropertyString", "Mark", "Marca", group_identity, "Marca ou identificação da peça.")
+        created_phase = _add_property(obj, "App::PropertyString", "Phase", "Fase", group_identity, "Fase de modelagem ou montagem.")
+
+        _add_property(obj, "App::PropertyLength", "MemberLength", "Comprimento", group_quantities, "Comprimento total, incluindo extensões.")
+        _add_property(obj, "App::PropertyFloat", "MassPerMeter", "Massa linear (kg/m)", group_quantities, "Massa linear informada no catálogo.")
+        _add_property(obj, "App::PropertyFloat", "TotalMass", "Massa total (kg)", group_quantities, "Massa linear multiplicada pelo comprimento.")
+        _add_property(obj, "App::PropertyFloat", "CatalogArea", "Área do catálogo (cm²)", group_quantities, "Área geométrica informada no catálogo.")
+        _add_property(obj, "App::PropertyString", "CatalogSource", "Fonte do catálogo", group_quantities, "Documento de origem dos dados.")
+
+        # Enumeration options are assigned only after all dependent properties
+        # exist. This prevents the onChanged race reported in FreeCAD 1.1.3.
+        _set_enum(obj, "Insertion", INSERTION_OPTIONS, "Centroide" if created_insertion else None)
+        _set_enum(obj, "ElementType", ELEMENT_TYPES, "Membro" if created_type else None)
+        _set_enum(obj, "Material", MATERIALS, "ASTM A572 Grau 50" if created_material else None)
+
+        current_profile = str(obj.Profile) if not created_profile and str(obj.Profile) else ""
+        if current_profile:
+            try:
+                current_data = profile_catalog.get(current_profile)
+                preferred_category = current_data.category
+                preferred_series = current_data.series
+            except KeyError:
+                preferred_category = "Aço laminado"
+                preferred_series = "Perfis W"
+        else:
+            preferred_category = "Aço laminado"
+            preferred_series = "Perfis W"
+
+        category_preference = preferred_category if created_category else None
+        _set_enum(obj, "ProfileCategory", profile_catalog.categories(), category_preference)
+        selected_category = str(obj.ProfileCategory)
+
+        available_series = profile_catalog.series_for_category(selected_category)
+        series_preference = preferred_series if created_series else None
+        _set_enum(obj, "ProfileSeries", available_series, series_preference, EMPTY_SERIES)
+        selected_series = str(obj.ProfileSeries)
+
+        available_profiles = profile_catalog.designations(selected_category, selected_series)
+        profile_preference = current_profile if current_profile in available_profiles else None
+        _set_enum(obj, "Profile", available_profiles, profile_preference, EMPTY_PROFILE)
+
+        for prop in ("Manufacturer", "ProfileFamily", "MemberLength", "MassPerMeter", "TotalMass", "CatalogArea", "CatalogSource"):
+            obj.setEditorMode(prop, 1)
+
+        if created_start:
+            obj.StartPoint = App.Vector(0.0, 0.0, 0.0)
+        if created_end:
+            obj.EndPoint = App.Vector(0.0, 0.0, 3000.0)
+        if created_rotation:
+            obj.Rotation = 0.0
+        if created_offset_x:
+            obj.OffsetX = 0.0
+        if created_offset_y:
+            obj.OffsetY = 0.0
+        if created_start_ext:
+            obj.StartExtension = 0.0
+        if created_end_ext:
+            obj.EndExtension = 0.0
+        if created_mark:
+            obj.Mark = ""
+        if created_phase:
+            obj.Phase = ""
+        if created_display_name:
+            obj.DisplayName = obj.Label
+
+        self._update_catalog_properties(obj)
+
+    def _refresh_series_and_profiles(self, obj):
+        category = str(obj.ProfileCategory)
+        _set_enum(obj, "ProfileSeries", profile_catalog.series_for_category(category), empty_text=EMPTY_SERIES)
+        series = str(obj.ProfileSeries)
+        _set_enum(obj, "Profile", profile_catalog.designations(category, series), empty_text=EMPTY_PROFILE)
+
+    def _refresh_profiles(self, obj):
+        category = str(obj.ProfileCategory)
+        series = str(obj.ProfileSeries)
+        _set_enum(obj, "Profile", profile_catalog.designations(category, series), empty_text=EMPTY_PROFILE)
+
+    def _update_catalog_properties(self, obj):
+        required = {"Profile", "Manufacturer", "ProfileFamily", "MassPerMeter", "CatalogArea", "CatalogSource"}
+        if not required.issubset(set(obj.PropertiesList)):
+            return
+        designation = str(obj.Profile)
+        if not designation:
+            return
+        try:
+            profile = profile_catalog.get(designation)
+        except KeyError:
+            return
+        obj.Manufacturer = profile.manufacturer
+        obj.ProfileFamily = profile.family
+        obj.MassPerMeter = profile.mass_per_m
+        obj.CatalogArea = profile.area_cm2
+        obj.CatalogSource = profile.source
+
+    def execute(self, obj):
+        # Also upgrades objects saved with v0.1.0 when they are recomputed.
+        if "ProfileCategory" not in obj.PropertiesList or "DisplayName" not in obj.PropertiesList:
+            self._updating = True
+            self._setup_properties(obj)
+            self._updating = False
+
+        start = App.Vector(obj.StartPoint)
+        end = App.Vector(obj.EndPoint)
+        axis = end.sub(start)
+        base_length = axis.Length
+
+        if base_length <= 1e-7:
+            obj.Shape = Part.Shape()
+            obj.MemberLength = 0.0
+            obj.TotalMass = 0.0
+            return
+
+        # normalize() mutates the vector in FreeCAD. Do not rely on its return
+        # value, which differs between FreeCAD/Python bindings.
+        direction = App.Vector(axis)
+        direction.normalize()
+
+        start_extension = max(0.0, float(obj.StartExtension.Value))
+        end_extension = max(0.0, float(obj.EndExtension.Value))
+        total_length = base_length + start_extension + end_extension
+        try:
+            profile = profile_catalog.get(str(obj.Profile))
+        except KeyError:
+            obj.Shape = Part.Shape()
+            obj.MemberLength = total_length
+            obj.TotalMass = 0.0
+            return
+
+        face = _i_section_face(profile)
+        tx, ty = _insertion_translation(profile, str(obj.Insertion))
+        face.translate(App.Vector(tx + obj.OffsetX.Value, ty + obj.OffsetY.Value, 0.0))
+        solid = face.extrude(App.Vector(0.0, 0.0, total_length))
+
+        # Keep the shape local and drive position/orientation through the
+        # Part::Feature Placement. This fixes members remaining vertical when
+        # the end point is in X/Y and makes the custom section rotation work.
+        alignment = _axis_rotation(direction)
+        roll = App.Rotation(App.Vector(0.0, 0.0, 1.0), float(obj.Rotation.Value))
+        combined_rotation = alignment.multiply(roll)
+        base = start.sub(direction * start_extension)
+
+        obj.Shape = solid
+        obj.Placement = App.Placement(base, combined_rotation)
+        obj.MemberLength = total_length
+        obj.TotalMass = profile.mass_per_m * total_length / 1000.0
+        self._update_catalog_properties(obj)
+
+    def onChanged(self, obj, prop):
+        if getattr(self, "_updating", False):
+            return
+        self._updating = True
+        try:
+            if prop == "ProfileCategory" and "ProfileSeries" in obj.PropertiesList:
+                self._refresh_series_and_profiles(obj)
+                self._update_catalog_properties(obj)
+            elif prop == "ProfileSeries" and "Profile" in obj.PropertiesList:
+                self._refresh_profiles(obj)
+                self._update_catalog_properties(obj)
+            elif prop == "Profile":
+                self._update_catalog_properties(obj)
+            elif prop == "DisplayName" and "DisplayName" in obj.PropertiesList:
+                value = str(obj.DisplayName).strip()
+                if value and obj.Label != value:
+                    obj.Label = value
+            elif prop == "Label" and "DisplayName" in obj.PropertiesList:
+                if str(obj.DisplayName) != obj.Label:
+                    obj.DisplayName = obj.Label
+        except (AttributeError, KeyError, RuntimeError):
+            # During document restore FreeCAD can emit changes while a legacy
+            # object is still receiving its newly added properties.
+            pass
+        finally:
+            self._updating = False
+
+    def onDocumentRestored(self, obj):
+        self._updating = True
+        try:
+            self._setup_properties(obj)
+        finally:
+            self._updating = False
+
+    def dumps(self):
+        return None
+
+    def loads(self, state):
+        return None
+
+    def __getstate__(self):
+        return None
+
+    def __setstate__(self, state):
+        self._updating = False
+
+
+class StructuralMemberViewProvider:
+    def __init__(self, view_object):
+        view_object.Proxy = self
+
+    def getIcon(self):
+        return OBJECT_ICON
+
+    def attach(self, view_object):
+        self.ViewObject = view_object
+        self.Object = view_object.Object
+
+    def updateData(self, obj, prop):
+        pass
+
+    def onChanged(self, view_object, prop):
+        pass
+
+    def getDisplayModes(self, view_object):
+        return []
+
+    def getDefaultDisplayMode(self):
+        return "Flat Lines"
+
+    def setDisplayMode(self, mode):
+        return mode
+
+    def claimChildren(self):
+        return []
+
+    def dumps(self):
+        return None
+
+    def loads(self, state):
+        return None
+
+    def __getstate__(self):
+        return None
+
+    def __setstate__(self, state):
+        return None
+
+
+def create_member(
+    document,
+    start: App.Vector,
+    end: App.Vector,
+    designation: str,
+    element_type: str = "Membro",
+    insertion: str = "Centroide",
+    rotation: float = 0.0,
+    color=(0.72, 0.72, 0.76),
+    display_name: str | None = None,
+):
+    obj = document.addObject("Part::FeaturePython", "StructuralMember")
+    StructuralMemberProxy(obj)
+    StructuralMemberViewProvider(obj.ViewObject)
+
+    profile = profile_catalog.get(designation)
+    obj.StartPoint = start
+    obj.EndPoint = end
+    obj.ProfileCategory = profile.category
+    obj.ProfileSeries = profile.series
+    obj.Profile = designation
+    obj.ElementType = element_type if element_type in ELEMENT_TYPES else "Membro"
+    obj.Insertion = insertion if insertion in INSERTION_OPTIONS else "Centroide"
+    obj.Rotation = rotation
+
+    final_name = (display_name or f"{obj.ElementType} - {designation}").strip()
+    obj.DisplayName = final_name
+    obj.Label = final_name
+
+    obj.ViewObject.ShapeColor = tuple(float(component) for component in color)
+    obj.ViewObject.LineColor = (0.15, 0.15, 0.15)
+    document.recompute()
+    return obj

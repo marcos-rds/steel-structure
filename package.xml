@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<package format="1" xmlns="https://wiki.freecad.org/Package_Metadata">
+  <name>Metal Structure</name>
+  <description>Bancada paramétrica para modelagem de estruturas metálicas com catálogos brasileiros.</description>
+  <version>0.2.0</version>
+  <date>2026-07-30</date>
+  <freecadmin>1.1.0</freecadmin>
+  <pythonmin>3.11</pythonmin>
+  <tag>Structure</tag>
+  <tag>Steel</tag>
+  <tag>BIM</tag>
+  <tag>Brazil</tag>
+  <maintainer>Marcos Roberto da Silva</maintainer>
+  <author>Projeto Metal Structure</author>
+  <license file="LICENSE">LGPL-2.1-or-later</license>
+  <icon>Resources/Icons/BancadaFCSteel.svg</icon>
+  <content>
+    <workbench>
+      <classname>MetalStructureWorkbench</classname>
+      <subdirectory>freecad/BancadaFCSteel</subdirectory>
+    </workbench>
+  </content>
+</package>
