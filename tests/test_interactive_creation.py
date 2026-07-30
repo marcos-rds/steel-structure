@@ -91,6 +91,9 @@ def _load_interactive_modules():
     member.INSERTION_OPTIONS = ["Centroide"]
     catalog = types.ModuleType(f"{package_name}.profile_catalog")
     pyside = types.ModuleType("PySide")
+    pyside.QtCore = types.SimpleNamespace(
+        QTimer=types.SimpleNamespace(singleShot=lambda _delay, callback: callback())
+    )
     pyside.QtGui = types.SimpleNamespace()
     pyside.QtWidgets = types.SimpleNamespace()
 
@@ -189,7 +192,14 @@ class MemberControllerTests(unittest.TestCase):
         state = self.controller_module.ControllerState
         self.assertEqual(
             [item.name for item in state],
-            ["INACTIVE", "READY_NUMERIC", "CREATING", "STOPPING"],
+            [
+                "INACTIVE",
+                "READY_NUMERIC",
+                "WAITING_FIRST_POINT",
+                "WAITING_SECOND_POINT",
+                "CREATING",
+                "STOPPING",
+            ],
         )
         self.assertIs(self.controller.state, state.INACTIVE)
         self.controller.start()
@@ -421,6 +431,48 @@ class MemberTaskPanelLifecycleTests(unittest.TestCase):
         panel.slotDeletedDocument(object())
         self.assertEqual(calls, [True])
 
+    def test_automatic_capture_failure_keeps_numeric_fallback_ready(self):
+        panel = self.panel_module.MemberTaskPanel.__new__(
+            self.panel_module.MemberTaskPanel
+        )
+        panel._closed = False
+        panel.controller = types.SimpleNamespace(
+            state=self.controller_module.ControllerState.READY_NUMERIC,
+            handle_mouse_move=lambda _point: None,
+            cancel_current_segment=lambda: None,
+            request_close_capture=lambda: None,
+            start_capture=lambda *_args: (_ for _ in ()).throw(
+                RuntimeError("vista indisponível")
+            ),
+        )
+        messages = []
+        panel.status_label = types.SimpleNamespace(setText=messages.append)
+        panel.capture_state_label = types.SimpleNamespace(setText=messages.append)
+        panel._active_view = lambda: object()
+        panel._handle_interactive_click = lambda _point: None
+        panel._set_projection_status = lambda _message: None
+        panel._capture_error = lambda _exc: None
+        panel.request_close = lambda: None
+
+        old_tracker = self.panel_module.PreviewTracker
+        old_capture = self.panel_module.PointCapture
+        self.panel_module.PreviewTracker = lambda _view: object()
+        self.panel_module.PointCapture = lambda *_args: object()
+        try:
+            panel.start_automatic_capture()
+        finally:
+            self.panel_module.PreviewTracker = old_tracker
+            self.panel_module.PointCapture = old_capture
+
+        self.assertIs(
+            panel.controller.state,
+            self.controller_module.ControllerState.READY_NUMERIC,
+        )
+        self.assertIn(
+            "Captura na vista indisponível. Utilize a entrada numérica.",
+            messages,
+        )
+
 
 class MemberTaskPanelNameTests(unittest.TestCase):
     @classmethod
@@ -585,7 +637,7 @@ class InteractiveScopeTests(unittest.TestCase):
         self.assertIn("_active_member_panel", source)
         self.assertEqual(source.count('Gui.addCommand("BFC_CreateMember"'), 1)
 
-    def test_panel_contains_required_numeric_fields_and_buttons(self):
+    def test_panel_contains_numeric_fields_without_manual_capture_buttons(self):
         source = PANEL_PATH.read_text(encoding="utf-8")
         for expected in (
             '"Criar elemento estrutural"',
@@ -604,6 +656,8 @@ class InteractiveScopeTests(unittest.TestCase):
         ):
             with self.subTest(expected=expected):
                 self.assertIn(expected, source)
+        self.assertNotIn('QPushButton("Capturar na vista")', source)
+        self.assertNotIn('QPushButton("Parar captura")', source)
 
     def test_compact_text_and_canonical_item_data_are_separate(self):
         source = PANEL_PATH.read_text(encoding="utf-8")
@@ -614,7 +668,7 @@ class InteractiveScopeTests(unittest.TestCase):
         )
         self.assertIn("designation = self.profile.currentData()", source)
 
-    def test_no_callbacks_coin_draft_or_future_modules_exist(self):
+    def test_no_draft_snap_or_solid_preview_exists(self):
         combined = "\n".join(
             path.read_text(encoding="utf-8")
             for path in (
@@ -624,17 +678,30 @@ class InteractiveScopeTests(unittest.TestCase):
             )
         )
         for forbidden in (
-            "addEventCallback",
-            "removeEventCallback",
-            "pivy",
-            "Coin",
             "Draft",
             "SnapAdapter",
+            "Part.Shape",
         ):
             with self.subTest(forbidden=forbidden):
                 self.assertNotIn(forbidden, combined)
-        self.assertFalse((PANEL_PATH.parent / "point_capture.py").exists())
-        self.assertFalse((PANEL_PATH.parent / "preview_tracker.py").exists())
+        preview_source = (PANEL_PATH.parent / "preview_tracker.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertNotIn("fitAll", preview_source)
+        self.assertTrue((PANEL_PATH.parent / "point_capture.py").exists())
+        self.assertTrue((PANEL_PATH.parent / "preview_tracker.py").exists())
+
+    def test_each_capture_activation_constructs_fresh_native_wrappers(self):
+        source = PANEL_PATH.read_text(encoding="utf-8")
+        start_method = source.split(
+            "    def start_automatic_capture(self):", 1
+        )[1].split(
+            "    def _handle_interactive_click(self, point):", 1
+        )[0]
+        self.assertEqual(start_method.count("tracker = PreviewTracker(view)"), 1)
+        self.assertEqual(start_method.count("capture = PointCapture("), 1)
+        self.assertNotIn("self._point_capture", start_method)
+        self.assertNotIn("self._preview_tracker", start_method)
 
 
 if __name__ == "__main__":

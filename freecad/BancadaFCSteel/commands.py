@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import FreeCAD as App
 from FreeCAD import Gui
-from PySide import QtGui, QtWidgets
+from PySide import QtCore, QtGui, QtWidgets
 
 from . import profile_catalog
 from .interactive.member_controller import (
@@ -324,6 +324,7 @@ class CreateMemberCommand:
                 and not getattr(panel, "_closed", False)
             ):
                 _active_member_panel = panel
+                QtCore.QTimer.singleShot(0, panel.start_automatic_capture)
             return
         except Exception as exc:
             if panel is not None:

@@ -134,6 +134,9 @@ def _load_commands_module():
         PrintError=lambda *_args: None,
     )
     pyside = types.ModuleType("PySide")
+    pyside.QtCore = types.SimpleNamespace(
+        QTimer=types.SimpleNamespace(singleShot=lambda _delay, callback: callback())
+    )
     pyside.QtGui = types.SimpleNamespace(QColor=FakeColor)
     pyside.QtWidgets = types.SimpleNamespace(
         QDialog=FakeDialog,
@@ -271,6 +274,7 @@ class TaskDialogActivationTests(unittest.TestCase):
                 self._closed = False
                 self.shutdown_calls = 0
                 self.request_close_calls = 0
+                self.automatic_capture_calls = 0
                 controller.start()
                 panels.append(self)
 
@@ -289,6 +293,9 @@ class TaskDialogActivationTests(unittest.TestCase):
                 self.request_close_calls += 1
                 self.shutdown()
 
+            def start_automatic_capture(self):
+                self.automatic_capture_calls += 1
+
         self.module.MemberController = FakeController
         self.module.MemberTaskPanel = FakePanel
         self.module._run_numeric_fallback = (
@@ -304,6 +311,15 @@ class TaskDialogActivationTests(unittest.TestCase):
         self.activate()
         self.assertEqual(len(self.control.show_calls), 1)
         self.assertIs(self.module._active_member_panel, self.panels[0])
+        self.assertEqual(self.panels[0].automatic_capture_calls, 1)
+
+    def test_show_dialog_precedes_automatic_capture_schedule(self):
+        source = COMMANDS_PATH.read_text(encoding="utf-8")
+        show_position = source.index("Gui.Control.showDialog(panel)")
+        schedule_position = source.index(
+            "QtCore.QTimer.singleShot(0, panel.start_automatic_capture)"
+        )
+        self.assertLess(show_position, schedule_position)
 
     def test_active_dialog_false_allows_opening(self):
         self.control.active_value = False

@@ -8,6 +8,16 @@
 - Correção da detecção de diálogo ativo quando a aba Tarefas está vazia.
 - Correção do reinício do nome automático e do fechamento seguro do painel.
 - Testes automatizados para estados, transações e ciclo de vida da sessão.
+- Captura básica de dois pontos na vista 3D, com criação contínua.
+- Prévia axial leve por linha Coin3D, sem objetos temporários no documento.
+- Cancelamento progressivo com Esc e limpeza simétrica de callbacks e prévia.
+- Entrada numérica preservada como opção para coordenadas espaciais exatas.
+- Encerramento diferido da captura para evitar remoção de callbacks durante eventos Coin.
+- Início automático da captura ao abrir o painel, sem botões Capturar ou Parar.
+- Criação contínua, mantendo a ferramenta ativa para elementos sucessivos.
+- Esc cancela o segmento após o primeiro ponto e fecha a ferramenta ao aguardar o primeiro ponto.
+- Limpeza diferida contra Access violation preservada no encerramento da ferramenta.
+- Captura ainda baseada em projeção da vista, sem snap geométrico.
 
 ## 0.3.0 — 30/07/2026
 

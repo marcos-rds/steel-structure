@@ -8,6 +8,8 @@ from .member_controller import (
     compact_profile_designation,
     next_default_label,
 )
+from .point_capture import PointCapture
+from .preview_tracker import PreviewTracker
 
 __all__ = [
     "ControllerState",
@@ -15,4 +17,6 @@ __all__ = [
     "MemberCreationOptions",
     "compact_profile_designation",
     "next_default_label",
+    "PointCapture",
+    "PreviewTracker",
 ]

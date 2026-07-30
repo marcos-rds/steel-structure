@@ -5,15 +5,18 @@ from __future__ import annotations
 
 import FreeCAD as App
 from FreeCAD import Gui
-from PySide import QtGui, QtWidgets
+from PySide import QtCore, QtGui, QtWidgets
 
 from .. import profile_catalog
 from ..member import ELEMENT_TYPES, INSERTION_OPTIONS
 from .member_controller import (
+    ControllerState,
     MemberCreationOptions,
     compact_profile_designation,
     next_default_label,
 )
+from .point_capture import PointCapture
+from .preview_tracker import PreviewTracker
 
 
 class MemberTaskPanel:
@@ -117,6 +120,12 @@ class MemberTaskPanel:
         )
         self.status_label.setWordWrap(True)
         main_layout.addWidget(self.status_label)
+
+        self.capture_state_label = QtWidgets.QLabel(
+            "Preparando captura na vista..."
+        )
+        self.capture_state_label.setWordWrap(True)
+        main_layout.addWidget(self.capture_state_label)
 
         button_layout = QtWidgets.QHBoxLayout()
         self.create_button = QtWidgets.QPushButton("Criar")
@@ -255,10 +264,10 @@ class MemberTaskPanel:
             self.profile_designation,
         )
 
-    def creation_options(self):
+    def creation_options(self, start=None, end=None):
         return MemberCreationOptions(
-            start=self.start_point,
-            end=self.end_point,
+            start=self.start_point if start is None else start,
+            end=self.end_point if end is None else end,
             designation=self.profile_designation,
             element_type=self.element_type.currentText(),
             insertion=self.insertion.currentText(),
@@ -278,6 +287,104 @@ class MemberTaskPanel:
         self.status_label.setText(f"Elemento criado: {result.member.Label}")
         self._name_custom = False
         self._set_name_programmatically(result.next_default_name)
+
+    def _active_view(self):
+        gui_document = Gui.activeDocument()
+        if gui_document is None:
+            raise RuntimeError("Não existe uma vista 3D ativa.")
+        return gui_document.activeView()
+
+    def start_automatic_capture(self):
+        if self._closed or self.controller is None:
+            return
+        try:
+            view = self._active_view()
+            tracker = PreviewTracker(view)
+            capture = PointCapture(
+                view,
+                self.controller.handle_mouse_move,
+                self._handle_interactive_click,
+                self.controller.cancel_current_segment,
+                self._set_projection_status,
+                lambda: self._active_view() is view,
+                self.controller.request_close_capture,
+                self._capture_error,
+            )
+            self.controller.start_capture(
+                capture,
+                tracker,
+                lambda callback: QtCore.QTimer.singleShot(0, callback),
+                self.request_close,
+            )
+        except Exception as exc:
+            self.status_label.setText(
+                "Captura na vista indisponível. Utilize a entrada numérica."
+            )
+            self.capture_state_label.setText("Captura na vista: indisponível.")
+            App.Console.PrintError(
+                f"Metal Structure: erro ao iniciar captura: {exc}\n"
+            )
+
+    def _handle_interactive_click(self, point):
+        try:
+            self.controller.handle_click(point)
+        except Exception as exc:
+            self.status_label.setText(str(exc))
+            App.Console.PrintError(
+                f"Metal Structure: erro na captura interativa: {exc}\n"
+            )
+
+    def _set_projection_status(self, message):
+        self.status_label.setText(message)
+
+    def _capture_error(self, exc):
+        try:
+            self.controller.request_close_capture()
+        finally:
+            self.status_label.setText(f"Captura encerrada após erro: {exc}")
+            App.Console.PrintError(
+                f"Metal Structure: captura encerrada após erro: {exc}\n"
+            )
+
+    @staticmethod
+    def _point_text(point):
+        return f"({point.x:.3f}, {point.y:.3f}, {point.z:.3f}) mm"
+
+    def update_captured_start(self, point):
+        self._set_vector(self.start_boxes, point)
+        self.status_label.setText(
+            f"Primeiro ponto: {self._point_text(point)}. "
+            "Mova o mouse e clique no ponto final."
+        )
+
+    def update_candidate_start(self, point):
+        self._set_vector(self.start_boxes, point)
+
+    def update_candidate_point(self, point):
+        self._set_vector(self.end_boxes, point)
+
+    def interactive_creation_succeeded(self, result):
+        self.status_label.setText(
+            f"Elemento criado: {result.member.Label}. Selecione o próximo ponto inicial."
+        )
+        self._name_custom = False
+        self._set_name_programmatically(result.next_default_name)
+
+    def update_capture_state(self, state):
+        if not hasattr(self, "capture_state_label"):
+            return
+        messages = {
+            ControllerState.READY_NUMERIC: "Captura na vista: inativa.",
+            ControllerState.WAITING_FIRST_POINT: (
+                "Captura ativa: clique no primeiro ponto. Esc encerra a ferramenta."
+            ),
+            ControllerState.WAITING_SECOND_POINT: (
+                "Captura ativa: clique no segundo ponto. Esc cancela este segmento."
+            ),
+            ControllerState.CREATING: "Criando elemento...",
+            ControllerState.STOPPING: "Encerrando captura com segurança...",
+        }
+        self.capture_state_label.setText(messages.get(state, "Captura na vista: inativa."))
 
     def shutdown(self):
         if self._closed:
