@@ -1,5 +1,14 @@
 # Changelog
 
+## Em desenvolvimento
+
+- Base do controlador de criação preparada para evolução interativa.
+- Painel lateral de tarefas para criação numérica contínua de elementos.
+- Preservação temporária do diálogo numérico como fallback interno.
+- Correção da detecção de diálogo ativo quando a aba Tarefas está vazia.
+- Correção do reinício do nome automático e do fechamento seguro do painel.
+- Testes automatizados para estados, transações e ciclo de vida da sessão.
+
 ## 0.3.0 — 30/07/2026
 
 - Interface simplificada para um único comando de criação.

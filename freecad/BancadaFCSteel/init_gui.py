@@ -22,7 +22,9 @@ class MetalStructureWorkbench(Gui.Workbench):
         pass
 
     def Deactivated(self):
-        pass
+        from . import commands
+
+        commands.close_member_task_panel()
 
     def GetClassName(self):
         return "Gui::PythonWorkbench"

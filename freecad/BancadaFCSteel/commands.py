@@ -3,38 +3,61 @@
 
 from __future__ import annotations
 
-import re
-
 import FreeCAD as App
 from FreeCAD import Gui
 from PySide import QtGui, QtWidgets
 
 from . import profile_catalog
+from .interactive.member_controller import (
+    ControllerState,
+    MemberController,
+    compact_profile_designation,
+    next_default_label as _next_default_label,
+)
+from .interactive.member_task_panel import MemberTaskPanel
 from .member import ELEMENT_TYPES, INSERTION_OPTIONS, create_member
 from .paths import MEMBER_ICON
 
 
-def compact_profile_designation(designation: str) -> str:
-    """Return a catalog designation without spaces for display purposes."""
-    return "".join(designation.split())
+_active_member_panel = None
 
 
-def _next_default_label(document, element_type: str, designation: str) -> str:
-    """Return a readable, stable sequence such as 'Pilar 003 - W200x26,6'."""
-    pattern = re.compile(rf"^{re.escape(element_type)}\s+(\d+)\b", re.IGNORECASE)
-    highest = 0
-    for obj in document.Objects:
-        candidates = [str(getattr(obj, "Label", ""))]
-        if "DisplayName" in getattr(obj, "PropertiesList", []):
-            candidates.append(str(obj.DisplayName))
-        for candidate in candidates:
-            match = pattern.match(candidate.strip())
-            if match:
-                highest = max(highest, int(match.group(1)))
+def _get_active_task_dialog():
+    """Return a real active task dialog, normalizing False and API failures."""
+    try:
+        dialog = Gui.Control.activeDialog()
+    except Exception:
+        return None
+    if dialog is None or dialog is False:
+        return None
+    return dialog
+
+
+def _member_session_is_active():
+    panel = _active_member_panel
+    if panel is None:
+        return False
+    controller = getattr(panel, "controller", None)
     return (
-        f"{element_type} {highest + 1:03d} - "
-        f"{compact_profile_designation(designation)}"
+        controller is not None
+        and getattr(controller, "state", ControllerState.INACTIVE)
+        is not ControllerState.INACTIVE
     )
+
+
+def _discard_stale_member_session():
+    global _active_member_panel
+
+    panel = _active_member_panel
+    if panel is None or _member_session_is_active():
+        return
+    try:
+        panel.shutdown()
+    except Exception:
+        pass
+    finally:
+        if _active_member_panel is panel:
+            _active_member_panel = None
 
 
 class MemberDialog(QtWidgets.QDialog):
@@ -245,6 +268,37 @@ class CreateMemberCommand:
         return True
 
     def Activated(self):
+        global _active_member_panel
+
+        active_dialog = _get_active_task_dialog()
+        _discard_stale_member_session()
+
+        if active_dialog is not None:
+            message = (
+                "Já existe um painel de tarefas ativo. "
+                "Feche-o antes de criar outro elemento estrutural."
+            )
+            App.Console.PrintWarning(f"Metal Structure: {message}\n")
+            QtWidgets.QMessageBox.information(
+                Gui.getMainWindow(),
+                "Metal Structure",
+                message,
+            )
+            return
+
+        if _member_session_is_active():
+            message = (
+                "Uma sessão de criação da Metal Structure já está ativa. "
+                "Feche-a antes de iniciar outra."
+            )
+            App.Console.PrintWarning(f"Metal Structure: {message}\n")
+            QtWidgets.QMessageBox.information(
+                Gui.getMainWindow(),
+                "Metal Structure",
+                message,
+            )
+            return
+
         document = App.ActiveDocument
         if document is None:
             document = App.newDocument("MetalStructure")
@@ -253,46 +307,107 @@ class CreateMemberCommand:
         start = selected_points[0] if len(selected_points) >= 1 else App.Vector(0.0, 0.0, 0.0)
         end = selected_points[1] if len(selected_points) >= 2 else App.Vector(0.0, 0.0, 3000.0)
 
-        parent = Gui.getMainWindow()
-        dialog = MemberDialog(document=document, start=start, end=end, parent=parent)
-        if dialog.exec() != QtWidgets.QDialog.Accepted:
-            return
-        if dialog.start_point.sub(dialog.end_point).Length <= 1e-7:
-            QtWidgets.QMessageBox.warning(
-                parent, "Metal Structure", "Os pontos inicial e final devem ser diferentes."
-            )
-            return
-        if not dialog.profile_designation:
-            QtWidgets.QMessageBox.warning(
-                parent,
-                "Metal Structure",
-                "A categoria selecionada ainda não possui perfis cadastrados.",
-            )
-            return
-
-        document.openTransaction("Criar elemento estrutural")
+        controller = None
+        panel = None
         try:
-            member = create_member(
+            controller = MemberController(document)
+            panel = MemberTaskPanel(
                 document=document,
-                start=dialog.start_point,
-                end=dialog.end_point,
-                designation=dialog.profile_designation,
-                element_type=dialog.element_type.currentText(),
-                insertion=dialog.insertion.currentText(),
-                rotation=dialog.rotation.value(),
-                color=dialog.rgb,
-                display_name=dialog.display_name,
+                controller=controller,
+                start=start,
+                end=end,
+                on_closed=_member_panel_closed,
             )
-            document.commitTransaction()
-            Gui.Selection.clearSelection()
-            Gui.Selection.addSelection(member)
-            Gui.activeDocument().activeView().fitAll()
+            Gui.Control.showDialog(panel)
+            if (
+                controller.state is not ControllerState.INACTIVE
+                and not getattr(panel, "_closed", False)
+            ):
+                _active_member_panel = panel
+            return
         except Exception as exc:
-            document.abortTransaction()
-            App.Console.PrintError(f"Metal Structure: erro ao criar membro: {exc}\n")
-            QtWidgets.QMessageBox.critical(
-                parent, "Metal Structure", f"Não foi possível criar o membro:\n{exc}"
+            if panel is not None:
+                panel.shutdown()
+            elif controller is not None:
+                controller.stop()
+            _active_member_panel = None
+            App.Console.PrintError(
+                f"Metal Structure: não foi possível abrir o painel de tarefas: {exc}\n"
             )
+            QtWidgets.QMessageBox.warning(
+                Gui.getMainWindow(),
+                "Metal Structure",
+                "Não foi possível abrir o painel lateral. "
+                "O modo numérico alternativo será usado.",
+            )
+
+        _run_numeric_fallback(document, start, end)
+
+
+def _member_panel_closed(panel):
+    global _active_member_panel
+    if _active_member_panel is panel:
+        _active_member_panel = None
+
+
+def close_member_task_panel():
+    """Close only the active task panel owned by Metal Structure."""
+    global _active_member_panel
+
+    panel = _active_member_panel
+    if panel is None:
+        return False
+    try:
+        panel.request_close()
+    finally:
+        if not getattr(panel, "_closed", False):
+            panel.shutdown()
+        if _active_member_panel is panel:
+            _active_member_panel = None
+    return True
+
+
+def _run_numeric_fallback(document, start, end):
+    parent = Gui.getMainWindow()
+    dialog = MemberDialog(document=document, start=start, end=end, parent=parent)
+    if dialog.exec() != QtWidgets.QDialog.Accepted:
+        return
+    if dialog.start_point.sub(dialog.end_point).Length <= 1e-7:
+        QtWidgets.QMessageBox.warning(
+            parent, "Metal Structure", "Os pontos inicial e final devem ser diferentes."
+        )
+        return
+    if not dialog.profile_designation:
+        QtWidgets.QMessageBox.warning(
+            parent,
+            "Metal Structure",
+            "A categoria selecionada ainda não possui perfis cadastrados.",
+        )
+        return
+
+    document.openTransaction("Criar elemento estrutural")
+    try:
+        member = create_member(
+            document=document,
+            start=dialog.start_point,
+            end=dialog.end_point,
+            designation=dialog.profile_designation,
+            element_type=dialog.element_type.currentText(),
+            insertion=dialog.insertion.currentText(),
+            rotation=dialog.rotation.value(),
+            color=dialog.rgb,
+            display_name=dialog.display_name,
+        )
+        document.commitTransaction()
+        Gui.Selection.clearSelection()
+        Gui.Selection.addSelection(member)
+        Gui.activeDocument().activeView().fitAll()
+    except Exception as exc:
+        document.abortTransaction()
+        App.Console.PrintError(f"Metal Structure: erro ao criar membro: {exc}\n")
+        QtWidgets.QMessageBox.critical(
+            parent, "Metal Structure", f"Não foi possível criar o membro:\n{exc}"
+        )
 
 
 def _selected_vertex_points():

@@ -76,12 +76,69 @@ def _load_commands_module():
         def __init__(self, *_rgb):
             pass
 
+    class FakeControl:
+        def __init__(self):
+            self.active_value = None
+            self.active_calls = 0
+            self.show_calls = []
+            self.show_failures = []
+            self.close_calls = 0
+            self.taskPanel = object()
+            self.task_view_visible = True
+
+        def activeDialog(self):
+            self.active_calls += 1
+            return self.active_value
+
+        def showDialog(self, panel):
+            self.show_calls.append(panel)
+            if self.show_failures:
+                failure = self.show_failures.pop(0)
+                if failure is not None:
+                    raise failure
+
+        def closeDialog(self):
+            self.close_calls += 1
+
+    class FakeSelection:
+        def getSelectionEx(self):
+            return []
+
+        def clearSelection(self):
+            pass
+
+        def addSelection(self, _member):
+            pass
+
+    messages = types.SimpleNamespace(
+        information_calls=[],
+        warning_calls=[],
+        critical_calls=[],
+    )
+    messages.information = lambda *args: messages.information_calls.append(args)
+    messages.warning = lambda *args: messages.warning_calls.append(args)
+    messages.critical = lambda *args: messages.critical_calls.append(args)
+
     freecad = types.ModuleType("FreeCAD")
-    freecad.Gui = types.SimpleNamespace(addCommand=lambda *_args: None)
+    freecad.Gui = types.SimpleNamespace(
+        addCommand=lambda *_args: None,
+        Control=FakeControl(),
+        Selection=FakeSelection(),
+        getMainWindow=lambda: object(),
+    )
     freecad.Vector = lambda *coordinates: coordinates
+    freecad.ActiveDocument = None
+    freecad.newDocument = lambda _name: types.SimpleNamespace(Objects=[])
+    freecad.Console = types.SimpleNamespace(
+        PrintWarning=lambda *_args: None,
+        PrintError=lambda *_args: None,
+    )
     pyside = types.ModuleType("PySide")
     pyside.QtGui = types.SimpleNamespace(QColor=FakeColor)
-    pyside.QtWidgets = types.SimpleNamespace(QDialog=FakeDialog)
+    pyside.QtWidgets = types.SimpleNamespace(
+        QDialog=FakeDialog,
+        QMessageBox=messages,
+    )
 
     injected = {
         package_name: package,
@@ -102,12 +159,14 @@ def _load_commands_module():
         spec.loader.exec_module(module)
         return module
     finally:
+        for name in list(sys.modules):
+            if name.startswith(f"{package_name}."):
+                sys.modules.pop(name, None)
         for name, old_module in previous.items():
             if old_module is None:
                 sys.modules.pop(name, None)
             else:
                 sys.modules[name] = old_module
-        sys.modules.pop(f"{package_name}.commands", None)
 
 
 class CommandRegistrationTests(unittest.TestCase):
@@ -174,6 +233,176 @@ class CommandRegistrationTests(unittest.TestCase):
         self.assertNotIn("BEAM_ICON", source)
 
 
+class TaskDialogActivationTests(unittest.TestCase):
+    def setUp(self):
+        self.module = _load_commands_module()
+        self.control = self.module.Gui.Control
+        self.document = types.SimpleNamespace(Objects=[])
+        self.module.App.ActiveDocument = self.document
+        self.controllers = []
+        self.panels = []
+        self.fallback_calls = []
+
+        module = self.module
+        controllers = self.controllers
+        panels = self.panels
+
+        class FakeController:
+            def __init__(self, document):
+                self.document = document
+                self.state = module.ControllerState.INACTIVE
+                self.stop_calls = 0
+                controllers.append(self)
+
+            def start(self):
+                self.state = module.ControllerState.READY_NUMERIC
+
+            def stop(self):
+                self.stop_calls += 1
+                self.state = module.ControllerState.INACTIVE
+
+        class FakePanel:
+            def __init__(self, document, controller, start, end, on_closed):
+                self.document = document
+                self.controller = controller
+                self.start = start
+                self.end = end
+                self._on_closed = on_closed
+                self._closed = False
+                self.shutdown_calls = 0
+                self.request_close_calls = 0
+                controller.start()
+                panels.append(self)
+
+            def shutdown(self):
+                if self._closed:
+                    return
+                self._closed = True
+                self.shutdown_calls += 1
+                self.controller.stop()
+                callback = self._on_closed
+                self._on_closed = None
+                if callback is not None:
+                    callback(self)
+
+            def request_close(self):
+                self.request_close_calls += 1
+                self.shutdown()
+
+        self.module.MemberController = FakeController
+        self.module.MemberTaskPanel = FakePanel
+        self.module._run_numeric_fallback = (
+            lambda *args: self.fallback_calls.append(args)
+        )
+        self.module._active_member_panel = None
+
+    def activate(self):
+        self.module.CreateMemberCommand().Activated()
+
+    def test_active_dialog_none_allows_opening(self):
+        self.control.active_value = None
+        self.activate()
+        self.assertEqual(len(self.control.show_calls), 1)
+        self.assertIs(self.module._active_member_panel, self.panels[0])
+
+    def test_active_dialog_false_allows_opening(self):
+        self.control.active_value = False
+        self.activate()
+        self.assertEqual(len(self.control.show_calls), 1)
+        self.assertIs(self.module._active_member_panel, self.panels[0])
+
+    def test_real_active_dialog_blocks_without_closing_other_panel(self):
+        self.control.active_value = object()
+        self.activate()
+        self.assertEqual(self.control.show_calls, [])
+        self.assertEqual(self.control.close_calls, 0)
+        self.assertIsNone(self.module._active_member_panel)
+
+    def test_active_dialog_function_is_called(self):
+        self.activate()
+        self.assertEqual(self.control.active_calls, 1)
+
+    def test_visible_empty_task_tab_does_not_block(self):
+        self.control.active_value = False
+        self.assertIsNotNone(self.control.taskPanel)
+        self.assertTrue(self.control.task_view_visible)
+        self.activate()
+        self.assertEqual(len(self.control.show_calls), 1)
+
+    def test_stale_inactive_member_session_is_discarded(self):
+        stale_controller = types.SimpleNamespace(
+            state=self.module.ControllerState.INACTIVE
+        )
+        stale_panel = types.SimpleNamespace(
+            controller=stale_controller,
+            shutdown_calls=0,
+        )
+
+        def shutdown():
+            stale_panel.shutdown_calls += 1
+
+        stale_panel.shutdown = shutdown
+        self.module._active_member_panel = stale_panel
+        self.activate()
+        self.assertEqual(stale_panel.shutdown_calls, 1)
+        self.assertIs(self.module._active_member_panel, self.panels[0])
+
+    def test_truly_active_member_session_blocks_duplicate(self):
+        active_panel = types.SimpleNamespace(
+            controller=types.SimpleNamespace(
+                state=self.module.ControllerState.READY_NUMERIC
+            )
+        )
+        self.module._active_member_panel = active_panel
+        self.activate()
+        self.assertEqual(self.control.show_calls, [])
+        self.assertIs(self.module._active_member_panel, active_panel)
+
+    def test_show_dialog_failure_cleans_session(self):
+        self.control.show_failures = [RuntimeError("falha controlada")]
+        self.activate()
+        self.assertIsNone(self.module._active_member_panel)
+        self.assertEqual(self.panels[0].shutdown_calls, 1)
+        self.assertIs(
+            self.controllers[0].state,
+            self.module.ControllerState.INACTIVE,
+        )
+        self.assertEqual(len(self.fallback_calls), 1)
+
+    def test_second_attempt_after_show_failure_can_open(self):
+        self.control.show_failures = [RuntimeError("primeira falha"), None]
+        self.activate()
+        self.assertIsNone(self.module._active_member_panel)
+        self.activate()
+        self.assertEqual(len(self.control.show_calls), 2)
+        self.assertIs(self.module._active_member_panel, self.panels[1])
+
+    def test_global_session_is_cleared_and_command_can_reopen(self):
+        self.activate()
+        first = self.panels[0]
+        first.shutdown()
+        self.assertIsNone(self.module._active_member_panel)
+        self.activate()
+        self.assertEqual(len(self.control.show_calls), 2)
+        self.assertIs(self.module._active_member_panel, self.panels[1])
+
+    def test_close_member_task_panel_closes_owned_session(self):
+        self.activate()
+        panel = self.panels[0]
+        self.assertTrue(self.module.close_member_task_panel())
+        self.assertEqual(panel.request_close_calls, 1)
+        self.assertIsNone(self.module._active_member_panel)
+
+    def test_close_member_task_panel_does_not_close_other_tool(self):
+        self.control.active_value = object()
+        self.assertFalse(self.module.close_member_task_panel())
+        self.assertEqual(self.control.close_calls, 0)
+
+    def test_workbench_deactivation_requests_owned_panel_close(self):
+        source = INIT_GUI_PATH.read_text(encoding="utf-8")
+        self.assertIn("commands.close_member_task_panel()", source)
+
+
 class ProfilePresentationTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -210,11 +439,15 @@ class ProfilePresentationTests(unittest.TestCase):
             _source(), _method(dialog, "profile_designation")
         )
         self.assertIn("self.profile.currentData()", profile_property)
-        activated = ast.get_source_segment(
-            _source(), _method(_class(_tree(), "CreateMemberCommand"), "Activated")
-        )
-        self.assertIn("designation=dialog.profile_designation", activated)
-        self.assertNotIn("designation=dialog.profile.currentText()", activated)
+        panel_source = (
+            PROJECT_ROOT
+            / "freecad"
+            / "BancadaFCSteel"
+            / "interactive"
+            / "member_task_panel.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn("designation=self.profile_designation", panel_source)
+        self.assertNotIn("designation=self.profile.currentText()", panel_source)
 
     def test_catalog_lookup_and_profile_property_keep_canonical_designation(self):
         source = _source(MEMBER_PATH)
