@@ -40,6 +40,10 @@ ESSENTIAL_FILES = (
     "freecad/BancadaFCSteel/__init__.py",
     "freecad/BancadaFCSteel/init_gui.py",
     "freecad/BancadaFCSteel/commands.py",
+    "freecad/BancadaFCSteel/interactive/__init__.py",
+    "freecad/BancadaFCSteel/interactive/member_controller.py",
+    "freecad/BancadaFCSteel/interactive/draft_member_tool.py",
+    "freecad/BancadaFCSteel/interactive/profile_options_widget.py",
     "freecad/BancadaFCSteel/member.py",
     "freecad/BancadaFCSteel/profile_catalog.py",
     "freecad/BancadaFCSteel/paths.py",
@@ -112,6 +116,18 @@ class ProjectLayoutTests(unittest.TestCase):
         for relative in ESSENTIAL_FILES:
             with self.subTest(path=relative):
                 self.assertTrue((PROJECT_ROOT / relative).is_file(), relative)
+
+    def test_legacy_interactive_modules_are_absent(self):
+        for name in (
+            "member_task_panel.py",
+            "point_capture.py",
+            "preview_tracker.py",
+            "snap_adapter.py",
+        ):
+            with self.subTest(name=name):
+                self.assertFalse(
+                    (PROJECT_ROOT / "freecad/BancadaFCSteel/interactive" / name).exists()
+                )
 
 
 if __name__ == "__main__":
