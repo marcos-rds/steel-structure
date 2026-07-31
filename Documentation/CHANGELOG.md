@@ -1,18 +1,19 @@
 # Changelog
 
-## Em desenvolvimento
+## 0.4.0 — 31/07/2026
 
-- A criação interativa agora reutiliza diretamente a ferramenta Linha do Draft: painel nativo de coordenadas, Relativo, Global, Continuar, snap, restrições e pré-visualização.
-- As opções estruturais de nome, tipo, perfil, inserção, rotação e cor aparecem em uma caixa separada abaixo da interface nativa.
-- A linha temporária do Draft é descartada e somente o membro paramétrico definitivo é criado; a indisponibilidade da interface Draft é informada sem abrir uma interface alternativa.
-- A barra oficial Draft Snap é registrada diretamente na Metal Structure com os comandos nativos do Draft e fica disponível no menu de barras de ferramentas.
-- O cabeçalho nativo do TaskBox passa de “Primeiro ponto do elemento estrutural” para “Próximo ponto”, com o ícone da Metal Structure preservado e sem herdar o ícone da Linha; Comprimento e Ângulo aparecem somente no segundo estágio.
-- A ferramenta nativa pode ser fechada e reaberta com uma nova instância Draft, limpando referências encerradas.
-- O modo Continuar reutiliza a mesma sessão, interface, prévia e callback nativos do Draft, reiniciando somente o segmento de dois pontos entre membros.
-- Membros estruturais recebem a propriedade editável Length, sincronizada com EndPoint e com MemberLength, preservando StartPoint e a direção atual.
-- O cancelamento parcial do segmento com um primeiro Esc foi adiado; nesta etapa, Esc conserva o encerramento nativo completo da ferramenta Linha.
-- O identificador nativo `Line` é usado para o estado Continuar, eliminando avisos de chave desconhecida nas preferências do Draft.
-- O sistema legado de painel numérico, captura Coin3D, prévia e snap próprios foi removido do fluxo de criação; a entrada gráfica e numérica passa exclusivamente pela infraestrutura nativa do Draft.
+- Nova ferramenta `StructuralMemberDraftTool`, baseada diretamente na Linha nativa do Draft, para criação gráfica ou numérica por dois pontos.
+- Entrada numérica, snaps, restrições, Relativo e Global reutilizam integralmente a infraestrutura nativa do Draft.
+- Opções de nome, tipo, perfil, inserção, rotação e cor integradas ao painel nativo.
+- Modo Continuar cria membros sucessivos na mesma sessão, preservando a interface, a prévia, o callback e as opções do perfil.
+- Fechamento por Esc ou Close e reabertura da ferramenta estabilizados, sem referências residuais de sessão.
+- Corrigido o erro `QLineEdit already deleted`, eliminando manipulação do TaskBox externo, `headerText` e travessia da árvore Qt.
+- Cabeçalho externo fixo “Criar elemento estrutural”, com orientação do primeiro e do próximo ponto pela barra inferior do FreeCAD.
+- Comprimento e Ângulo nativos aparecem somente depois da confirmação do primeiro ponto.
+- Barra oficial Draft Snap registrada na bancada e disponível no menu de barras de ferramentas.
+- Removidos o painel numérico legado, a captura Coin3D própria e os adaptadores próprios de snap e pré-visualização.
+- Propriedade editável `Length`, sincronizada com `StartPoint`, `EndPoint` e `MemberLength`, preservando o ponto inicial e a direção do membro.
+- O cancelamento parcial do segmento com um primeiro Esc permanece adiado; Esc conserva o encerramento nativo completo da Linha.
 
 ### Histórico dos marcos intermediários da 0.4.0
 

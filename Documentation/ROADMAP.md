@@ -1,13 +1,12 @@
 # Roadmap — Metal Structure
 
-## Próximo marco
+## Marco 0.4.0 concluído
 
-- Comandos separados: Pilar e Viga.
-- Painel de tarefas lateral.
-- Criação por dois cliques na vista 3D.
-- Pré-visualização leve acompanhando o cursor.
+- Criação de elementos por dois pontos com a interface nativa da Linha do Draft.
+- Entrada gráfica e numérica, snaps, restrições e criação contínua nativos.
+- Opções de perfil integradas e comprimento editável.
 
-## Marcos seguintes
+## Próximos marcos
 
 - Grid estrutural paramétrico.
 - Snap em interseções do Grid.
