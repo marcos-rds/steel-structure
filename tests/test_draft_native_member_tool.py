@@ -91,16 +91,43 @@ class DraftNativeArchitectureTests(unittest.TestCase):
         self.assertIn("schedule_draft_snap_toolbar_visible()", self.source)
 
     def test_progressive_native_widgets_follow_confirmed_node_count(self):
-        self.assertIn('title = "Primeiro ponto do elemento estrutural" if first else "Próximo ponto"', self.source)
+        self.assertIn('_toolmsg("Selecione o primeiro ponto")', self.source)
+        self.assertIn('_toolmsg("Selecione o próximo ponto")', self.source)
         for name in ("labellength", "lengthValue", "labelangle", "angleValue", "angleLock"):
             self.assertIn(f'"{name}"', self.source)
         self.assertIn("first = len(self.node) == 0", self.source)
         self.assertIn("self._update_point_input_stage()", self.source)
 
     def test_initial_stage_hides_length_and_angle_without_rebuilding_ui(self):
-        self.assertIn('title="Primeiro ponto do elemento estrutural"', self.source)
+        self.assertIn('title="Criar elemento estrutural"', self.source)
         self.assertIn("widget.setVisible(not first)", self.source)
         self.assertEqual(self.source.count("self.ui.lineUi("), 1)
+
+    def test_external_title_is_static_and_stage_guidance_uses_status_bar(self):
+        self.assertIn('self.ui.baseWidget.setWindowTitle("Criar elemento estrutural")', self.source)
+        stage = self.source.split("    def _apply_point_stage_ui", 1)[1].split(
+            "    def _update_point_input_stage", 1
+        )[0]
+        self.assertNotIn("setWindowTitle", stage)
+        self.assertIn('_toolmsg("Selecione o primeiro ponto")', stage)
+        self.assertIn('_toolmsg("Selecione o próximo ponto")', stage)
+
+    def test_profile_widget_has_no_internal_stage_label_or_empty_wrapper(self):
+        self.assertIn("class ProfileOptionsWidget(QtWidgets.QGroupBox):", self.options)
+        self.assertNotIn("QtWidgets.QLabel", self.options)
+        self.assertNotIn("set_stage_text", self.options)
+        self.assertNotIn("set_point_stage", self.options)
+        self.assertNotIn("_stage_label", self.options)
+        self.assertNotIn("stage_font", self.options)
+        self.assertIn("form = QtWidgets.QFormLayout(self)", self.options)
+
+    def test_continue_restores_first_point_status_without_rebuilding_widget(self):
+        reset = self.source.split("    def _reset_segment_for_continue", 1)[1].split(
+            "    def _terminate_native_session", 1
+        )[0]
+        self.assertNotIn("ProfileOptionsWidget", reset)
+        self.assertIn("self._apply_point_stage_ui()", reset)
+        self.assertIn('_toolmsg("Selecione o primeiro ponto")', self.source)
 
     def test_native_path_never_traverses_or_mutates_external_taskbox(self):
         for forbidden in (
@@ -110,7 +137,7 @@ class DraftNativeArchitectureTests(unittest.TestCase):
         ):
             self.assertNotIn(forbidden, self.source)
 
-    def test_stage_applies_member_icon_before_taskbox_materialization(self):
+    def test_member_icon_and_static_title_are_applied_at_activation(self):
         activated = self.source.split("    def Activated", 1)[1].split(
             "    def _apply_point_stage_ui", 1
         )[0]
@@ -207,8 +234,8 @@ class DraftNativeArchitectureTests(unittest.TestCase):
         stage = self.source.split("    def _apply_point_stage_ui", 1)[1].split(
             "    def _update_point_input_stage", 1
         )[0]
-        self.assertIn("base.setWindowTitle(title)", stage)
-        self.assertIn("base.setWindowIcon(QtGui.QIcon(self._task_icon))", stage)
+        self.assertIn('_toolmsg("Selecione o primeiro ponto")', stage)
+        self.assertIn('_toolmsg("Selecione o próximo ponto")', stage)
         self.assertIn("widget.setVisible(not first)", stage)
         for forbidden in ("TaskBox", "headerText", "findChild", "parent"):
             self.assertNotIn(forbidden, stage)

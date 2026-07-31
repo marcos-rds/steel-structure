@@ -55,10 +55,10 @@ class StructuralMemberDraftTool(gui_lines.Line):
         self.controller = MemberController(self.doc)
         self.controller.start()
         self.profile_options = ProfileOptionsWidget(self.doc)
-        self.ui.lineUi(title="Primeiro ponto do elemento estrutural", icon="Draft_Draft",
+        self.ui.lineUi(title="Criar elemento estrutural", icon="Draft_Draft",
                        extra=self.profile_options)
         self._task_icon = icon or MEMBER_ICON
-        self.ui.baseWidget.setWindowTitle("Primeiro ponto do elemento estrutural")
+        self.ui.baseWidget.setWindowTitle("Criar elemento estrutural")
         self.ui.baseWidget.setWindowIcon(QtGui.QIcon(self._task_icon))
         self._last_input_stage = None
         self._update_point_input_stage()
@@ -77,11 +77,10 @@ class StructuralMemberDraftTool(gui_lines.Line):
             return
         first = len(self.node) == 0
         stage = "first" if first else "next"
-        title = "Primeiro ponto do elemento estrutural" if first else "Próximo ponto"
-
-        base = self.ui.baseWidget
-        base.setWindowTitle(title)
-        base.setWindowIcon(QtGui.QIcon(self._task_icon))
+        if first:
+            _toolmsg("Selecione o primeiro ponto")
+        else:
+            _toolmsg("Selecione o próximo ponto")
 
         for name in ("labellength", "lengthValue", "labelangle", "angleValue", "angleLock"):
             widget = getattr(self.ui, name, None)
