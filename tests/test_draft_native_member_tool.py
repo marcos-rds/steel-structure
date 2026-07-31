@@ -27,7 +27,7 @@ class DraftNativeArchitectureTests(unittest.TestCase):
         self.assertIn("extra=self.profile_options", self.source)
 
     def test_native_line_action_and_getpoint_path_are_reused(self):
-        self.assertIn("return super().action(arg)", self.source)
+        self.assertIn("result = super().action(arg)", self.source)
         self.assertNotIn("PointCapture", self.source)
         self.assertNotIn("SnapAdapter", self.source)
         self.assertNotIn("PreviewTracker", self.source)
@@ -49,7 +49,7 @@ class DraftNativeArchitectureTests(unittest.TestCase):
 
     def test_continue_is_native_and_defaults_enabled(self):
         self.assertIn("self.ui.continueMode = True", self.source)
-        self.assertIn("self.ui.continueCmd.setChecked(True)", self.source)
+        self.assertIn("self.ui.continueCmd.setChecked(self.ui.continueMode)", self.source)
         self.assertIn("self.ui.continueMode", self.source)
 
     def test_profile_widget_has_no_coordinate_controls(self):
@@ -69,30 +69,12 @@ class DraftNativeArchitectureTests(unittest.TestCase):
         for forbidden in ("eventFilter", "axis_constraint", "numeric_buffer", "SoSeparator"):
             self.assertNotIn(forbidden, self.source)
 
-    def test_escape_with_first_point_resets_segment_before_native_finish(self):
-        self.assertIn("len(self.node) == 1", self.source)
-        self.assertIn("self.node = []", self.source)
-
-    def test_escape_is_key_down_only_and_ignores_repeat(self):
-        self.assertIn('arg.get("State") != "DOWN"', self.source)
-        self.assertIn('arg.get("AutoRepeat")', self.source)
-        self.assertIn('arg.get("IsAutoRepeat")', self.source)
-
-    def test_first_escape_defers_cleanup_without_finish(self):
+    def test_escape_is_delegated_entirely_to_native_line(self):
+        self.assertNotIn("_cancel_current_segment", self.source)
         action = self.source.split("    def action(self, arg):", 1)[1].split(
-            "    def _cancel_current_segment", 1)[0]
-        self.assertIn("QTimer.singleShot(0, self._cancel_current_segment)", action)
-        self.assertNotIn("self.finish(", action)
-
-    def test_segment_cleanup_keeps_callback_and_profile_options(self):
-        cleanup = self.source.split("    def _cancel_current_segment", 1)[1].split(
-            "    def finish", 1)[0]
-        self.assertNotIn("end_callbacks", cleanup)
-        self.assertNotIn("profile_options =", cleanup)
-        self.assertIn("Gui.Snapper.setTrackers()", cleanup)
-
-    def test_second_escape_delegates_to_native_line(self):
-        self.assertIn("return super().action(arg)", self.source)
+            "    def numericInput", 1
+        )[0]
+        self.assertNotIn("SoKeyboardEvent", action)
 
     def test_registered_line_key_is_separate_from_preview_name(self):
         self.assertIn('Creator.Activated(self, "Line")', self.source)
@@ -100,11 +82,181 @@ class DraftNativeArchitectureTests(unittest.TestCase):
         self.assertNotIn('Creator.Activated(self, "MetalStructureDraftPreview")', self.source)
 
     def test_native_line_ui_is_initialized_once_per_activation(self):
-        activated = self.source.split("    def Activated", 1)[1].split("    def action", 1)[0]
+        activated = self.source.split("    def Activated", 1)[1].split(
+            "    def _apply_point_stage_ui", 1
+        )[0]
         self.assertEqual(activated.count("self.ui.lineUi("), 1)
 
     def test_finish_schedules_toolbar_restore(self):
         self.assertIn("schedule_draft_snap_toolbar_visible()", self.source)
+
+    def test_progressive_native_widgets_follow_confirmed_node_count(self):
+        self.assertIn('title = "Primeiro ponto do elemento estrutural" if first else "Próximo ponto"', self.source)
+        for name in ("labellength", "lengthValue", "labelangle", "angleValue", "angleLock"):
+            self.assertIn(f'"{name}"', self.source)
+        self.assertIn("first = len(self.node) == 0", self.source)
+        self.assertIn("self._update_point_input_stage()", self.source)
+
+    def test_initial_stage_hides_length_and_angle_without_rebuilding_ui(self):
+        self.assertIn('title="Primeiro ponto do elemento estrutural"', self.source)
+        self.assertIn("widget.setVisible(not first)", self.source)
+        self.assertEqual(self.source.count("self.ui.lineUi("), 1)
+
+    def test_native_path_never_traverses_or_mutates_external_taskbox(self):
+        for forbidden in (
+            "_point_input_taskbox", "Gui::TaskView::TaskBox", "headerText",
+            "findChild", "findChildren", "parent()", "parentWidget()",
+            "metaObject", "QtWidgets",
+        ):
+            self.assertNotIn(forbidden, self.source)
+
+    def test_stage_applies_member_icon_before_taskbox_materialization(self):
+        activated = self.source.split("    def Activated", 1)[1].split(
+            "    def _apply_point_stage_ui", 1
+        )[0]
+        self.assertIn("baseWidget.setWindowIcon(QtGui.QIcon(self._task_icon))", activated)
+        self.assertIn("icon or MEMBER_ICON", activated)
+        self.assertNotIn('icon="Draft_Line"', activated)
+        self.assertNotIn("self.Activated(icon=self._task_icon", self.source)
+
+    def test_continue_resets_same_line_instance_without_terminal_cleanup(self):
+        finish = self.source.split("    def finish", 1)[1].split(
+            "    def _reset_segment_for_continue", 1
+        )[0]
+        self.assertNotIn("self.Activated(", finish)
+        self.assertNotIn("self.ui.lineUi(", finish)
+        self.assertIn("self._reset_segment_for_continue()", finish)
+        self.assertNotIn("gui_base_original.Creator.finish(self)", finish)
+
+    def test_external_continue_restart_has_been_removed(self):
+        self.assertNotIn("def _member_draft_tool_continue", self.commands)
+        self.assertNotIn("on_continue", self.commands)
+        self.assertNotIn("on_continue", self.source)
+
+    def test_creator_finish_and_close_notification_are_terminal_only(self):
+        reset = self.source.split("    def _reset_segment_for_continue", 1)[1].split(
+            "    def _terminate_native_session", 1
+        )[0]
+        terminal = self.source.split("    def _terminate_native_session", 1)[1].split(
+            "    def abort_activation", 1
+        )[0]
+        for forbidden in (
+            "Creator.finish", "lineUi", "offUi", "closeDialog",
+            "_start_native_member_tool", "Activated", "removeTemporaryObject",
+            "end_callbacks", "_notify_closed", "controller.stop",
+        ):
+            self.assertNotIn(forbidden, reset)
+        self.assertEqual(terminal.count("gui_base_original.Creator.finish(self)"), 1)
+        self.assertEqual(terminal.count("self._notify_closed()"), 1)
+
+    def test_continue_preserves_native_session_objects_and_active_state(self):
+        reset = self.source.split("    def _reset_segment_for_continue", 1)[1].split(
+            "    def _terminate_native_session", 1
+        )[0]
+        for forbidden in (
+            "self.ui =", "self.profile_options =", "self.controller =",
+            "self.call =", "self.obj =", "TOOL_FINISHING", "TOOL_FINISHED",
+        ):
+            self.assertNotIn(forbidden, reset)
+        self.assertNotIn("App.activeDraftCommand =", reset)
+
+    def test_continue_resets_segment_constraints_and_native_values(self):
+        reset = self.source.split("    def _reset_segment_for_continue", 1)[1].split(
+            "    def _terminate_native_session", 1
+        )[0]
+        for statement in (
+            "self.node = []", "self.point = None", "self.pos = []",
+            "self.support = None", "self.constrain = None", "self.ui.mask = None",
+            "Gui.Snapper.mask = None", "self.ui.reset_ui_values()",
+        ):
+            self.assertIn(statement, reset)
+        for field in ("xValue", "yValue", "zValue", "lengthValue", "angleValue"):
+            self.assertIn(f'"{field}"', reset)
+
+    def test_continue_hides_but_keeps_preview_and_restores_first_stage(self):
+        reset = self.source.split("    def _reset_segment_for_continue", 1)[1].split(
+            "    def _terminate_native_session", 1
+        )[0]
+        self.assertIn("self.obj.ViewObject.Visibility = False", reset)
+        self.assertIn("self._last_input_stage = None", reset)
+        self.assertIn("self._apply_point_stage_ui()", reset)
+        self.assertNotIn("removeObject", reset)
+
+    def test_continue_uses_official_units_and_blocks_programmatic_signals(self):
+        reset = self.source.split("    def _reset_segment_for_continue", 1)[1].split(
+            "    def _terminate_native_session", 1
+        )[0]
+        self.assertIn("App.Units.Length", reset)
+        self.assertIn("App.Units.Angle", reset)
+        self.assertIn("blockSignals(True)", reset)
+        self.assertIn("blockSignals(blocked)", reset)
+
+    def test_official_toolbar_exists_before_tool_construction_and_activation(self):
+        start = self.commands.split("def _start_native_member_tool", 1)[1].split(
+            "def _member_draft_tool_continue", 1
+        )[0]
+        self.assertLess(start.index("import DraftGui"), start.index("tool = tool_class("))
+        self.assertLess(start.index("tool = tool_class("), start.index("tool.Activated("))
+        self.assertIn('hasattr(Gui, "draftToolBar")', start)
+        self.assertLess(start.index("Gui.Control.clearTaskWatcher()"), start.index("tool = tool_class("))
+        self.assertNotIn("clearTaskWatcher()", start.split("tool.Activated(", 1)[1])
+        self.assertNotIn("tool.ui =", start)
+        self.assertNotIn("DraftGui.DraftToolBar(", self.commands)
+
+    def test_title_icon_and_progressive_controls_share_one_stage_operation(self):
+        stage = self.source.split("    def _apply_point_stage_ui", 1)[1].split(
+            "    def _update_point_input_stage", 1
+        )[0]
+        self.assertIn("base.setWindowTitle(title)", stage)
+        self.assertIn("base.setWindowIcon(QtGui.QIcon(self._task_icon))", stage)
+        self.assertIn("widget.setVisible(not first)", stage)
+        for forbidden in ("TaskBox", "headerText", "findChild", "parent"):
+            self.assertNotIn(forbidden, stage)
+
+    def test_stage_update_is_idempotent_and_ignores_closed_tool(self):
+        self.assertIn("if App.activeDraftCommand is not self or self.ui is None:", self.source)
+        self.assertIn("if stage == self._last_input_stage:", self.source)
+        self.assertIn("self._last_input_stage = stage", self.source)
+
+    def test_native_mouse_action_completes_before_deferred_stage_update(self):
+        action = self.source.split("    def action(self, arg):", 1)[1].split(
+            "    def numericInput", 1
+        )[0]
+        self.assertLess(action.index("super().action(arg)"), action.index("_schedule_stage_update()"))
+
+    def test_numeric_and_insert_button_path_schedule_after_native_processing(self):
+        numeric = self.source.split("    def numericInput", 1)[1].split(
+            "    def drawUpdate", 1
+        )[0]
+        self.assertLess(numeric.index("super().numericInput"), numeric.index("_schedule_stage_update()"))
+
+    def test_deferred_updates_are_consolidated_and_generation_guarded(self):
+        self.assertIn("if not self._tool_active or self._stage_update_pending:", self.source)
+        self.assertIn("QtCore.QTimer.singleShot(0,", self.source)
+        self.assertIn("if generation != self._stage_generation:", self.source)
+        self.assertIn("self._stage_generation += 1", self.source)
+        self.assertIn("self._tool_active = False", self.source)
+
+    def test_native_instance_has_terminal_lifecycle_states(self):
+        for state in ("TOOL_NEW", "TOOL_ACTIVE", "TOOL_FINISHING", "TOOL_FINISHED"):
+            self.assertIn(state, self.source)
+        self.assertIn("self._lifecycle_state != TOOL_NEW", self.source)
+        self.assertIn("self._lifecycle_state = TOOL_FINISHING", self.source)
+        self.assertIn("self._lifecycle_state = TOOL_FINISHED", self.source)
+
+    def test_finish_is_idempotent_and_notifies_session_once(self):
+        self.assertIn("if self._lifecycle_state in (TOOL_FINISHING, TOOL_FINISHED):", self.source)
+        self.assertIn("if self._closed_notified:", self.source)
+        self.assertIn("self._on_closed(self)", self.source)
+
+    def test_partial_activation_has_explicit_native_cleanup(self):
+        cleanup = self.source.split("    def abort_activation", 1)[1].split(
+            "    def _notify_closed", 1
+        )[0]
+        self.assertIn("self.end_callbacks(call)", cleanup)
+        self.assertIn("self.removeTemporaryObject()", cleanup)
+        self.assertIn("gui_base_original.Creator.finish(self)", cleanup)
+        self.assertIn("controller.stop()", cleanup)
 
 
 if __name__ == "__main__":

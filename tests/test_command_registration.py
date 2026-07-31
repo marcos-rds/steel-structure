@@ -83,6 +83,7 @@ def _load_commands_module():
             self.show_calls = []
             self.show_failures = []
             self.close_calls = 0
+            self.clear_watcher_calls = 0
             self.taskPanel = object()
             self.task_view_visible = True
 
@@ -99,6 +100,9 @@ def _load_commands_module():
 
         def closeDialog(self):
             self.close_calls += 1
+
+        def clearTaskWatcher(self):
+            self.clear_watcher_calls += 1
 
     class FakeSelection:
         def getSelectionEx(self):
@@ -125,6 +129,7 @@ def _load_commands_module():
         Control=FakeControl(),
         Selection=FakeSelection(),
         getMainWindow=lambda: object(),
+        draftToolBar=object(),
     )
     freecad.Vector = lambda *coordinates: coordinates
     freecad.ActiveDocument = None
@@ -142,6 +147,8 @@ def _load_commands_module():
         QDialog=FakeDialog,
         QMessageBox=messages,
     )
+    draft_tools = types.ModuleType("DraftTools")
+    draft_gui = types.ModuleType("DraftGui")
 
     injected = {
         package_name: package,
@@ -150,6 +157,8 @@ def _load_commands_module():
         f"{package_name}.paths": paths,
         "FreeCAD": freecad,
         "PySide": pyside,
+        "DraftTools": draft_tools,
+        "DraftGui": draft_gui,
     }
     previous = {name: sys.modules.get(name) for name in injected}
     sys.modules.update(injected)
@@ -238,6 +247,11 @@ class CommandRegistrationTests(unittest.TestCase):
 
 class TaskDialogActivationTests(unittest.TestCase):
     def setUp(self):
+        self._previous_draft_modules = {
+            name: sys.modules.get(name) for name in ("DraftTools", "DraftGui")
+        }
+        sys.modules["DraftTools"] = types.ModuleType("DraftTools")
+        sys.modules["DraftGui"] = types.ModuleType("DraftGui")
         self.module = _load_commands_module()
         self.control = self.module.Gui.Control
         self.document = types.SimpleNamespace(Objects=[])
@@ -302,6 +316,15 @@ class TaskDialogActivationTests(unittest.TestCase):
             lambda *args: self.fallback_calls.append(args)
         )
         self.module._active_member_panel = None
+        self.module._active_member_tool = None
+        self.module.App.activeDraftCommand = None
+
+    def tearDown(self):
+        for name, previous in self._previous_draft_modules.items():
+            if previous is None:
+                sys.modules.pop(name, None)
+            else:
+                sys.modules[name] = previous
 
     def activate(self):
         self.module.CreateMemberCommand().Activated()
@@ -399,6 +422,93 @@ class TaskDialogActivationTests(unittest.TestCase):
         self.assertEqual(len(self.control.show_calls), 2)
         self.assertIs(self.module._active_member_panel, self.panels[1])
 
+    def test_native_tool_uses_a_fresh_instance_after_each_finished_session(self):
+        instances = []
+        module = self.module
+
+        class FakeNativeTool:
+            def __init__(self, on_closed, **_kwargs):
+                self.on_closed = on_closed
+                self.active = False
+                self.abort_calls = 0
+                instances.append(self)
+
+            def Activated(self, **_kwargs):
+                self.active = True
+                self.ui = module.Gui.draftToolBar
+                module.App.activeDraftCommand = self
+
+            def is_active(self):
+                return self.active
+
+            def finish(self, **_kwargs):
+                self.active = False
+                module.App.activeDraftCommand = None
+                self.on_closed(self)
+
+            def abort_activation(self):
+                self.abort_calls += 1
+                self.finish()
+
+        module._load_native_draft_tool = lambda: FakeNativeTool
+        self.activate()
+        first = module._active_member_tool
+        first.finish()
+        self.activate()
+        second = module._active_member_tool
+        self.assertIsNot(first, second)
+        self.assertEqual(len(instances), 2)
+        self.assertEqual(self.fallback_calls, [])
+
+    def test_duplicate_command_does_not_replace_an_active_native_tool(self):
+        module = self.module
+        created = []
+
+        class FakeNativeTool:
+            def __init__(self, on_closed, **_kwargs):
+                self.on_closed = on_closed
+                created.append(self)
+
+            def Activated(self, **_kwargs):
+                self.ui = module.Gui.draftToolBar
+                module.App.activeDraftCommand = self
+
+            def is_active(self):
+                return True
+
+        module._load_native_draft_tool = lambda: FakeNativeTool
+        self.activate()
+        first = module._active_member_tool
+        self.activate()
+        self.assertIs(module._active_member_tool, first)
+        self.assertEqual(len(created), 1)
+        self.assertEqual(self.fallback_calls, [])
+
+    def test_unexpected_native_activation_error_does_not_open_numeric_fallback(self):
+        module = self.module
+
+        class BrokenNativeTool:
+            def __init__(self, on_closed, **_kwargs):
+                self.on_closed = on_closed
+                self.abort_calls = 0
+
+            def Activated(self, **_kwargs):
+                raise RuntimeError("stale native ui")
+
+            def abort_activation(self):
+                self.abort_calls += 1
+                self.on_closed(self)
+
+        module._load_native_draft_tool = lambda: BrokenNativeTool
+        self.activate()
+        self.assertIsNone(module._active_member_tool)
+        self.assertEqual(self.control.show_calls, [])
+        self.assertEqual(self.fallback_calls, [])
+        self.assertIn(
+            "Consulte a Vista de relatório",
+            self.module.QtWidgets.QMessageBox.warning_calls[-1][2],
+        )
+
     def test_close_member_task_panel_closes_owned_session(self):
         self.activate()
         panel = self.panels[0]
@@ -417,17 +527,39 @@ class TaskDialogActivationTests(unittest.TestCase):
 
     def test_workbench_activation_ensures_native_snap_toolbar(self):
         source = INIT_GUI_PATH.read_text(encoding="utf-8")
-        self.assertIn("def _find_native_draft_snap_toolbar():", source)
-        self.assertIn('findChild(QtWidgets.QToolBar, "Draft Snap")', source)
-        self.assertIn('("Draft Snap", "Encaixe de Draft")', source)
-        self.assertIn("init_tools.init_toolbar(", source)
-        self.assertIn("toolbar.setVisible(True)", source)
+        self.assertIn("init_tools.get_draft_snap_commands()", source)
+        self.assertIn('QT_TRANSLATE_NOOP("Workbench", "Draft Snap")', source)
+        self.assertIn("self.appendToolbar(", source)
+        self.assertIn("snapper.show()", source)
+
+    def test_workbench_clears_draft_watchers_before_showing_snapper(self):
+        source = INIT_GUI_PATH.read_text(encoding="utf-8")
+        activation = source.split("def _activate_native_draft_interface", 1)[1].split(
+            "def ensure_draft_snap_toolbar_visible", 1
+        )[0]
+        self.assertLess(activation.index("draft_toolbar.Activated()"),
+                        activation.index("Gui.Control.clearTaskWatcher()"))
+        self.assertLess(activation.index("Gui.Control.clearTaskWatcher()"),
+                        activation.index("snapper.show()"))
+
+    def test_workbench_deactivation_clears_watchers_before_hiding_snapper(self):
+        source = INIT_GUI_PATH.read_text(encoding="utf-8")
+        deactivation = source.split("    def Deactivated(self):", 1)[1].split(
+            "    def GetClassName", 1
+        )[0]
+        self.assertLess(deactivation.index("commands.close_member_task_panel()"),
+                        deactivation.index("draft_toolbar.Deactivated()"))
+        self.assertLess(deactivation.index("draft_toolbar.Deactivated()"),
+                        deactivation.index("Gui.Control.clearTaskWatcher()"))
+        self.assertLess(deactivation.index("Gui.Control.clearTaskWatcher()"),
+                        deactivation.index("snapper.hide()"))
 
     def test_toolbar_is_not_repositioned_or_recreated(self):
         source = INIT_GUI_PATH.read_text(encoding="utf-8")
         self.assertNotIn("setGeometry(", source)
         self.assertNotIn(".move(", source)
         self.assertNotIn("QToolBar(", source)
+        self.assertNotIn("init_tools.init_toolbar(", source)
 
 
 class ProfilePresentationTests(unittest.TestCase):

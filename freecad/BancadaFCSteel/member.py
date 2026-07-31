@@ -25,6 +25,21 @@ INSERTION_OPTIONS = [
 
 ELEMENT_TYPES = ["Membro", "Pilar", "Viga", "Contraventamento"]
 MATERIALS = ["ASTM A572 Grau 50", "ASTM A36", "Personalizado"]
+LENGTH_TOLERANCE = 1e-7
+
+
+def _quantity_value(value) -> float:
+    return float(getattr(value, "Value", value))
+
+
+def _has_expression(obj, property_name: str) -> bool:
+    try:
+        return bool(obj.getExpression(property_name))
+    except (AttributeError, RuntimeError, TypeError):
+        try:
+            return any(item[0] == property_name for item in obj.ExpressionEngine)
+        except (AttributeError, TypeError):
+            return False
 EMPTY_SERIES = "— Nenhuma série cadastrada —"
 EMPTY_PROFILE = "— Nenhum perfil cadastrado —"
 
@@ -107,6 +122,8 @@ class StructuralMemberProxy:
 
     def __init__(self, obj):
         self._updating = True
+        self._syncing_length = False
+        self._last_valid_length = None
         obj.Proxy = self
         self._setup_properties(obj)
         self._updating = False
@@ -120,6 +137,7 @@ class StructuralMemberProxy:
 
         created_start = _add_property(obj, "App::PropertyVector", "StartPoint", "Ponto inicial", group_geometry, "Ponto inicial do eixo do elemento.")
         created_end = _add_property(obj, "App::PropertyVector", "EndPoint", "Ponto final", group_geometry, "Ponto final do eixo do elemento.")
+        created_length = _add_property(obj, "App::PropertyLength", "Length", "Length", group_geometry, "Comprimento editável do elemento. Ao alterar, o ponto inicial é mantido e o ponto final é deslocado ao longo da direção atual.")
         created_insertion = _add_property(obj, "App::PropertyEnumeration", "Insertion", "Inserção", group_geometry, "Posição do eixo em relação à seção.")
         created_rotation = _add_property(obj, "App::PropertyAngle", "Rotation", "Rotação da seção", group_geometry, "Rotação da seção em torno do eixo longitudinal do membro.")
         created_offset_x = _add_property(obj, "App::PropertyDistance", "OffsetX", "Deslocamento X local", group_geometry, "Deslocamento no eixo X local da seção.")
@@ -139,7 +157,7 @@ class StructuralMemberProxy:
         created_mark = _add_property(obj, "App::PropertyString", "Mark", "Marca", group_identity, "Marca ou identificação da peça.")
         created_phase = _add_property(obj, "App::PropertyString", "Phase", "Fase", group_identity, "Fase de modelagem ou montagem.")
 
-        _add_property(obj, "App::PropertyLength", "MemberLength", "Comprimento", group_quantities, "Comprimento total, incluindo extensões.")
+        _add_property(obj, "App::PropertyLength", "MemberLength", "Comprimento", group_quantities, "Comprimento geométrico calculado entre os pontos inicial e final, sem extensões.")
         _add_property(obj, "App::PropertyFloat", "MassPerMeter", "Massa linear (kg/m)", group_quantities, "Massa linear informada no catálogo.")
         _add_property(obj, "App::PropertyFloat", "TotalMass", "Massa total (kg)", group_quantities, "Massa linear multiplicada pelo comprimento.")
         _add_property(obj, "App::PropertyFloat", "CatalogArea", "Área do catálogo (cm²)", group_quantities, "Área geométrica informada no catálogo.")
@@ -184,6 +202,10 @@ class StructuralMemberProxy:
             obj.StartPoint = App.Vector(0.0, 0.0, 0.0)
         if created_end:
             obj.EndPoint = App.Vector(0.0, 0.0, 3000.0)
+        if created_length:
+            length = App.Vector(obj.EndPoint).sub(App.Vector(obj.StartPoint)).Length
+            obj.Length = length
+            self._last_valid_length = length
         if created_rotation:
             obj.Rotation = 0.0
         if created_offset_x:
@@ -202,6 +224,31 @@ class StructuralMemberProxy:
             obj.DisplayName = obj.Label
 
         self._update_catalog_properties(obj)
+
+    def _sync_length_from_points(self, obj):
+        length = App.Vector(obj.EndPoint).sub(App.Vector(obj.StartPoint)).Length
+        if length <= LENGTH_TOLERANCE:
+            return False
+        obj.MemberLength = length
+        if not _has_expression(obj, "Length"):
+            obj.Length = length
+        self._last_valid_length = length
+        return True
+
+    def _sync_endpoint_from_length(self, obj):
+        requested = _quantity_value(obj.Length)
+        axis = App.Vector(obj.EndPoint).sub(App.Vector(obj.StartPoint))
+        if requested <= LENGTH_TOLERANCE or axis.Length <= LENGTH_TOLERANCE:
+            if self._last_valid_length and self._last_valid_length > LENGTH_TOLERANCE:
+                obj.Length = self._last_valid_length
+            App.Console.PrintWarning("Metal Structure: comprimento ou direção inválida.\n")
+            return False
+        direction = App.Vector(axis)
+        direction.normalize()
+        obj.EndPoint = App.Vector(obj.StartPoint).add(direction * requested)
+        obj.MemberLength = requested
+        self._last_valid_length = requested
+        return True
 
     def _refresh_series_and_profiles(self, obj):
         category = str(obj.ProfileCategory)
@@ -233,7 +280,7 @@ class StructuralMemberProxy:
 
     def execute(self, obj):
         # Also upgrades objects saved with v0.1.0 when they are recomputed.
-        if "ProfileCategory" not in obj.PropertiesList or "DisplayName" not in obj.PropertiesList:
+        if "ProfileCategory" not in obj.PropertiesList or "DisplayName" not in obj.PropertiesList or "Length" not in obj.PropertiesList:
             self._updating = True
             self._setup_properties(obj)
             self._updating = False
@@ -243,7 +290,7 @@ class StructuralMemberProxy:
         axis = end.sub(start)
         base_length = axis.Length
 
-        if base_length <= 1e-7:
+        if base_length <= LENGTH_TOLERANCE:
             obj.Shape = Part.Shape()
             obj.MemberLength = 0.0
             obj.TotalMass = 0.0
@@ -261,7 +308,7 @@ class StructuralMemberProxy:
             profile = profile_catalog.get(str(obj.Profile))
         except KeyError:
             obj.Shape = Part.Shape()
-            obj.MemberLength = total_length
+            obj.MemberLength = base_length
             obj.TotalMass = 0.0
             return
 
@@ -280,12 +327,24 @@ class StructuralMemberProxy:
 
         obj.Shape = solid
         obj.Placement = App.Placement(base, combined_rotation)
-        obj.MemberLength = total_length
+        obj.MemberLength = base_length
         obj.TotalMass = profile.mass_per_m * total_length / 1000.0
         self._update_catalog_properties(obj)
 
     def onChanged(self, obj, prop):
-        if getattr(self, "_updating", False):
+        if getattr(self, "_updating", False) or getattr(self, "_syncing_length", False):
+            return
+        if prop in ("Length", "StartPoint", "EndPoint"):
+            self._syncing_length = True
+            try:
+                if prop == "Length":
+                    self._sync_endpoint_from_length(obj)
+                else:
+                    self._sync_length_from_points(obj)
+            except (AttributeError, RuntimeError, TypeError, ValueError):
+                pass
+            finally:
+                self._syncing_length = False
             return
         self._updating = True
         try:
@@ -315,6 +374,11 @@ class StructuralMemberProxy:
         self._updating = True
         try:
             self._setup_properties(obj)
+            self._syncing_length = True
+            try:
+                self._sync_length_from_points(obj)
+            finally:
+                self._syncing_length = False
         finally:
             self._updating = False
 
@@ -329,6 +393,8 @@ class StructuralMemberProxy:
 
     def __setstate__(self, state):
         self._updating = False
+        self._syncing_length = False
+        self._last_valid_length = None
 
 
 class StructuralMemberViewProvider:

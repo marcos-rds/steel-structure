@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import traceback
+
 import FreeCAD as App
 from FreeCAD import Gui
 from PySide import QtGui, QtWidgets
@@ -23,6 +25,10 @@ _active_member_panel = None
 _active_member_tool = None
 
 
+class DraftInterfaceUnavailable(RuntimeError):
+    """The installed Draft infrastructure cannot provide the native tool."""
+
+
 def _get_active_task_dialog():
     """Return a real active task dialog, normalizing False and API failures."""
     try:
@@ -35,6 +41,11 @@ def _get_active_task_dialog():
 
 
 def _member_session_is_active():
+    tool = _active_member_tool
+    if tool is not None:
+        checker = getattr(tool, "is_active", None)
+        if callable(checker) and checker() and getattr(App, "activeDraftCommand", None) is tool:
+            return True
     panel = _active_member_panel
     if panel is None:
         return False
@@ -47,7 +58,13 @@ def _member_session_is_active():
 
 
 def _discard_stale_member_session():
-    global _active_member_panel
+    global _active_member_panel, _active_member_tool
+
+    tool = _active_member_tool
+    if tool is not None:
+        checker = getattr(tool, "is_active", None)
+        if not callable(checker) or not checker() or getattr(App, "activeDraftCommand", None) is not tool:
+            _active_member_tool = None
 
     panel = _active_member_panel
     if panel is None or _member_session_is_active():
@@ -59,6 +76,52 @@ def _discard_stale_member_session():
     finally:
         if _active_member_panel is panel:
             _active_member_panel = None
+
+
+def _load_native_draft_tool():
+    """Load Draft structurally; runtime activation errors are not fallback cases."""
+    try:
+        import DraftTools  # noqa: F401 - official Draft GUI initialization
+        import DraftGui  # noqa: F401 - owns the process-wide DraftToolBar
+        from .interactive.draft_member_tool import (
+            StructuralMemberDraftTool,
+            draft_native_available,
+        )
+    except (ImportError, AttributeError) as exc:
+        raise DraftInterfaceUnavailable(str(exc)) from exc
+    try:
+        available = StructuralMemberDraftTool is not None and draft_native_available()
+    except Exception as exc:
+        raise DraftInterfaceUnavailable(str(exc)) from exc
+    if not available:
+        raise DraftInterfaceUnavailable("Draft UI unavailable")
+    return StructuralMemberDraftTool
+
+
+def _start_native_member_tool(tool_class, document):
+    """Start one fresh native session with Draft's process-wide toolbar."""
+    global _active_member_tool
+    if getattr(App, "activeDraftCommand", None) is not None:
+        raise RuntimeError("A Draft command is already active")
+    import DraftTools  # noqa: F401 - official Draft initialization
+    import DraftGui  # noqa: F401 - creates draftToolBar only when absent
+    if not hasattr(Gui, "draftToolBar"):
+        raise DraftInterfaceUnavailable("DraftToolBar was not initialized by Draft")
+    Gui.Control.clearTaskWatcher()
+    tool = tool_class(
+        on_closed=_member_draft_tool_closed,
+    )
+    _active_member_tool = tool
+    try:
+        tool.Activated(icon=MEMBER_ICON, task_title="Criar elemento estrutural")
+    except Exception:
+        try:
+            tool.abort_activation(skip_native_ui_cleanup=True)
+        finally:
+            if _active_member_tool is tool:
+                _active_member_tool = None
+        raise
+    return tool
 
 
 class MemberDialog(QtWidgets.QDialog):
@@ -271,26 +334,19 @@ class CreateMemberCommand:
     def Activated(self):
         global _active_member_panel, _active_member_tool
 
-        active_dialog = _get_active_task_dialog()
         _discard_stale_member_session()
 
+        if _member_session_is_active():
+            App.Console.PrintWarning(
+                "Metal Structure: A ferramenta Criar elemento estrutural já está ativa.\n"
+            )
+            return
+
+        active_dialog = _get_active_task_dialog()
         if active_dialog is not None:
             message = (
                 "Já existe um painel de tarefas ativo. "
                 "Feche-o antes de criar outro elemento estrutural."
-            )
-            App.Console.PrintWarning(f"Metal Structure: {message}\n")
-            QtWidgets.QMessageBox.information(
-                Gui.getMainWindow(),
-                "Metal Structure",
-                message,
-            )
-            return
-
-        if _member_session_is_active():
-            message = (
-                "Uma sessão de criação da Metal Structure já está ativa. "
-                "Feche-a antes de iniciar outra."
             )
             App.Console.PrintWarning(f"Metal Structure: {message}\n")
             QtWidgets.QMessageBox.information(
@@ -309,29 +365,49 @@ class CreateMemberCommand:
         end = selected_points[1] if len(selected_points) >= 2 else App.Vector(0.0, 0.0, 3000.0)
 
         try:
-            import DraftTools
-            from .interactive.draft_member_tool import StructuralMemberDraftTool, draft_native_available
-            if not draft_native_available():
-                raise RuntimeError("Draft UI unavailable")
-            tool = StructuralMemberDraftTool(on_closed=_member_draft_tool_closed)
-            _active_member_tool = tool
-            tool.Activated(icon=MEMBER_ICON, task_title="Criar elemento estrutural")
-            return
-        except Exception as exc:
-            _active_member_tool = None
-            _active_member_panel = None
-            App.Console.PrintError(
-                f"Metal Structure: não foi possível abrir o painel de tarefas: {exc}\n"
+            tool_class = _load_native_draft_tool()
+        except DraftInterfaceUnavailable as exc:
+            App.Console.PrintWarning(
+                f"Metal Structure: interface Draft indisponível: {exc}\n"
             )
             QtWidgets.QMessageBox.warning(
                 Gui.getMainWindow(),
                 "Metal Structure",
                 "Interface Draft indisponível. Utilizando entrada numérica.",
             )
-
-        if _open_numeric_task_panel(document, start, end):
+            if _open_numeric_task_panel(document, start, end):
+                return
+            _run_numeric_fallback(document, start, end)
             return
-        _run_numeric_fallback(document, start, end)
+
+        tool = None
+        try:
+            tool = _start_native_member_tool(tool_class, document)
+        except Exception:
+            failed_tool = tool or _active_member_tool
+            App.Console.PrintError(
+                "Metal Structure: falha inesperada ao ativar a ferramenta nativa:\n"
+                + traceback.format_exc()
+            )
+            try:
+                if failed_tool is not None:
+                    failed_tool.abort_activation(skip_native_ui_cleanup=True)
+            except Exception:
+                App.Console.PrintError(
+                    "Metal Structure: falha adicional ao limpar a ativação parcial:\n"
+                    + traceback.format_exc()
+                )
+            finally:
+                if failed_tool is not None and _active_member_tool is failed_tool:
+                    _active_member_tool = None
+            QtWidgets.QMessageBox.warning(
+                Gui.getMainWindow(),
+                "Metal Structure",
+                "Não foi possível iniciar a ferramenta nativa. "
+                "Consulte a Vista de relatório.",
+            )
+            return
+        return
 
 
 def _member_panel_closed(panel):
