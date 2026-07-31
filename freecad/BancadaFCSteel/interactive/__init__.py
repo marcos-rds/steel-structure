@@ -17,6 +17,11 @@ from .snap_adapter import (
     SnapAdapter,
     SnapResult,
 )
+try:
+    from .draft_member_tool import StructuralMemberDraftTool, draft_native_available
+except ImportError:
+    StructuralMemberDraftTool = None
+    draft_native_available = lambda: False
 
 __all__ = [
     "ControllerState",
@@ -31,4 +36,6 @@ __all__ = [
     "DraftSnapToolbarManager",
     "SnapAdapter",
     "SnapResult",
+    "StructuralMemberDraftTool",
+    "draft_native_available",
 ]

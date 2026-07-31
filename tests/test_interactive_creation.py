@@ -668,7 +668,7 @@ class InteractiveScopeTests(unittest.TestCase):
         )
         self.assertIn("designation = self.profile.currentData()", source)
 
-    def test_no_draft_snap_or_solid_preview_exists(self):
+    def test_native_draft_is_primary_without_solid_preview(self):
         combined = "\n".join(
             path.read_text(encoding="utf-8")
             for path in (
@@ -677,13 +677,10 @@ class InteractiveScopeTests(unittest.TestCase):
                 COMMANDS_PATH,
             )
         )
-        for forbidden in (
-            "Draft",
-            "SnapAdapter",
-            "Part.Shape",
-        ):
+        for forbidden in ("SnapAdapter", "Part.Shape"):
             with self.subTest(forbidden=forbidden):
                 self.assertNotIn(forbidden, combined)
+        self.assertIn("StructuralMemberDraftTool", combined)
         preview_source = (PANEL_PATH.parent / "preview_tracker.py").read_text(
             encoding="utf-8"
         )

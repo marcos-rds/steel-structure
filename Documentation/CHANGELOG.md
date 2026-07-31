@@ -2,6 +2,13 @@
 
 ## Em desenvolvimento
 
+- A criação interativa agora reutiliza diretamente a ferramenta Linha do Draft: painel nativo de coordenadas, Relativo, Global, Continuar, snap, restrições e pré-visualização.
+- As opções estruturais de nome, tipo, perfil, inserção, rotação e cor aparecem em uma caixa separada abaixo da interface nativa.
+- A linha temporária do Draft é descartada e somente o membro paramétrico definitivo é criado, com entrada numérica segura como fallback quando o Draft não está disponível.
+- Esc cancela somente o segmento quando o primeiro ponto já foi definido; um novo Esc encerra a ferramenta.
+- A barra nativa Encaixe de Draft é assegurada no nível da bancada e restaurada após a limpeza nativa da ferramenta.
+- O identificador nativo `Line` é usado para o estado Continuar, eliminando avisos de chave desconhecida nas preferências do Draft.
+
 - Base do controlador de criação preparada para evolução interativa.
 - Painel lateral de tarefas para criação numérica contínua de elementos.
 - Preservação temporária do diálogo numérico como fallback interno.

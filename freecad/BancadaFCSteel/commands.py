@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import FreeCAD as App
 from FreeCAD import Gui
-from PySide import QtCore, QtGui, QtWidgets
+from PySide import QtGui, QtWidgets
 
 from . import profile_catalog
 from .interactive.member_controller import (
@@ -20,6 +20,7 @@ from .paths import MEMBER_ICON
 
 
 _active_member_panel = None
+_active_member_tool = None
 
 
 def _get_active_task_dialog():
@@ -268,7 +269,7 @@ class CreateMemberCommand:
         return True
 
     def Activated(self):
-        global _active_member_panel
+        global _active_member_panel, _active_member_tool
 
         active_dialog = _get_active_task_dialog()
         _discard_stale_member_session()
@@ -307,30 +308,17 @@ class CreateMemberCommand:
         start = selected_points[0] if len(selected_points) >= 1 else App.Vector(0.0, 0.0, 0.0)
         end = selected_points[1] if len(selected_points) >= 2 else App.Vector(0.0, 0.0, 3000.0)
 
-        controller = None
-        panel = None
         try:
-            controller = MemberController(document)
-            panel = MemberTaskPanel(
-                document=document,
-                controller=controller,
-                start=start,
-                end=end,
-                on_closed=_member_panel_closed,
-            )
-            Gui.Control.showDialog(panel)
-            if (
-                controller.state is not ControllerState.INACTIVE
-                and not getattr(panel, "_closed", False)
-            ):
-                _active_member_panel = panel
-                QtCore.QTimer.singleShot(0, panel.start_automatic_capture)
+            import DraftTools
+            from .interactive.draft_member_tool import StructuralMemberDraftTool, draft_native_available
+            if not draft_native_available():
+                raise RuntimeError("Draft UI unavailable")
+            tool = StructuralMemberDraftTool(on_closed=_member_draft_tool_closed)
+            _active_member_tool = tool
+            tool.Activated(icon=MEMBER_ICON, task_title="Criar elemento estrutural")
             return
         except Exception as exc:
-            if panel is not None:
-                panel.shutdown()
-            elif controller is not None:
-                controller.stop()
+            _active_member_tool = None
             _active_member_panel = None
             App.Console.PrintError(
                 f"Metal Structure: não foi possível abrir o painel de tarefas: {exc}\n"
@@ -338,10 +326,11 @@ class CreateMemberCommand:
             QtWidgets.QMessageBox.warning(
                 Gui.getMainWindow(),
                 "Metal Structure",
-                "Não foi possível abrir o painel lateral. "
-                "O modo numérico alternativo será usado.",
+                "Interface Draft indisponível. Utilizando entrada numérica.",
             )
 
+        if _open_numeric_task_panel(document, start, end):
+            return
         _run_numeric_fallback(document, start, end)
 
 
@@ -351,9 +340,45 @@ def _member_panel_closed(panel):
         _active_member_panel = None
 
 
+def _member_draft_tool_closed(tool):
+    global _active_member_tool
+    if _active_member_tool is tool:
+        _active_member_tool = None
+
+
+def _open_numeric_task_panel(document, start, end):
+    """Open the validated numeric task panel without starting 3D capture."""
+    global _active_member_panel
+    controller = None
+    panel = None
+    try:
+        controller = MemberController(document)
+        panel = MemberTaskPanel(document=document, controller=controller, start=start,
+                                end=end, on_closed=_member_panel_closed)
+        Gui.Control.showDialog(panel)
+        if controller.state is not ControllerState.INACTIVE and not panel._closed:
+            _active_member_panel = panel
+        return True
+    except Exception:
+        if panel is not None:
+            panel.shutdown()
+        elif controller is not None:
+            controller.stop()
+        _active_member_panel = None
+        return False
+
+
 def close_member_task_panel():
     """Close only the active task panel owned by Metal Structure."""
-    global _active_member_panel
+    global _active_member_panel, _active_member_tool
+
+    tool = _active_member_tool
+    if tool is not None:
+        try:
+            tool.finish(cont=False)
+        finally:
+            _active_member_tool = None
+        return True
 
     panel = _active_member_panel
     if panel is None:

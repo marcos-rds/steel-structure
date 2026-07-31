@@ -311,15 +311,12 @@ class TaskDialogActivationTests(unittest.TestCase):
         self.activate()
         self.assertEqual(len(self.control.show_calls), 1)
         self.assertIs(self.module._active_member_panel, self.panels[0])
-        self.assertEqual(self.panels[0].automatic_capture_calls, 1)
+        self.assertEqual(self.panels[0].automatic_capture_calls, 0)
 
-    def test_show_dialog_precedes_automatic_capture_schedule(self):
+    def test_numeric_fallback_does_not_schedule_custom_capture(self):
         source = COMMANDS_PATH.read_text(encoding="utf-8")
-        show_position = source.index("Gui.Control.showDialog(panel)")
-        schedule_position = source.index(
-            "QtCore.QTimer.singleShot(0, panel.start_automatic_capture)"
-        )
-        self.assertLess(show_position, schedule_position)
+        self.assertIn("Gui.Control.showDialog(panel)", source)
+        self.assertNotIn("panel.start_automatic_capture", source)
 
     def test_active_dialog_false_allows_opening(self):
         self.control.active_value = False
@@ -417,6 +414,20 @@ class TaskDialogActivationTests(unittest.TestCase):
     def test_workbench_deactivation_requests_owned_panel_close(self):
         source = INIT_GUI_PATH.read_text(encoding="utf-8")
         self.assertIn("commands.close_member_task_panel()", source)
+
+    def test_workbench_activation_ensures_native_snap_toolbar(self):
+        source = INIT_GUI_PATH.read_text(encoding="utf-8")
+        self.assertIn("def _find_native_draft_snap_toolbar():", source)
+        self.assertIn('findChild(QtWidgets.QToolBar, "Draft Snap")', source)
+        self.assertIn('("Draft Snap", "Encaixe de Draft")', source)
+        self.assertIn("init_tools.init_toolbar(", source)
+        self.assertIn("toolbar.setVisible(True)", source)
+
+    def test_toolbar_is_not_repositioned_or_recreated(self):
+        source = INIT_GUI_PATH.read_text(encoding="utf-8")
+        self.assertNotIn("setGeometry(", source)
+        self.assertNotIn(".move(", source)
+        self.assertNotIn("QToolBar(", source)
 
 
 class ProfilePresentationTests(unittest.TestCase):
