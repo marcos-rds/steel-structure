@@ -78,7 +78,7 @@ class MetalStructureWorkbench(Gui.Workbench):
     def Deactivated(self):
         from . import commands
 
-        commands.close_member_task_panel()
+        commands.close_member_tool()
         draft_toolbar = getattr(Gui, "draftToolBar", None)
         if draft_toolbar is not None and hasattr(draft_toolbar, "Deactivated"):
             draft_toolbar.Deactivated()

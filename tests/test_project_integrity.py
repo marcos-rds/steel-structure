@@ -42,10 +42,6 @@ ESSENTIAL_FILES = (
     "freecad/BancadaFCSteel/commands.py",
     "freecad/BancadaFCSteel/interactive/__init__.py",
     "freecad/BancadaFCSteel/interactive/member_controller.py",
-    "freecad/BancadaFCSteel/interactive/member_task_panel.py",
-    "freecad/BancadaFCSteel/interactive/point_capture.py",
-    "freecad/BancadaFCSteel/interactive/preview_tracker.py",
-    "freecad/BancadaFCSteel/interactive/snap_adapter.py",
     "freecad/BancadaFCSteel/interactive/draft_member_tool.py",
     "freecad/BancadaFCSteel/interactive/profile_options_widget.py",
     "freecad/BancadaFCSteel/member.py",
@@ -121,15 +117,17 @@ class ProjectLayoutTests(unittest.TestCase):
             with self.subTest(path=relative):
                 self.assertTrue((PROJECT_ROOT / relative).is_file(), relative)
 
-    def test_interactive_capture_does_not_use_native_get_point_callbacks(self):
-        source = "\n".join(
-            (PROJECT_ROOT / relative).read_text(encoding="utf-8")
-            for relative in (
-                "freecad/BancadaFCSteel/interactive/point_capture.py",
-                "freecad/BancadaFCSteel/interactive/snap_adapter.py",
-            )
-        )
-        self.assertNotIn("Snapper.getPoint(", source)
+    def test_legacy_interactive_modules_are_absent(self):
+        for name in (
+            "member_task_panel.py",
+            "point_capture.py",
+            "preview_tracker.py",
+            "snap_adapter.py",
+        ):
+            with self.subTest(name=name):
+                self.assertFalse(
+                    (PROJECT_ROOT / "freecad/BancadaFCSteel/interactive" / name).exists()
+                )
 
 
 if __name__ == "__main__":

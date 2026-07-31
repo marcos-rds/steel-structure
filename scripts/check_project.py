@@ -29,10 +29,6 @@ ESSENTIAL_FILES = (
     "freecad/BancadaFCSteel/commands.py",
     "freecad/BancadaFCSteel/interactive/__init__.py",
     "freecad/BancadaFCSteel/interactive/member_controller.py",
-    "freecad/BancadaFCSteel/interactive/member_task_panel.py",
-    "freecad/BancadaFCSteel/interactive/point_capture.py",
-    "freecad/BancadaFCSteel/interactive/preview_tracker.py",
-    "freecad/BancadaFCSteel/interactive/snap_adapter.py",
     "freecad/BancadaFCSteel/interactive/draft_member_tool.py",
     "freecad/BancadaFCSteel/interactive/profile_options_widget.py",
     "freecad/BancadaFCSteel/member.py",
@@ -152,16 +148,6 @@ def run_checks() -> list[str]:
         except (OSError, SyntaxError, UnicodeError) as exc:
             errors.append(f"Python inválido em {path.relative_to(PROJECT_ROOT)}: {exc}")
 
-    interactive_source = "\n".join(
-        path.read_text(encoding="utf-8")
-        for path in (
-            PROJECT_ROOT / "freecad/BancadaFCSteel/interactive/point_capture.py",
-            PROJECT_ROOT / "freecad/BancadaFCSteel/interactive/snap_adapter.py",
-        )
-    )
-    if "Snapper.getPoint(" in interactive_source:
-        errors.append("a captura interativa não pode usar Gui.Snapper.getPoint()")
-
     return errors
 
 
@@ -178,7 +164,6 @@ def main() -> int:
     print("OK: designações são únicas e todos os perfis possuem campos e valores válidos.")
     print("OK: todos os arquivos Python compilam sintaticamente.")
     print("OK: todos os arquivos essenciais existem.")
-    print("OK: a captura não usa Gui.Snapper.getPoint().")
     return 0
 
 

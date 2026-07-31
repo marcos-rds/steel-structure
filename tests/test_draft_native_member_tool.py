@@ -22,6 +22,11 @@ class DraftNativeArchitectureTests(unittest.TestCase):
     def test_tool_inherits_installed_draft_line(self):
         self.assertIn("class StructuralMemberDraftTool(gui_lines.Line):", self.source)
 
+    def test_document_close_lifecycle_remains_owned_by_native_draft_tool(self):
+        self.assertIn("class StructuralMemberDraftTool(gui_lines.Line):", self.source)
+        self.assertNotIn("addDocumentObserver", self.source)
+        self.assertNotIn("slotDeletedDocument", self.source)
+
     def test_native_line_ui_receives_profile_widget_as_extra(self):
         self.assertIn("self.ui.lineUi(", self.source)
         self.assertIn("extra=self.profile_options", self.source)
@@ -60,9 +65,11 @@ class DraftNativeArchitectureTests(unittest.TestCase):
         self.assertIn("compact_profile_designation(designation), designation", self.options)
         self.assertIn("self.profile.currentData()", self.options)
 
-    def test_command_uses_official_draft_initialization_and_safe_fallback(self):
+    def test_command_uses_official_draft_initialization_without_legacy_panel(self):
         self.assertIn("import DraftTools", self.commands)
-        self.assertIn("Interface Draft indisponível", self.commands)
+        self.assertIn("Não foi possível iniciar a ferramenta nativa", self.commands)
+        self.assertNotIn("MemberTaskPanel", self.commands)
+        self.assertNotIn("Gui.Control.showDialog", self.commands)
         self.assertNotIn("panel.start_automatic_capture", self.commands)
 
     def test_no_custom_axis_filter_or_preview_in_native_tool(self):
