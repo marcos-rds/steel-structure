@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
+
 import FreeCAD as App
 import Part
 
@@ -10,6 +12,31 @@ from .grid_geometry import build_grid_geometry
 
 
 IDENTIFICATION_OPTIONS = ("Numeric", "Alphabetic", "Custom")
+_DATA_PROPERTY_SCHEMA = (
+    ("App::PropertyString", "GridType", "Identity", "Tipo estável do objeto."),
+    ("App::PropertyInteger", "SchemaVersion", "Identity", "Versão do esquema de propriedades."),
+    ("App::PropertyString", "DisplayName", "Identity", "Nome exibido na árvore do documento."),
+    ("App::PropertyFloatList", "XSpacings", "Grid", "Espaçamentos consecutivos entre eixos, armazenados em milímetros."),
+    ("App::PropertyFloatList", "YSpacings", "Grid", "Espaçamentos consecutivos entre eixos, armazenados em milímetros."),
+    ("App::PropertyLength", "XStartExtension", "Grid", "Extensão da linha de eixo."),
+    ("App::PropertyLength", "XEndExtension", "Grid", "Extensão da linha de eixo."),
+    ("App::PropertyLength", "YStartExtension", "Grid", "Extensão da linha de eixo."),
+    ("App::PropertyLength", "YEndExtension", "Grid", "Extensão da linha de eixo."),
+    ("App::PropertyEnumeration", "XAxisIdentification", "Identification", "Esquema de identificação dos eixos."),
+    ("App::PropertyEnumeration", "YAxisIdentification", "Identification", "Esquema de identificação dos eixos."),
+    ("App::PropertyStringList", "XAxisLabels", "Identification", "Identificadores dos eixos."),
+    ("App::PropertyStringList", "YAxisLabels", "Identification", "Identificadores dos eixos."),
+    ("App::PropertyLength", "OverallLengthX", "Results", "Resultado calculado do grid."),
+    ("App::PropertyLength", "OverallLengthY", "Results", "Resultado calculado do grid."),
+    ("App::PropertyLength", "DisplayedLengthX", "Results", "Resultado calculado do grid."),
+    ("App::PropertyLength", "DisplayedLengthY", "Results", "Resultado calculado do grid."),
+    ("App::PropertyInteger", "XAxisCount", "Results", "Resultado calculado do grid."),
+    ("App::PropertyInteger", "YAxisCount", "Results", "Resultado calculado do grid."),
+    ("App::PropertyInteger", "IntersectionCount", "Results", "Resultado calculado do grid."),
+    ("App::PropertyVectorList", "IntersectionPoints", "Results", "Resultado calculado do grid."),
+    ("App::PropertyStringList", "IntersectionKeys", "Results", "Resultado calculado do grid."),
+)
+REQUIRED_GRID_DATA_PROPERTIES = frozenset(item[1] for item in _DATA_PROPERTY_SCHEMA)
 _GEOMETRY_PROPERTIES = {
     "XSpacings",
     "YSpacings",
@@ -58,11 +85,70 @@ def _set_enumeration(obj, name: str, selected: str) -> None:
     setattr(obj, name, selected)
 
 
+def _restore_enumeration(obj, name: str, default: str) -> None:
+    """Restore all options while preserving a valid existing selection."""
+    current = str(getattr(obj, name, ""))
+    _set_enumeration(obj, name, current if current in IDENTIFICATION_OPTIONS else default)
+
+
 def _console_error(message: str) -> None:
     try:
         App.Console.PrintError(f"Metal Structure: erro ao atualizar Grid Estrutural: {message}\n")
     except Exception:
         pass
+
+
+def _placement_signature(placement):
+    """Return a numeric signature without retaining mutable FreeCAD objects."""
+    try:
+        base = placement.Base
+        rotation = placement.Rotation
+        quaternion = tuple(float(value) for value in rotation.Q)
+        return (float(base.x), float(base.y), float(base.z), quaternion)
+    except (AttributeError, ReferenceError, RuntimeError, TypeError, ValueError):
+        return None
+
+
+def _copy_placement(placement):
+    """Make an independent copy using APIs supported by different FreeCAD builds."""
+    copier = getattr(placement, "copy", None)
+    if callable(copier):
+        try:
+            return copier()
+        except (AttributeError, ReferenceError, RuntimeError, TypeError):
+            pass
+    try:
+        return App.Placement(placement)
+    except (AttributeError, ReferenceError, RuntimeError, TypeError):
+        try:
+            base = placement.Base
+            rotation = placement.Rotation
+            return App.Placement(App.Vector(base.x, base.y, base.z), App.Rotation(*rotation.Q))
+        except (AttributeError, ReferenceError, RuntimeError, TypeError, ValueError):
+            return None
+
+
+@contextmanager
+def _preserve_placement(obj):
+    """Defend FreeCAD's persisted Placement against schema/Shape side effects."""
+    try:
+        original = obj.Placement
+    except (AttributeError, ReferenceError, RuntimeError, TypeError):
+        yield
+        return
+    signature = _placement_signature(original)
+    saved = _copy_placement(original)
+    try:
+        yield
+    finally:
+        if signature is None or saved is None:
+            return
+        try:
+            current_signature = _placement_signature(obj.Placement)
+        except (AttributeError, ReferenceError, RuntimeError, TypeError):
+            current_signature = None
+        if current_signature != signature:
+            obj.Placement = saved
 
 
 def _build_compound(result):
@@ -79,42 +165,28 @@ class StructuralGridProxy:
 
     def __init__(self, obj):
         self._updating = True
+        self._schema_ready = False
         obj.Proxy = self
         try:
-            self._setup_properties(obj)
+            self._setup_properties(obj, refresh_enumerations=True)
+            self._schema_ready = True
         finally:
             self._updating = False
 
+    @staticmethod
+    def _object_properties(obj):
+        try:
+            return set(obj.PropertiesList)
+        except (AttributeError, ReferenceError, RuntimeError, TypeError):
+            return None
 
-    def _setup_properties(self, obj) -> None:
-        created = {}
-        created["GridType"] = _add_property(obj, "App::PropertyString", "GridType", "Identity", "Tipo estável do objeto.")
-        created["SchemaVersion"] = _add_property(obj, "App::PropertyInteger", "SchemaVersion", "Identity", "Versão do esquema de propriedades.")
-        created["DisplayName"] = _add_property(obj, "App::PropertyString", "DisplayName", "Identity", "Nome exibido na árvore do documento.")
+    def _schema_complete(self, obj) -> bool:
+        properties = self._object_properties(obj)
+        return properties is not None and REQUIRED_GRID_DATA_PROPERTIES.issubset(properties)
 
-        for name in ("XSpacings", "YSpacings"):
-            created[name] = _add_property(obj, "App::PropertyFloatList", name, "Grid", "Espaçamentos consecutivos entre eixos, armazenados em milímetros.")
-        for name in ("XStartExtension", "XEndExtension", "YStartExtension", "YEndExtension"):
-            created[name] = _add_property(obj, "App::PropertyLength", name, "Grid", "Extensão da linha de eixo.")
-
-        for name in ("XAxisIdentification", "YAxisIdentification"):
-            created[name] = _add_property(obj, "App::PropertyEnumeration", name, "Identification", "Esquema de identificação dos eixos.")
-        for name in ("XAxisLabels", "YAxisLabels"):
-            created[name] = _add_property(obj, "App::PropertyStringList", name, "Identification", "Identificadores dos eixos.")
-
-        result_types = {
-            "OverallLengthX": "App::PropertyLength",
-            "OverallLengthY": "App::PropertyLength",
-            "DisplayedLengthX": "App::PropertyLength",
-            "DisplayedLengthY": "App::PropertyLength",
-            "XAxisCount": "App::PropertyInteger",
-            "YAxisCount": "App::PropertyInteger",
-            "IntersectionCount": "App::PropertyInteger",
-            "IntersectionPoints": "App::PropertyVectorList",
-            "IntersectionKeys": "App::PropertyStringList",
-        }
-        for name, property_type in result_types.items():
-            created[name] = _add_property(obj, property_type, name, "Results", "Resultado calculado do grid.")
+    def _setup_properties(self, obj, refresh_enumerations=False) -> None:
+        created = {name: _add_property(obj, property_type, name, group, description)
+                   for property_type, name, group, description in _DATA_PROPERTY_SCHEMA}
 
         if created["GridType"]:
             obj.GridType = "StructuralGrid"
@@ -129,22 +201,53 @@ class StructuralGridProxy:
         for name in ("XStartExtension", "XEndExtension", "YStartExtension", "YEndExtension"):
             if created[name]:
                 setattr(obj, name, 1000.0)
-        if created["XAxisIdentification"]:
-            _set_enumeration(obj, "XAxisIdentification", "Numeric")
-        if created["YAxisIdentification"]:
-            _set_enumeration(obj, "YAxisIdentification", "Alphabetic")
+        if created["XAxisIdentification"] or refresh_enumerations:
+            _restore_enumeration(obj, "XAxisIdentification", "Numeric")
+        if created["YAxisIdentification"] or refresh_enumerations:
+            _restore_enumeration(obj, "YAxisIdentification", "Alphabetic")
         if created["XAxisLabels"]:
             obj.XAxisLabels = []
         if created["YAxisLabels"]:
             obj.YAxisLabels = []
 
+        properties = self._object_properties(obj) or set()
         for name in _READ_ONLY_PROPERTIES:
-            obj.setEditorMode(name, 1)
+            if name in properties:
+                obj.setEditorMode(name, 1)
+
+    def _ensure_grid_schema(self, obj, refresh_enumerations=False) -> bool:
+        if not refresh_enumerations and self._schema_complete(obj):
+            self._schema_ready = True
+            return True
+        previous = getattr(self, "_updating", False)
+        self._updating = True
+        try:
+            with _preserve_placement(obj):
+                self._setup_properties(obj, refresh_enumerations=refresh_enumerations)
+            self._schema_ready = self._schema_complete(obj)
+            return self._schema_ready
+        except (AttributeError, ReferenceError, RuntimeError, TypeError):
+            self._schema_ready = False
+            return False
+        finally:
+            self._updating = previous
 
     def execute(self, obj) -> None:
         if getattr(self, "_updating", False):
             return
+        if not self._ensure_grid_schema(obj):
+            return
         self._updating = True
+        try:
+            with _preserve_placement(obj):
+                self._execute_local(obj)
+        except Exception as exc:
+            _console_error(str(exc))
+        finally:
+            self._updating = False
+
+    def _execute_local(self, obj) -> None:
+        """Rebuild results and Shape strictly in the Grid's local coordinates."""
         try:
             x_scheme = str(obj.XAxisIdentification).lower()
             y_scheme = str(obj.YAxisIdentification).lower()
@@ -187,13 +290,13 @@ class StructuralGridProxy:
             if y_scheme != "custom":
                 obj.YAxisLabels = y_labels
             obj.Shape = shape
-        except Exception as exc:
-            _console_error(str(exc))
-        finally:
-            self._updating = False
+        except Exception:
+            raise
 
     def onChanged(self, obj, prop: str) -> None:
         if getattr(self, "_updating", False):
+            return
+        if not self._ensure_grid_schema(obj):
             return
         self._updating = True
         try:
@@ -212,6 +315,16 @@ class StructuralGridProxy:
             _console_error(str(exc))
         finally:
             self._updating = False
+
+    def onDocumentRestored(self, obj):
+        with _preserve_placement(obj):
+            if not self._ensure_grid_schema(obj, refresh_enumerations=True):
+                return
+            self.execute(obj)
+
+    def __setstate__(self, _state):
+        self._updating = False
+        self._schema_ready = False
 
 
 def create_grid(

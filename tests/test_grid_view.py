@@ -110,6 +110,7 @@ class GridViewTests(unittest.TestCase):
             XEndExtension=Quantity(1000), YStartExtension=Quantity(1000), YEndExtension=Quantity(1000),
             XAxisLabels=["1", "2"], YAxisLabels=["A", "B"],
             IntersectionPoints=[Vector(0, 0), Vector(6000, 5000)], IntersectionCount=2, Placement=object())
+        self.obj.PropertiesList = list(self.module._VIEW_DATA_PROPERTIES)
         self.view = View(self.obj)
         self.proxy = self.module.StructuralGridViewProvider(self.view)
 
@@ -310,6 +311,16 @@ class GridViewTests(unittest.TestCase):
         self.assertEqual(view.IntersectionPointColor, (0.4, 0.5, 0.6))
         self.assertEqual(view.IntersectionPointSize, 8.0)
         self.assertEqual(view.PointSize, 0.0)
+
+    def test_view_provider_waits_for_partial_data_schema_then_rebuilds(self):
+        self.obj.PropertiesList.remove("YSpacings")
+        view = View(self.obj); proxy = self.module.StructuralGridViewProvider(view)
+        self.assertEqual(proxy._points.children, [])
+        self.assertEqual(proxy._labels.children, [])
+        self.obj.PropertiesList.append("YSpacings")
+        proxy.updateData(self.obj, "YSpacings")
+        self.assertEqual(len(proxy._points.children), 4)
+        self.assertGreater(len(proxy._labels.children), 0)
 
 
 if __name__ == "__main__":

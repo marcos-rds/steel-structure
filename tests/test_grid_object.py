@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 import importlib.util
+import math
 import sys
 import types
 import unittest
@@ -43,6 +44,34 @@ class Vector:
         return self.as_tuple() == other.as_tuple()
 
 
+class Rotation:
+    def __init__(self, *args):
+        if len(args) == 4:
+            self.Q = tuple(float(value) for value in args)
+        elif len(args) == 2:
+            axis, angle = args
+            half = math.radians(float(angle)) / 2.0
+            scale = math.sin(half)
+            self.Q = (axis.x * scale, axis.y * scale, axis.z * scale, math.cos(half))
+        elif len(args) == 1 and isinstance(args[0], Rotation):
+            self.Q = tuple(args[0].Q)
+        else:
+            self.Q = (0.0, 0.0, 0.0, 1.0)
+
+
+class Placement:
+    def __init__(self, base=None, rotation=None):
+        if isinstance(base, Placement):
+            self.Base = Vector(*base.Base.as_tuple())
+            self.Rotation = Rotation(base.Rotation)
+        else:
+            self.Base = Vector(*(base.as_tuple() if isinstance(base, Vector) else (0, 0, 0)))
+            self.Rotation = Rotation(rotation) if isinstance(rotation, Rotation) else Rotation()
+
+    def copy(self):
+        return Placement(self)
+
+
 class FakeConsole:
     errors = []
 
@@ -52,17 +81,21 @@ class FakeConsole:
 
 
 class FakeObject:
-    def __init__(self, type_id, name):
+    def __init__(self, type_id, name, callbacks_on_add=False):
         object.__setattr__(self, "TypeId", type_id)
         object.__setattr__(self, "Name", name)
         object.__setattr__(self, "Label", name)
-        object.__setattr__(self, "Placement", object())
+        object.__setattr__(self, "Placement", Placement())
         object.__setattr__(self, "PropertiesList", [])
         object.__setattr__(self, "property_records", {})
         object.__setattr__(self, "editor_modes", {})
         object.__setattr__(self, "enum_options", {})
         object.__setattr__(self, "fail_assignments", set())
         object.__setattr__(self, "Proxy", None)
+        object.__setattr__(self, "callbacks_on_add", callbacks_on_add)
+        object.__setattr__(self, "add_callbacks", [])
+        object.__setattr__(self, "placement_assignments", [])
+        object.__setattr__(self, "reset_placement_on_shape", False)
 
     def addProperty(self, property_type, name, group, description):
         if property_type not in SUPPORTED_PROPERTY_TYPES:
@@ -70,6 +103,9 @@ class FakeObject:
         self.PropertiesList.append(name)
         self.property_records[name] = (property_type, group, description)
         object.__setattr__(self, name, None)
+        if self.callbacks_on_add and self.Proxy is not None:
+            self.add_callbacks.append(name)
+            self.Proxy.onChanged(self, name)
 
     def setEditorMode(self, name, mode):
         self.editor_modes[name] = mode
@@ -77,6 +113,10 @@ class FakeObject:
     def __setattr__(self, name, value):
         if name in self.__dict__.get("fail_assignments", set()):
             raise RuntimeError(f"deliberate assignment failure: {name}")
+        if name == "Placement":
+            self.__dict__.get("placement_assignments", []).append(Placement(value))
+        if name == "Shape" and self.__dict__.get("reset_placement_on_shape", False):
+            self.Placement = Placement()
         record = self.__dict__.get("property_records", {}).get(name)
         if record and record[0] == "App::PropertyEnumeration" and isinstance(value, list):
             self.enum_options[name] = list(value)
@@ -143,6 +183,8 @@ def load_modules():
         sys.modules.pop(name, None)
     app = types.ModuleType("FreeCAD")
     app.Vector = Vector
+    app.Rotation = Rotation
+    app.Placement = Placement
     app.Console = FakeConsole
     part = FakePart()
     package = types.ModuleType("BancadaFCSteel")
@@ -230,6 +272,165 @@ class GridObjectTests(unittest.TestCase):
         grid.StructuralGridProxy(obj)
         self.assertEqual(obj.PropertiesList.count("GridType"), 1)
         self.assertEqual(obj.GridType, "keep")
+
+    def test_partial_schema_missing_y_properties_is_repaired_before_execute(self):
+        for missing in (("YAxisIdentification",), ("YSpacings",), ("YAxisIdentification", "YSpacings")):
+            with self.subTest(missing=missing):
+                obj = self.create(); placement = obj.Placement
+                for name in missing:
+                    obj.PropertiesList.remove(name); obj.property_records.pop(name); object.__delattr__(obj, name)
+                FakeConsole.errors.clear(); obj.Proxy.execute(obj)
+                self.assertTrue(set(missing).issubset(obj.PropertiesList))
+                self.assertIs(obj.Placement, placement)
+                self.assertFalse(FakeConsole.errors)
+
+    def test_only_x_properties_and_different_order_receive_missing_defaults_only(self):
+        obj = FakeObject("Part::FeaturePython", "Partial")
+        obj.addProperty("App::PropertyFloatList", "XSpacings", "Grid", "existing")
+        obj.XSpacings = []
+        obj.addProperty("App::PropertyEnumeration", "XAxisIdentification", "Identification", "existing")
+        obj.XAxisIdentification = list(grid.IDENTIFICATION_OPTIONS); obj.XAxisIdentification = "Custom"
+        obj.addProperty("App::PropertyStringList", "XAxisLabels", "Identification", "existing")
+        obj.XAxisLabels = ["EIXO-A"]
+        grid.StructuralGridProxy(obj)
+        self.assertEqual(obj.XSpacings, [])
+        self.assertEqual((obj.XAxisIdentification, obj.XAxisLabels), ("Custom", ["EIXO-A"]))
+        self.assertEqual(obj.YSpacings, [5000.0, 5000.0])
+        self.assertEqual(obj.YAxisIdentification, "Alphabetic")
+
+    def test_add_property_callbacks_are_immediate_but_never_execute_partial_geometry(self):
+        obj = FakeObject("Part::FeaturePython", "Callbacks", callbacks_on_add=True)
+        proxy = grid.StructuralGridProxy(obj)
+        self.assertEqual(set(obj.add_callbacks), set(grid.REQUIRED_GRID_DATA_PROPERTIES))
+        self.assertTrue(proxy._schema_complete(obj))
+        self.assertFalse(FakeConsole.errors)
+
+    def test_restore_preserves_existing_values_labels_names_placement_and_enum_selection(self):
+        obj = self.create(x_spacings=[], y_spacings=[123], x_identification="Custom",
+                          y_identification="Custom", x_labels=["X"], y_labels=["Y1", "Y2"],
+                          display_name="Grid antigo")
+        placement = obj.Placement; label = obj.Label
+        obj.PropertiesList.remove("IntersectionKeys"); obj.property_records.pop("IntersectionKeys"); del obj.IntersectionKeys
+        proxy = grid.StructuralGridProxy.__new__(grid.StructuralGridProxy); proxy.__setstate__(None); obj.Proxy = proxy
+        proxy.onDocumentRestored(obj)
+        self.assertEqual((obj.XSpacings, obj.YSpacings), ([], [123.0]))
+        self.assertEqual((obj.XAxisIdentification, obj.YAxisIdentification), ("Custom", "Custom"))
+        self.assertEqual((obj.XAxisLabels, obj.YAxisLabels), (["X"], ["Y1", "Y2"]))
+        self.assertEqual((obj.Label, obj.DisplayName), (label, "Grid antigo"))
+        self.assertIs(obj.Placement, placement)
+        self.assertEqual(obj.enum_options["XAxisIdentification"], list(grid.IDENTIFICATION_OPTIONS))
+
+    def assertPlacement(self, obj, base, rotation=None):
+        self.assertEqual(obj.Placement.Base.as_tuple(), tuple(float(value) for value in base))
+        if rotation is not None:
+            for actual, expected in zip(obj.Placement.Rotation.Q, rotation.Q):
+                self.assertAlmostEqual(actual, expected)
+
+    def restored_proxy(self, obj):
+        proxy = grid.StructuralGridProxy.__new__(grid.StructuralGridProxy)
+        proxy.__setstate__(None)
+        obj.Proxy = proxy
+        return proxy
+
+    def test_new_grid_has_identity_placement_without_python_assignment(self):
+        obj = self.create()
+        self.assertPlacement(obj, (0, 0, 0), Rotation())
+        self.assertEqual(obj.placement_assignments, [])
+
+    def test_restore_preserves_all_translations_rotation_and_combination(self):
+        cases = (
+            ((0, 0, 3000), Rotation()),
+            ((1500, 0, 0), Rotation()),
+            ((0, -2000, 0), Rotation()),
+            ((1500, -2000, 3000), Rotation()),
+            ((0, 0, 0), Rotation(Vector(0, 0, 1), 30)),
+            ((1500, -2000, 3000), Rotation(Vector(0, 0, 1), 30)),
+        )
+        for base, rotation in cases:
+            with self.subTest(base=base, quaternion=rotation.Q):
+                obj = self.create(); obj.Placement = Placement(Vector(*base), rotation)
+                obj.placement_assignments.clear()
+                proxy = self.restored_proxy(obj); proxy.onDocumentRestored(obj)
+                self.assertPlacement(obj, base, rotation)
+                self.assertEqual(obj.placement_assignments, [])
+
+    def test_shape_assignment_reset_during_restore_is_detected_and_repaired(self):
+        obj = self.create(); obj.Placement = Placement(Vector(1500, -2000, 3000), Rotation(Vector(0, 0, 1), 30))
+        expected = obj.Placement.copy(); obj.placement_assignments.clear()
+        obj.reset_placement_on_shape = True
+        self.restored_proxy(obj).onDocumentRestored(obj)
+        self.assertPlacement(obj, expected.Base.as_tuple(), expected.Rotation)
+        self.assertEqual(len(obj.placement_assignments), 2)
+        self.assertPlacement(types.SimpleNamespace(Placement=obj.placement_assignments[0]), (0, 0, 0), Rotation())
+
+    def test_execute_and_repeated_recomputes_do_not_change_placement(self):
+        obj = self.create(); obj.Placement = Placement(Vector(1, 2, 3000), Rotation(Vector(0, 0, 1), 30))
+        expected = obj.Placement.copy(); obj.placement_assignments.clear()
+        for _ in range(5):
+            obj.Proxy.execute(obj)
+        self.assertPlacement(obj, expected.Base.as_tuple(), expected.Rotation)
+        self.assertEqual(obj.placement_assignments, [])
+
+    def test_schema_setup_enumerations_and_missing_properties_preserve_placement(self):
+        for missing in (None, "YSpacings", "YAxisIdentification"):
+            with self.subTest(missing=missing):
+                obj = self.create(); obj.Placement = Placement(Vector(4, 5, 6), Rotation(Vector(0, 0, 1), 30))
+                if missing:
+                    obj.PropertiesList.remove(missing); obj.property_records.pop(missing); object.__delattr__(obj, missing)
+                expected = obj.Placement.copy(); obj.placement_assignments.clear()
+                obj.Proxy._setup_properties(obj, refresh_enumerations=True)
+                self.assertTrue(obj.Proxy._ensure_grid_schema(obj, refresh_enumerations=True))
+                self.assertPlacement(obj, expected.Base.as_tuple(), expected.Rotation)
+                self.assertEqual(obj.placement_assignments, [])
+
+    def test_repeated_restore_old_partial_custom_and_empty_grid_is_idempotent(self):
+        obj = self.create(x_spacings=[], y_spacings=[], x_identification="Custom",
+                          y_identification="Custom", x_labels=["X"], y_labels=["Y"])
+        obj.Placement = Placement(Vector(7, 8, 9), Rotation(Vector(0, 0, 1), 30))
+        obj.PropertiesList.remove("YSpacings"); obj.property_records.pop("YSpacings"); del obj.YSpacings
+        expected = obj.Placement.copy(); obj.placement_assignments.clear()
+        proxy = self.restored_proxy(obj)
+        for _ in range(3): proxy.onDocumentRestored(obj)
+        self.assertPlacement(obj, expected.Base.as_tuple(), expected.Rotation)
+        self.assertEqual(obj.placement_assignments, [])
+        self.assertEqual((obj.XAxisIdentification, obj.YAxisIdentification), ("Custom", "Custom"))
+
+    def test_repair_failure_does_not_zero_placement_or_report_view(self):
+        obj = self.create(); obj.Placement = Placement(Vector(10, 20, 3000), Rotation())
+        obj.PropertiesList.remove("YSpacings"); obj.property_records.pop("YSpacings"); del obj.YSpacings
+        obj.fail_assignments.add("YSpacings"); expected = obj.Placement.copy(); obj.placement_assignments.clear()
+        self.restored_proxy(obj).onDocumentRestored(obj)
+        self.assertPlacement(obj, expected.Base.as_tuple(), expected.Rotation)
+        self.assertEqual(obj.placement_assignments, [])
+        self.assertFalse(FakeConsole.errors)
+
+    def test_shape_and_intersections_remain_local_without_duplicate_transform(self):
+        obj = self.create(x_spacings=[10], y_spacings=[20])
+        local_start = obj.Shape[1][0][1]
+        self.assertEqual(local_start.as_tuple(), (0, -1000, 0))
+        self.assertTrue(all(point.z == 0 for point in obj.IntersectionPoints))
+        obj.Placement = Placement(Vector(1500, -2000, 3000), Rotation())
+        self.assertEqual(local_start.as_tuple(), (0, -1000, 0))
+        self.assertEqual((local_start.x + obj.Placement.Base.x,
+                          local_start.y + obj.Placement.Base.y,
+                          local_start.z + obj.Placement.Base.z), (1500, -3000, 3000))
+
+    def test_schema_repair_is_idempotent_and_never_duplicates_properties(self):
+        obj = self.create(); proxy = obj.Proxy; before = list(obj.PropertiesList)
+        for _ in range(5):
+            self.assertTrue(proxy._ensure_grid_schema(obj, refresh_enumerations=True))
+            proxy.execute(obj)
+        self.assertEqual(obj.PropertiesList, before)
+        self.assertEqual(len(obj.PropertiesList), len(set(obj.PropertiesList)))
+        self.assertFalse(FakeConsole.errors)
+
+    def test_execute_silently_ignores_removed_or_cancelled_object(self):
+        class Removed:
+            @property
+            def PropertiesList(self): raise ReferenceError("object deleted")
+        proxy = grid.StructuralGridProxy.__new__(grid.StructuralGridProxy); proxy.__setstate__(None)
+        FakeConsole.errors.clear(); proxy.execute(Removed()); proxy.onChanged(Removed(), "YSpacings")
+        self.assertFalse(FakeConsole.errors)
 
     def test_default_geometry_results_shape_and_local_coordinates(self):
         obj = self.create()

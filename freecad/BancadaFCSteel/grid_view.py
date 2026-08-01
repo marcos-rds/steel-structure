@@ -15,6 +15,14 @@ except ImportError:  # Allows headless unit tests and delayed GUI loading.
 VIEW_GROUP = "Grid Appearance"
 LABEL_POSITIONS = ("Start", "End", "Both")
 SAFE_FONT_FALLBACK = "Sans"
+_VIEW_DATA_PROPERTIES = frozenset({
+    "GridType", "SchemaVersion", "DisplayName", "XSpacings", "YSpacings",
+    "XStartExtension", "XEndExtension", "YStartExtension", "YEndExtension",
+    "XAxisIdentification", "YAxisIdentification", "XAxisLabels", "YAxisLabels",
+    "OverallLengthX", "OverallLengthY", "DisplayedLengthX", "DisplayedLengthY",
+    "XAxisCount", "YAxisCount", "IntersectionCount", "IntersectionPoints",
+    "IntersectionKeys",
+})
 
 
 def _add_property(view, kind, name, description):
@@ -26,6 +34,13 @@ def _add_property(view, kind, name, description):
 
 def _number(value):
     return float(getattr(value, "Value", value))
+
+
+def _data_schema_ready(obj):
+    try:
+        return obj is not None and _VIEW_DATA_PROPERTIES.issubset(set(obj.PropertiesList))
+    except (AttributeError, ReferenceError, RuntimeError, TypeError):
+        return False
 
 
 def _rgb3(value) -> tuple[float, float, float]:
@@ -257,7 +272,7 @@ class StructuralGridViewProvider:
 
     def _label_specs(self):
         obj = getattr(self.ViewObject, "Object", None)
-        if obj is None:
+        if not _data_schema_ready(obj):
             return []
         xs, ys = [0.0], [0.0]
         for value in obj.XSpacings: xs.append(xs[-1] + _number(value))
@@ -291,7 +306,7 @@ class StructuralGridViewProvider:
         if not bool(getattr(view, "ShowIntersections", True)):
             return
         obj = getattr(view, "Object", None)
-        points = list(getattr(obj, "IntersectionPoints", ())) if obj is not None else []
+        points = list(getattr(obj, "IntersectionPoints", ())) if _data_schema_ready(obj) else []
         if not points:
             return
         color = coin.SoBaseColor()
@@ -312,6 +327,10 @@ class StructuralGridViewProvider:
             return
         view = getattr(self, "ViewObject", None)
         if view is None:
+            return
+        if not _data_schema_ready(getattr(view, "Object", None)):
+            if self._points is not None: self._points.removeAllChildren()
+            if self._labels is not None: self._labels.removeAllChildren()
             return
         self._changing = True
         try:
