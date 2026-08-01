@@ -51,6 +51,9 @@ ESSENTIAL_FILES = (
     "Resources/Icons/BancadaFCSteel.svg",
     "Resources/Icons/CreateMember.svg",
     "Resources/Icons/StructuralMember.svg",
+    "Resources/Icons/CreateGrid.svg",
+    "Resources/Icons/StructuralGrid.svg",
+    "freecad/BancadaFCSteel/interactive/grid_task_panel.py",
 )
 
 

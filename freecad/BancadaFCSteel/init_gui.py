@@ -66,7 +66,7 @@ class MetalStructureWorkbench(Gui.Workbench):
         import DraftTools  # noqa: F401 - registers official Draft commands
         from draftutils import init_tools
 
-        member_commands = ["BFC_CreateMember"]
+        member_commands = ["BFC_CreateMember", "BFC_CreateGrid"]
         self.snapbar = init_tools.get_draft_snap_commands()
         self.appendToolbar("Metal Structure - Elementos", member_commands)
         self.appendToolbar(QT_TRANSLATE_NOOP("Workbench", "Draft Snap"), self.snapbar)
@@ -79,6 +79,7 @@ class MetalStructureWorkbench(Gui.Workbench):
         from . import commands
 
         commands.close_member_tool()
+        commands.close_grid_panel()
         draft_toolbar = getattr(Gui, "draftToolBar", None)
         if draft_toolbar is not None and hasattr(draft_toolbar, "Deactivated"):
             draft_toolbar.Deactivated()

@@ -13,6 +13,15 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGE_PATH = ROOT / "freecad/BancadaFCSteel"
 GRID_PATH = PACKAGE_PATH / "grid.py"
+SUPPORTED_PROPERTY_TYPES = {
+    "App::PropertyString",
+    "App::PropertyInteger",
+    "App::PropertyFloatList",
+    "App::PropertyLength",
+    "App::PropertyEnumeration",
+    "App::PropertyStringList",
+    "App::PropertyVectorList",
+}
 
 
 class Quantity:
@@ -56,6 +65,8 @@ class FakeObject:
         object.__setattr__(self, "Proxy", None)
 
     def addProperty(self, property_type, name, group, description):
+        if property_type not in SUPPORTED_PROPERTY_TYPES:
+            raise TypeError(f"Invalid type {property_type} for property {self.Name}.{name}")
         self.PropertiesList.append(name)
         self.property_records[name] = (property_type, group, description)
         object.__setattr__(self, name, None)
@@ -73,8 +84,8 @@ class FakeObject:
             return
         if record and record[0] in {"App::PropertyLength", "App::PropertyDistance"}:
             value = Quantity(value)
-        elif record and record[0] == "App::PropertyLengthList":
-            value = [Quantity(item) for item in value]
+        elif record and record[0] == "App::PropertyFloatList":
+            value = [float(getattr(item, "Value", item)) for item in value]
         object.__setattr__(self, name, value)
 
 
@@ -83,6 +94,7 @@ class FakeDocument:
         self.calls = []
         self.objects = []
         self.recompute_count = 0
+        self.removed = []
 
     def addObject(self, type_id, name):
         self.calls.append((type_id, name))
@@ -95,6 +107,10 @@ class FakeDocument:
         for obj in self.objects:
             if obj.Proxy is not None:
                 obj.Proxy.execute(obj)
+
+    def removeObject(self, name):
+        self.removed.append(name)
+        self.objects = [obj for obj in self.objects if obj.Name != name]
 
 
 class FakePart(types.ModuleType):
@@ -165,8 +181,8 @@ class GridObjectTests(unittest.TestCase):
         obj = self.create()
         expected = {
             "GridType": ("App::PropertyString", "Identity"), "SchemaVersion": ("App::PropertyInteger", "Identity"),
-            "DisplayName": ("App::PropertyString", "Identity"), "XSpacings": ("App::PropertyLengthList", "Grid"),
-            "YSpacings": ("App::PropertyLengthList", "Grid"), "XStartExtension": ("App::PropertyLength", "Grid"),
+            "DisplayName": ("App::PropertyString", "Identity"), "XSpacings": ("App::PropertyFloatList", "Grid"),
+            "YSpacings": ("App::PropertyFloatList", "Grid"), "XStartExtension": ("App::PropertyLength", "Grid"),
             "XEndExtension": ("App::PropertyLength", "Grid"), "YStartExtension": ("App::PropertyLength", "Grid"),
             "YEndExtension": ("App::PropertyLength", "Grid"), "XAxisIdentification": ("App::PropertyEnumeration", "Identification"),
             "YAxisIdentification": ("App::PropertyEnumeration", "Identification"), "XAxisLabels": ("App::PropertyStringList", "Identification"),
@@ -177,12 +193,31 @@ class GridObjectTests(unittest.TestCase):
             "IntersectionPoints": ("App::PropertyVectorList", "Results"), "IntersectionKeys": ("App::PropertyStringList", "Results"),
         }
         self.assertEqual({name: record[:2] for name, record in obj.property_records.items()}, expected)
+        self.assertEqual(obj.property_records["XStartExtension"][0], "App::PropertyLength")
+        self.assertEqual(obj.property_records["YEndExtension"][0], "App::PropertyLength")
+        self.assertIn("milímetros", obj.property_records["XSpacings"][2])
+        self.assertIn("milímetros", obj.property_records["YSpacings"][2])
+
+    def test_double_accepts_only_explicit_real_property_types(self):
+        self.assertIn("App::PropertyFloatList", SUPPORTED_PROPERTY_TYPES)
+        self.assertNotIn("App::PropertyLengthList", SUPPORTED_PROPERTY_TYPES)
+        obj = FakeObject("Part::FeaturePython", "Grid")
+        for property_type in SUPPORTED_PROPERTY_TYPES:
+            with self.subTest(property_type=property_type):
+                obj.addProperty(property_type, property_type.rsplit("Property", 1)[-1], "Test", "")
+        with self.assertRaisesRegex(TypeError, "Invalid type App::PropertyLengthList"):
+            obj.addProperty("App::PropertyLengthList", "Invalid", "Test", "")
+
+    def test_length_list_adapter_accepts_floats_and_quantities_as_millimetres(self):
+        self.assertEqual(grid._length_list([1.5, Quantity(2.25)]), [1.5, 2.25])
+        obj = self.create(x_spacings=[1000.0, 2500.0], y_spacings=[Quantity(750.0)])
+        self.assertEqual((obj.OverallLengthX.Value, obj.OverallLengthY.Value), (3500.0, 750.0))
 
     def test_defaults_and_read_only_properties(self):
         obj = self.create()
-        self.assertEqual([q.Value for q in obj.XSpacings], [6000, 6000])
-        self.assertEqual([q.Value for q in obj.YSpacings], [5000, 5000])
-        self.assertTrue(all(getattr(obj, name).Value == 0 for name in ("XStartExtension", "XEndExtension", "YStartExtension", "YEndExtension")))
+        self.assertEqual(obj.XSpacings, [6000.0, 6000.0])
+        self.assertEqual(obj.YSpacings, [5000.0, 5000.0])
+        self.assertTrue(all(getattr(obj, name).Value == 1000 for name in ("XStartExtension", "XEndExtension", "YStartExtension", "YEndExtension")))
         self.assertEqual((obj.GridType, obj.SchemaVersion, obj.DisplayName), ("StructuralGrid", 1, "StructuralGrid"))
         self.assertEqual((obj.XAxisIdentification, obj.YAxisIdentification), ("Numeric", "Alphabetic"))
         self.assertEqual(set(obj.editor_modes), set(grid._READ_ONLY_PROPERTIES))
@@ -200,11 +235,12 @@ class GridObjectTests(unittest.TestCase):
         obj = self.create()
         self.assertEqual(obj.Shape[0], "compound")
         self.assertEqual(len(obj.Shape[1]), 6)
+        self.assertEqual(len(PART.vertices), 0)
         self.assertEqual((obj.XAxisCount, obj.YAxisCount, obj.IntersectionCount), (3, 3, 9))
         self.assertEqual((obj.OverallLengthX.Value, obj.OverallLengthY.Value), (12000, 10000))
-        self.assertEqual((obj.DisplayedLengthX.Value, obj.DisplayedLengthY.Value), (12000, 10000))
-        self.assertEqual(obj.Shape[1][0][1].as_tuple(), (0, 0, 0))
-        self.assertEqual(obj.Shape[1][0][2].as_tuple(), (0, 10000, 0))
+        self.assertEqual((obj.DisplayedLengthX.Value, obj.DisplayedLengthY.Value), (14000, 12000))
+        self.assertEqual(obj.Shape[1][0][1].as_tuple(), (0, -1000, 0))
+        self.assertEqual(obj.Shape[1][0][2].as_tuple(), (0, 11000, 0))
         self.assertEqual(obj.IntersectionPoints[3].as_tuple(), (6000, 0, 0))
         self.assertEqual(obj.IntersectionKeys[:4], ["1/A", "1/B", "1/C", "2/A"])
 
@@ -218,24 +254,30 @@ class GridObjectTests(unittest.TestCase):
     def test_empty_x_spacings_use_vertices_without_zero_length_lines(self):
         obj = self.create(x_spacings=[], y_spacings=[10])
         self.assertEqual((obj.XAxisCount, obj.YAxisCount, obj.IntersectionCount), (1, 2, 2))
-        self.assertEqual((len(PART.lines), len(PART.vertices)), (1, 2))
-        self.assertEqual([item[0] for item in obj.Shape[1]], ["edge", "vertex", "vertex"])
+        self.assertEqual((len(PART.lines), len(PART.vertices)), (3, 0))
+        self.assertEqual([item[0] for item in obj.Shape[1]], ["edge", "edge", "edge"])
         self.assertFalse(FakeConsole.errors)
 
     def test_empty_y_spacings_use_vertices_without_zero_length_lines(self):
         obj = self.create(x_spacings=[10], y_spacings=[])
         self.assertEqual((obj.XAxisCount, obj.YAxisCount, obj.IntersectionCount), (2, 1, 2))
-        self.assertEqual((len(PART.lines), len(PART.vertices)), (1, 2))
+        self.assertEqual((len(PART.lines), len(PART.vertices)), (3, 0))
         self.assertEqual(len(obj.IntersectionPoints), 2)
         self.assertFalse(FakeConsole.errors)
 
     def test_both_empty_spacings_deduplicate_coincident_degenerate_vertices(self):
         obj = self.create(x_spacings=[], y_spacings=[])
         self.assertEqual((obj.XAxisCount, obj.YAxisCount, obj.IntersectionCount), (1, 1, 1))
-        self.assertEqual((len(PART.lines), len(PART.vertices)), (0, 1))
-        self.assertEqual(obj.Shape, ("compound", (("vertex", Vector(0, 0, 0)),)))
+        self.assertEqual((len(PART.lines), len(PART.vertices)), (2, 0))
+        self.assertEqual([item[0] for item in obj.Shape[1]], ["edge", "edge"])
         self.assertEqual((obj.IntersectionPoints[0].as_tuple(), obj.IntersectionKeys), ((0, 0, 0), ["1/A"]))
         self.assertFalse(FakeConsole.errors)
+
+    def test_zero_extension_degenerate_grid_uses_no_artificial_vertex(self):
+        obj = self.create(x_spacings=[], y_spacings=[], x_start_extension=0, x_end_extension=0,
+                          y_start_extension=0, y_end_extension=0)
+        self.assertEqual(obj.Shape, ("compound", ()))
+        self.assertEqual((obj.IntersectionCount, len(obj.IntersectionPoints)), (1, 1))
 
     def test_automatic_and_valid_custom_identifiers(self):
         automatic = self.create(x_spacings=[1], y_spacings=[1])
@@ -315,7 +357,7 @@ class GridObjectTests(unittest.TestCase):
 
     def test_factory_parameters_recompute_without_transaction(self):
         obj = self.create(x_spacings=[2, 4], y_spacings=[3], display_name="G1")
-        self.assertEqual(([q.Value for q in obj.XSpacings], [q.Value for q in obj.YSpacings]), ([2, 4], [3]))
+        self.assertEqual((obj.XSpacings, obj.YSpacings), ([2.0, 4.0], [3.0]))
         self.assertEqual((obj.Label, obj.DisplayName, self.document.recompute_count), ("G1", "G1", 1))
         self.assertFalse(hasattr(self.document, "openTransaction"))
 
@@ -342,6 +384,24 @@ class GridObjectTests(unittest.TestCase):
         for document in (None, object()):
             with self.subTest(document=document), self.assertRaises(ValueError):
                 grid.create_grid(document)
+
+    def test_factory_removes_partial_object_when_proxy_installation_fails(self):
+        original = grid.StructuralGridProxy
+        grid.StructuralGridProxy = lambda _obj: (_ for _ in ()).throw(RuntimeError("proxy failed"))
+        try:
+            with self.assertRaisesRegex(RuntimeError, "proxy failed"):
+                self.create()
+        finally:
+            grid.StructuralGridProxy = original
+        self.assertEqual(self.document.removed, ["StructuralGrid"])
+        self.assertEqual(self.document.objects, [])
+
+    def test_factory_removes_partial_object_when_initial_recompute_fails(self):
+        self.document.recompute = lambda: (_ for _ in ()).throw(RuntimeError("recompute failed"))
+        with self.assertRaisesRegex(RuntimeError, "recompute failed"):
+            self.create()
+        self.assertEqual(self.document.removed, ["StructuralGrid"])
+        self.assertEqual(self.document.objects, [])
 
     def test_placement_is_native_and_never_recreated_or_applied(self):
         obj = self.create()

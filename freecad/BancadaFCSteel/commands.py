@@ -9,10 +9,11 @@ import FreeCAD as App
 from FreeCAD import Gui
 from PySide import QtWidgets
 
-from .paths import MEMBER_ICON
+from .paths import GRID_COMMAND_ICON, MEMBER_ICON
 
 
 _active_member_tool = None
+_active_grid_panel = None
 
 
 class DraftInterfaceUnavailable(RuntimeError):
@@ -181,6 +182,97 @@ class CreateMemberCommand:
             )
 
 
+class CreateGridCommand:
+    """Open one transactional Structural Grid preview task panel."""
+
+    def GetResources(self):
+        return {"Pixmap": GRID_COMMAND_ICON, "MenuText": "Criar Grid",
+                "ToolTip": "Cria um grid estrutural paramétrico."}
+
+    def IsActive(self):
+        return True
+
+    def Activated(self):
+        global _active_grid_panel
+        if _active_grid_panel is not None and not getattr(_active_grid_panel, "_closed", False):
+            App.Console.PrintWarning("Metal Structure: o painel Criar Grid já está ativo.\n")
+            return
+        if _get_active_task_dialog() is not None:
+            App.Console.PrintWarning("Metal Structure: feche o painel de tarefas atual antes de criar um grid.\n")
+            return
+        document = App.ActiveDocument
+        if document is None:
+            document = App.newDocument("MetalStructure")
+        panel = None
+        grid_object = None
+        try:
+            from .grid import create_grid
+            from .interactive.grid_task_panel import GridTaskPanel
+            document.openTransaction("Criar Grid Estrutural")
+            grid_object = create_grid(
+                document,
+                x_start_extension=1000.0,
+                x_end_extension=1000.0,
+                y_start_extension=1000.0,
+                y_end_extension=1000.0,
+                display_name="Grid Estrutural",
+            )
+            panel = GridTaskPanel(document, grid_object, _grid_panel_closed)
+            _active_grid_panel = panel
+            getattr(Gui.Control, "showDialog")(panel)
+            try:
+                Gui.Selection.clearSelection()
+                Gui.Selection.addSelection(grid_object)
+                Gui.activeDocument().activeView().fitAll()
+            except Exception:
+                pass
+        except Exception:
+            App.Console.PrintError("Metal Structure: falha ao iniciar Criar Grid:\n" + traceback.format_exc())
+            if panel is not None:
+                panel.reject()
+            else:
+                name = getattr(grid_object, "Name", None)
+                remove = getattr(document, "removeObject", None)
+                if name is not None and callable(remove):
+                    try:
+                        remove(name)
+                    except Exception:
+                        pass
+                try:
+                    document.abortTransaction()
+                except Exception:
+                    pass
+                try:
+                    getattr(Gui.Control, "closeDialog")()
+                except Exception:
+                    pass
+                _active_grid_panel = None
+
+
+def _grid_panel_closed(panel, _accepted):
+    global _active_grid_panel
+    if _active_grid_panel is panel:
+        _active_grid_panel = None
+    try:
+        Gui.Control.closeDialog()
+    except Exception:
+        pass
+
+
+def close_grid_panel():
+    """Cancel the preview owned by this workbench, if any."""
+    global _active_grid_panel
+    panel = _active_grid_panel
+    if panel is None:
+        return False
+    try:
+        panel.reject()
+    finally:
+        if _active_grid_panel is panel:
+            _active_grid_panel = None
+    return True
+
+
 def _member_draft_tool_closed(tool):
     global _active_member_tool
     if _active_member_tool is tool:
@@ -203,3 +295,4 @@ def close_member_tool():
 
 
 Gui.addCommand("BFC_CreateMember", CreateMemberCommand())
+Gui.addCommand("BFC_CreateGrid", CreateGridCommand())

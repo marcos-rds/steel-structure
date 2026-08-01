@@ -66,18 +66,12 @@ def _console_error(message: str) -> None:
 
 
 def _build_compound(result):
-    """Build valid local topology, replacing zero-length axes with vertices."""
+    """Build only valid grid edges; visual intersections belong to Coin."""
     edges = []
-    vertex_points = []
-    seen_vertices = set()
     for axis in result.x_axes + result.y_axes:
         if axis.start != axis.end:
             edges.append(Part.makeLine(App.Vector(*axis.start), App.Vector(*axis.end)))
-        elif axis.start not in seen_vertices:
-            seen_vertices.add(axis.start)
-            vertex_points.append(axis.start)
-    vertices = [Part.Vertex(App.Vector(*point)) for point in vertex_points]
-    return Part.makeCompound(edges + vertices)
+    return Part.makeCompound(edges)
 
 
 class StructuralGridProxy:
@@ -91,6 +85,7 @@ class StructuralGridProxy:
         finally:
             self._updating = False
 
+
     def _setup_properties(self, obj) -> None:
         created = {}
         created["GridType"] = _add_property(obj, "App::PropertyString", "GridType", "Identity", "Tipo estável do objeto.")
@@ -98,7 +93,7 @@ class StructuralGridProxy:
         created["DisplayName"] = _add_property(obj, "App::PropertyString", "DisplayName", "Identity", "Nome exibido na árvore do documento.")
 
         for name in ("XSpacings", "YSpacings"):
-            created[name] = _add_property(obj, "App::PropertyLengthList", name, "Grid", "Espaçamentos consecutivos entre eixos.")
+            created[name] = _add_property(obj, "App::PropertyFloatList", name, "Grid", "Espaçamentos consecutivos entre eixos, armazenados em milímetros.")
         for name in ("XStartExtension", "XEndExtension", "YStartExtension", "YEndExtension"):
             created[name] = _add_property(obj, "App::PropertyLength", name, "Grid", "Extensão da linha de eixo.")
 
@@ -133,7 +128,7 @@ class StructuralGridProxy:
             obj.YSpacings = [5000.0, 5000.0]
         for name in ("XStartExtension", "XEndExtension", "YStartExtension", "YEndExtension"):
             if created[name]:
-                setattr(obj, name, 0.0)
+                setattr(obj, name, 1000.0)
         if created["XAxisIdentification"]:
             _set_enumeration(obj, "XAxisIdentification", "Numeric")
         if created["YAxisIdentification"]:
@@ -223,10 +218,10 @@ def create_grid(
     document,
     x_spacings=None,
     y_spacings=None,
-    x_start_extension=0.0,
-    x_end_extension=0.0,
-    y_start_extension=0.0,
-    y_end_extension=0.0,
+    x_start_extension=1000.0,
+    x_end_extension=1000.0,
+    y_start_extension=1000.0,
+    y_end_extension=1000.0,
     x_identification="Numeric",
     y_identification="Alphabetic",
     x_labels=None,
@@ -236,35 +231,50 @@ def create_grid(
     """Create and recompute one ``Part::FeaturePython`` structural grid."""
     if document is None or not callable(getattr(document, "addObject", None)):
         raise ValueError("A valid FreeCAD document is required.")
-    obj = document.addObject("Part::FeaturePython", "StructuralGrid")
-    proxy = StructuralGridProxy(obj)
-    proxy._updating = True
     try:
-        if x_spacings is not None:
-            obj.XSpacings = list(x_spacings)
-        if y_spacings is not None:
-            obj.YSpacings = list(y_spacings)
-        obj.XStartExtension = x_start_extension
-        obj.XEndExtension = x_end_extension
-        obj.YStartExtension = y_start_extension
-        obj.YEndExtension = y_end_extension
-        _set_enumeration(obj, "XAxisIdentification", x_identification)
-        _set_enumeration(obj, "YAxisIdentification", y_identification)
-        if x_labels is not None:
-            obj.XAxisLabels = list(x_labels)
-        if y_labels is not None:
-            obj.YAxisLabels = list(y_labels)
-        if display_name is not None:
-            obj.DisplayName = str(display_name)
-            obj.Label = str(display_name)
-    finally:
-        proxy._updating = False
-    recompute = getattr(document, "recompute", None)
-    if callable(recompute):
-        recompute()
-    else:
-        proxy.execute(obj)
-    return obj
+        obj = document.addObject("Part::FeaturePython", "StructuralGrid")
+        proxy = StructuralGridProxy(obj)
+        view_object = getattr(obj, "ViewObject", None)
+        if view_object is not None:
+            from .grid_view import StructuralGridViewProvider
+            StructuralGridViewProvider(view_object)
+        proxy._updating = True
+        try:
+            if x_spacings is not None:
+                obj.XSpacings = list(x_spacings)
+            if y_spacings is not None:
+                obj.YSpacings = list(y_spacings)
+            obj.XStartExtension = x_start_extension
+            obj.XEndExtension = x_end_extension
+            obj.YStartExtension = y_start_extension
+            obj.YEndExtension = y_end_extension
+            _set_enumeration(obj, "XAxisIdentification", x_identification)
+            _set_enumeration(obj, "YAxisIdentification", y_identification)
+            if x_labels is not None:
+                obj.XAxisLabels = list(x_labels)
+            if y_labels is not None:
+                obj.YAxisLabels = list(y_labels)
+            if display_name is not None:
+                obj.DisplayName = str(display_name)
+                obj.Label = str(display_name)
+        finally:
+            proxy._updating = False
+        recompute = getattr(document, "recompute", None)
+        if callable(recompute):
+            recompute()
+        else:
+            proxy.execute(obj)
+        return obj
+    except Exception:
+        partial = locals().get("obj")
+        name = getattr(partial, "Name", None)
+        remove = getattr(document, "removeObject", None)
+        if name is not None and callable(remove):
+            try:
+                remove(name)
+            except Exception:
+                pass
+        raise
 
 
 __all__ = ["StructuralGridProxy", "create_grid"]

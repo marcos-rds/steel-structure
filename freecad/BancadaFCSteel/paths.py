@@ -10,3 +10,5 @@ CATALOGS_DIR = PACKAGE_DIR / "catalogs"
 WORKBENCH_ICON = str(ICONS_DIR / "BancadaFCSteel.svg")
 MEMBER_ICON = str(ICONS_DIR / "CreateMember.svg")
 OBJECT_ICON = str(ICONS_DIR / "StructuralMember.svg")
+GRID_COMMAND_ICON = str(ICONS_DIR / "CreateGrid.svg")
+GRID_OBJECT_ICON = str(ICONS_DIR / "StructuralGrid.svg")

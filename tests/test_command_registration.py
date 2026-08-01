@@ -40,7 +40,7 @@ class NativeCommandTests(unittest.TestCase):
                 and isinstance(node.args[0], ast.Constant)
             ):
                 names.append(node.args[0].value)
-        self.assertEqual(names, ["BFC_CreateMember"])
+        self.assertEqual(names, ["BFC_CreateMember", "BFC_CreateGrid"])
 
     def test_command_loads_structural_member_draft_tool(self):
         self.assertIn("StructuralMemberDraftTool", self.source)
@@ -65,7 +65,8 @@ class NativeCommandTests(unittest.TestCase):
     def test_draft_failure_reports_native_error_without_alternate_panel(self):
         self.assertIn("DraftInterfaceUnavailable", self.source)
         self.assertIn("Não foi possível iniciar a ferramenta nativa", self.source)
-        self.assertNotIn("Gui.Control.showDialog", self.source)
+        member_source = self.source.split("class CreateGridCommand", 1)[0]
+        self.assertNotIn("Gui.Control.showDialog", member_source)
 
     def test_close_helper_only_finishes_owned_native_tool(self):
         self.assertIn("tool.finish(cont=False)", self.source)
@@ -93,6 +94,7 @@ class NativeCommandLifecycleTests(unittest.TestCase):
         package.__path__ = [str(COMMANDS.parent)]
         paths = types.ModuleType(f"{package_name}.paths")
         paths.MEMBER_ICON = "CreateMember.svg"
+        paths.GRID_COMMAND_ICON = "CreateGrid.svg"
 
         self.console_errors = []
         self.console_warnings = []
