@@ -14,10 +14,50 @@ from .paths import GRID_COMMAND_ICON, MEMBER_ICON
 
 _active_member_tool = None
 _active_grid_panel = None
+_move_copy_registered = False
 
 
 class DraftInterfaceUnavailable(RuntimeError):
     """The installed Draft infrastructure cannot provide the native tool."""
+
+
+class NativeMoveCopyCommand:
+    """Start Draft Move with its documented copy mode enabled."""
+
+    def GetResources(self):
+        return {
+            "Pixmap": "BIM_Copy",
+            "MenuText": "Mover copiando",
+            "ToolTip": "Inicia a ferramenta Mover nativa do Draft no modo Copiar.",
+        }
+
+    def IsActive(self):
+        return App.ActiveDocument is not None
+
+    def Activated(self):
+        import DraftTools
+
+        tool = DraftTools.Move()
+        tool.copymode = True
+        tool.Activated()
+
+
+def register_move_copy_command():
+    """Register the thin adapter only when this Draft exposes copy mode."""
+    global _move_copy_registered
+    try:
+        if "BFC_MoveCopy" in set(Gui.listCommands()):
+            _move_copy_registered = True
+            return True
+        import DraftTools
+        probe = DraftTools.Move()
+        if not hasattr(probe, "copymode"):
+            return False
+        Gui.addCommand("BFC_MoveCopy", NativeMoveCopyCommand())
+        _move_copy_registered = True
+        return True
+    except (ImportError, AttributeError, RuntimeError, TypeError):
+        return False
 
 
 def _get_active_task_dialog():

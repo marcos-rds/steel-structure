@@ -40,7 +40,7 @@ class NativeCommandTests(unittest.TestCase):
                 and isinstance(node.args[0], ast.Constant)
             ):
                 names.append(node.args[0].value)
-        self.assertEqual(names, ["BFC_CreateMember", "BFC_CreateGrid"])
+        self.assertEqual(names, ["BFC_CreateMember", "BFC_CreateGrid", "BFC_MoveCopy"])
 
     def test_command_loads_structural_member_draft_tool(self):
         self.assertIn("StructuralMemberDraftTool", self.source)
