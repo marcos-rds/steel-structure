@@ -117,16 +117,72 @@ def _axis_rotation(direction: App.Vector) -> App.Rotation:
     return App.Rotation(App.Vector(0.0, 0.0, 1.0), direction)
 
 
+def _copy_placement(placement):
+    """Return a detached Placement value for change-delta tracking."""
+    return App.Placement(placement)
+
+
 class StructuralMemberProxy:
     """Geometry and parametric behavior for a structural member."""
 
     def __init__(self, obj):
         self._updating = True
         self._syncing_length = False
+        self._syncing_placement = False
+        self._placement_from_points_pending = True
+        self._last_placement = None
+        self._last_section_rotation = 0.0
         self._last_valid_length = None
         obj.Proxy = self
         self._setup_properties(obj)
+        self._last_section_rotation = _quantity_value(obj.Rotation)
         self._updating = False
+
+    def _remember_placement(self, obj):
+        self._last_placement = _copy_placement(obj.Placement)
+
+    def _set_placement(self, obj, placement):
+        self._syncing_placement = True
+        try:
+            obj.Placement = placement
+            self._remember_placement(obj)
+        finally:
+            self._syncing_placement = False
+
+    def _sync_points_from_placement(self, obj):
+        """Apply a user's rigid Placement delta to the global axis points."""
+        current = _copy_placement(obj.Placement)
+        previous = self._last_placement
+        if previous is None:
+            self._last_placement = current
+            return False
+        delta = current.multiply(previous.inverse())
+        self._syncing_placement = True
+        self._syncing_length = True
+        try:
+            obj.StartPoint = delta.multVec(App.Vector(obj.StartPoint))
+            obj.EndPoint = delta.multVec(App.Vector(obj.EndPoint))
+            self._sync_length_from_points(obj)
+            self._last_placement = current
+            self._placement_from_points_pending = False
+        finally:
+            self._syncing_length = False
+            self._syncing_placement = False
+        return True
+
+    def _apply_section_rotation_change(self, obj):
+        """Rotate the section around the member's existing local Z axis."""
+        current = _quantity_value(obj.Rotation)
+        delta_angle = current - self._last_section_rotation
+        if self._placement_from_points_pending or abs(delta_angle) <= 1e-12:
+            self._last_section_rotation = current
+            return
+        delta_roll = App.Placement(
+            App.Vector(0.0, 0.0, 0.0),
+            App.Rotation(App.Vector(0.0, 0.0, 1.0), delta_angle),
+        )
+        self._set_placement(obj, obj.Placement.multiply(delta_roll))
+        self._last_section_rotation = current
 
     def _setup_properties(self, obj):
         """Create missing properties and migrate objects from v0.1.0."""
@@ -326,13 +382,28 @@ class StructuralMemberProxy:
         base = start.sub(direction * start_extension)
 
         obj.Shape = solid
-        obj.Placement = App.Placement(base, combined_rotation)
+        if self._placement_from_points_pending or self._last_placement is None:
+            self._set_placement(obj, App.Placement(base, combined_rotation))
+            self._placement_from_points_pending = False
+        else:
+            # Preserve the full user rotation. Only the base follows the global
+            # start point and extension; profile changes cannot reset Placement.
+            preserved = _copy_placement(obj.Placement)
+            preserved.Base = base
+            self._set_placement(obj, preserved)
         obj.MemberLength = base_length
         obj.TotalMass = profile.mass_per_m * total_length / 1000.0
         self._update_catalog_properties(obj)
 
     def onChanged(self, obj, prop):
-        if getattr(self, "_updating", False) or getattr(self, "_syncing_length", False):
+        if (getattr(self, "_updating", False) or getattr(self, "_syncing_length", False)
+                or getattr(self, "_syncing_placement", False)):
+            return
+        if prop == "Placement":
+            try:
+                self._sync_points_from_placement(obj)
+            except (AttributeError, RuntimeError, TypeError, ValueError):
+                pass
             return
         if prop in ("Length", "StartPoint", "EndPoint"):
             self._syncing_length = True
@@ -341,6 +412,7 @@ class StructuralMemberProxy:
                     self._sync_endpoint_from_length(obj)
                 else:
                     self._sync_length_from_points(obj)
+                self._placement_from_points_pending = True
             except (AttributeError, RuntimeError, TypeError, ValueError):
                 pass
             finally:
@@ -348,7 +420,9 @@ class StructuralMemberProxy:
             return
         self._updating = True
         try:
-            if prop == "ProfileCategory" and "ProfileSeries" in obj.PropertiesList:
+            if prop == "Rotation":
+                self._apply_section_rotation_change(obj)
+            elif prop == "ProfileCategory" and "ProfileSeries" in obj.PropertiesList:
                 self._refresh_series_and_profiles(obj)
                 self._update_catalog_properties(obj)
             elif prop == "ProfileSeries" and "Profile" in obj.PropertiesList:
@@ -379,6 +453,9 @@ class StructuralMemberProxy:
                 self._sync_length_from_points(obj)
             finally:
                 self._syncing_length = False
+            self._placement_from_points_pending = False
+            self._last_section_rotation = _quantity_value(obj.Rotation)
+            self._remember_placement(obj)
         finally:
             self._updating = False
 
@@ -394,6 +471,10 @@ class StructuralMemberProxy:
     def __setstate__(self, state):
         self._updating = False
         self._syncing_length = False
+        self._syncing_placement = False
+        self._placement_from_points_pending = False
+        self._last_placement = None
+        self._last_section_rotation = 0.0
         self._last_valid_length = None
 
 
