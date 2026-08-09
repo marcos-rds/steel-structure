@@ -100,7 +100,7 @@ class MetalStructureWorkbench(Gui.Workbench):
     def Initialize(self):
         from . import commands  # noqa: F401 - registers FreeCAD commands
 
-        member_commands = ["BFC_CreateMember", "BFC_CreateGrid"]
+        member_commands = ["BFC_CreateMember", "BFC_CreateColumn", "BFC_CreateGrid"]
         self.general_tools = load_general_tools(commands)
         try:
             from draftutils import init_tools

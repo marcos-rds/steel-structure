@@ -14,6 +14,11 @@ except ImportError:
     StructuralMemberDraftTool = None
     draft_native_available = lambda: False
 
+try:
+    from .draft_column_tool import StructuralColumnDraftTool
+except ImportError:
+    StructuralColumnDraftTool = None
+
 __all__ = [
     "ControllerState",
     "MemberController",
@@ -21,5 +26,6 @@ __all__ = [
     "compact_profile_designation",
     "next_default_label",
     "StructuralMemberDraftTool",
+    "StructuralColumnDraftTool",
     "draft_native_available",
 ]

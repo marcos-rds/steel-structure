@@ -37,6 +37,7 @@ class GridCommandTests(unittest.TestCase):
         package.__path__ = [str(COMMANDS.parent)]
         paths = types.ModuleType(self.package_name + ".paths")
         paths.MEMBER_ICON = "member.svg"
+        paths.COLUMN_ICON = "column.svg"
         paths.GRID_COMMAND_ICON = "grid.svg"
         self.document = Document()
         self.new_documents = []
@@ -99,7 +100,9 @@ class GridCommandTests(unittest.TestCase):
         self.document = Document(); self.app.ActiveDocument = self.document; self.new_documents.append(self.document); return self.document
 
     def test_registration_and_resources(self):
-        self.assertEqual([name for name, _cmd in self.registered], ["BFC_CreateMember", "BFC_CreateGrid"])
+        self.assertEqual([name for name, _cmd in self.registered], [
+            "BFC_CreateMember", "BFC_CreateColumn", "BFC_CreateGrid"
+        ])
         resources = self.module.CreateGridCommand().GetResources()
         self.assertEqual(resources["Pixmap"], "grid.svg")
         self.assertEqual(resources["MenuText"], "Criar Grid")

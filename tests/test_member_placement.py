@@ -122,6 +122,7 @@ class MemberObject:
         self.StartExtension = Quantity(0); self.EndExtension = Quantity(0)
         self.OffsetX = Quantity(0); self.OffsetY = Quantity(0); self.Rotation = Quantity(0)
         self.Profile = "W 150 x 13,0"; self.Insertion = "Centroide"; self.MassPerMeter = 13.0
+        self.ElementType = "Membro"
         self.TotalMass = 0.0; self.Placement = Placement()
         self.PropertiesList = ["ProfileCategory", "DisplayName", "Length"]
         self.ExpressionEngine = []
@@ -213,6 +214,17 @@ class MemberPlacementTests(unittest.TestCase):
         restored.onDocumentRestored(obj); placement = Placement(obj.Placement); restored.execute(obj)
         self.assertVector(obj.Placement.Base, (placement.Base.x, placement.Base.y, placement.Base.z))
         self.assertVector(obj.StartPoint, (1, 2, 3)); self.assertVector(obj.EndPoint, (11, 2, 3))
+
+    def test_existing_column_type_survives_recompute_and_restore(self):
+        obj, proxy = self.create((0, 0, 0), (0, 0, 3000))
+        obj.ElementType = "Pilar"
+        proxy.execute(obj)
+        self.assertEqual(obj.ElementType, "Pilar")
+        restored = self.proxy(); restored.__setstate__(None)
+        restored._setup_properties = lambda _obj: None
+        restored.onDocumentRestored(obj)
+        restored.execute(obj)
+        self.assertEqual(obj.ElementType, "Pilar")
 
     def test_guards_release_after_sync_exception_and_block_recursion(self):
         obj, proxy = self.create((0, 0, 0), (10, 0, 0)); self.translate(obj, proxy, 1, 0, 0)

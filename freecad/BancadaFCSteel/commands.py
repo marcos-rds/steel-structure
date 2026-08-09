@@ -9,7 +9,7 @@ import FreeCAD as App
 from FreeCAD import Gui
 from PySide import QtWidgets
 
-from .paths import GRID_COMMAND_ICON, MEMBER_ICON
+from .paths import COLUMN_ICON, GRID_COMMAND_ICON, MEMBER_ICON
 
 
 _active_member_tool = None
@@ -94,27 +94,33 @@ def _discard_stale_member_session():
         _active_member_tool = None
 
 
-def _load_native_draft_tool():
+def _load_native_draft_tool(column=False):
     """Load the required native Draft interface."""
     try:
         import DraftTools  # noqa: F401 - official Draft GUI initialization
         import DraftGui  # noqa: F401 - owns the process-wide DraftToolBar
-        from .interactive.draft_member_tool import (
-            StructuralMemberDraftTool,
-            draft_native_available,
-        )
+        if column:
+            from .interactive.draft_column_tool import (
+                StructuralColumnDraftTool as tool_class,
+                draft_native_available,
+            )
+        else:
+            from .interactive.draft_member_tool import (
+                StructuralMemberDraftTool as tool_class,
+                draft_native_available,
+            )
     except (ImportError, AttributeError) as exc:
         raise DraftInterfaceUnavailable(str(exc)) from exc
     try:
-        available = StructuralMemberDraftTool is not None and draft_native_available()
+        available = tool_class is not None and draft_native_available()
     except Exception as exc:
         raise DraftInterfaceUnavailable(str(exc)) from exc
     if not available:
         raise DraftInterfaceUnavailable("Draft UI unavailable")
-    return StructuralMemberDraftTool
+    return tool_class
 
 
-def _start_native_member_tool(tool_class, document):
+def _start_native_member_tool(tool_class, document, icon=MEMBER_ICON, task_title="Criar elemento estrutural"):
     """Start one native session with Draft's process-wide toolbar."""
     global _active_member_tool
     if getattr(App, "activeDraftCommand", None) is not None:
@@ -127,7 +133,7 @@ def _start_native_member_tool(tool_class, document):
     tool = tool_class(on_closed=_member_draft_tool_closed)
     _active_member_tool = tool
     try:
-        tool.Activated(icon=MEMBER_ICON, task_title="Criar elemento estrutural")
+        tool.Activated(icon=icon, task_title=task_title)
     except Exception:
         try:
             tool.abort_activation(skip_native_ui_cleanup=True)
@@ -222,6 +228,62 @@ class CreateMemberCommand:
             )
 
 
+class CreateColumnCommand(CreateMemberCommand):
+    """Create a normal StructuralMember from one base point and a height."""
+
+    def GetResources(self):
+        return {
+            "Pixmap": COLUMN_ICON,
+            "MenuText": "Criar Pilar",
+            "ToolTip": "Criar pilar estrutural vertical a partir de um ponto de base",
+            "Accel": "S, P",
+        }
+
+    def Activated(self):
+        global _active_member_tool
+
+        _discard_stale_member_session()
+        if _member_session_is_active():
+            App.Console.PrintWarning(
+                "Metal Structure: já existe uma ferramenta estrutural interativa ativa.\n"
+            )
+            return
+        active_dialog = _get_active_task_dialog()
+        if active_dialog is not None:
+            App.Console.PrintWarning(
+                "Metal Structure: feche o painel de tarefas atual antes de criar um pilar.\n"
+            )
+            return
+        document = App.ActiveDocument
+        if document is None:
+            document = App.newDocument("MetalStructure")
+        try:
+            tool_class = _load_native_draft_tool(column=True)
+            _start_native_member_tool(
+                tool_class, document, icon=COLUMN_ICON, task_title="Criar Pilar"
+            )
+        except DraftInterfaceUnavailable:
+            App.Console.PrintError(
+                "Metal Structure: interface Draft indisponível:\n" + traceback.format_exc()
+            )
+            QtWidgets.QMessageBox.warning(
+                Gui.getMainWindow(), "Metal Structure",
+                "Não foi possível iniciar Criar Pilar. Consulte a Vista de relatório.",
+            )
+        except Exception:
+            failed_tool = _active_member_tool
+            App.Console.PrintError(
+                "Metal Structure: falha inesperada ao ativar Criar Pilar:\n"
+                + traceback.format_exc()
+            )
+            try:
+                if failed_tool is not None:
+                    failed_tool.abort_activation(skip_native_ui_cleanup=True)
+            finally:
+                if failed_tool is not None and _active_member_tool is failed_tool:
+                    _active_member_tool = None
+
+
 class CreateGridCommand:
     """Open one transactional Structural Grid preview task panel."""
 
@@ -250,11 +312,8 @@ class CreateGridCommand:
             from .interactive.grid_task_panel import GridTaskPanel
             document.openTransaction("Criar Grid Estrutural")
             grid_object = create_grid(
-                document,
-                x_start_extension=1000.0,
-                x_end_extension=1000.0,
-                y_start_extension=1000.0,
-                y_end_extension=1000.0,
+                document, x_start_extension=1000.0, x_end_extension=1000.0,
+                y_start_extension=1000.0, y_end_extension=1000.0,
                 display_name="Grid Estrutural",
             )
             panel = GridTaskPanel(document, grid_object, _grid_panel_closed)
@@ -335,4 +394,5 @@ def close_member_tool():
 
 
 Gui.addCommand("BFC_CreateMember", CreateMemberCommand())
+Gui.addCommand("BFC_CreateColumn", CreateColumnCommand())
 Gui.addCommand("BFC_CreateGrid", CreateGridCommand())

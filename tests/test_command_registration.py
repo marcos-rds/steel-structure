@@ -40,7 +40,9 @@ class NativeCommandTests(unittest.TestCase):
                 and isinstance(node.args[0], ast.Constant)
             ):
                 names.append(node.args[0].value)
-        self.assertEqual(names, ["BFC_CreateMember", "BFC_CreateGrid", "BFC_MoveCopy"])
+        self.assertEqual(names, [
+            "BFC_CreateMember", "BFC_CreateColumn", "BFC_CreateGrid", "BFC_MoveCopy"
+        ])
 
     def test_command_loads_structural_member_draft_tool(self):
         self.assertIn("StructuralMemberDraftTool", self.source)
@@ -94,6 +96,7 @@ class NativeCommandLifecycleTests(unittest.TestCase):
         package.__path__ = [str(COMMANDS.parent)]
         paths = types.ModuleType(f"{package_name}.paths")
         paths.MEMBER_ICON = "CreateMember.svg"
+        paths.COLUMN_ICON = "CreateColumn.svg"
         paths.GRID_COMMAND_ICON = "CreateGrid.svg"
 
         self.console_errors = []

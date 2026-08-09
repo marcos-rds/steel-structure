@@ -8,10 +8,15 @@ from ..member import ELEMENT_TYPES, INSERTION_OPTIONS
 from .member_controller import MemberCreationOptions, compact_profile_designation, next_default_label
 
 
+def member_creation_element_types(valid_types=ELEMENT_TYPES):
+    """Return model types offered by the generic new-member workflow."""
+    return tuple(value for value in valid_types if value != "Pilar")
+
+
 class ProfileOptionsWidget(QtWidgets.QGroupBox):
     """Profile-only controls; all point input remains owned by Draft."""
 
-    def __init__(self, document, parent=None):
+    def __init__(self, document, parent=None, element_types=None):
         super().__init__("Opções do perfil", parent)
         self.document = document
         self.setCheckable(True)
@@ -23,7 +28,8 @@ class ProfileOptionsWidget(QtWidgets.QGroupBox):
         self.name_edit = QtWidgets.QLineEdit()
         self.name_edit.textEdited.connect(self._mark_custom_name)
         self.element_type = QtWidgets.QComboBox()
-        self.element_type.addItems(ELEMENT_TYPES)
+        offered_types = member_creation_element_types() if element_types is None else element_types
+        self.element_type.addItems(list(offered_types))
         self.element_type.setCurrentText("Membro")
         self.element_type.currentTextChanged.connect(self.refresh_automatic_name)
         self.category = QtWidgets.QComboBox()
