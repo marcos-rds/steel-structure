@@ -10,7 +10,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-PATH = ROOT / "freecad/BancadaFCSteel/grid_view.py"
+PATH = ROOT / "freecad/SteelStructures/grid_view.py"
 
 
 class Field:

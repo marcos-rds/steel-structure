@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
-"""Interactive creation infrastructure for Metal Structure."""
+"""Interactive creation infrastructure for Steel Structures."""
 
 from .member_controller import (
     ControllerState,

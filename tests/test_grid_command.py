@@ -10,7 +10,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-COMMANDS = ROOT / "freecad/BancadaFCSteel/commands.py"
+COMMANDS = ROOT / "freecad/SteelStructures/commands.py"
 
 
 class Document:
@@ -101,7 +101,7 @@ class GridCommandTests(unittest.TestCase):
 
     def test_registration_and_resources(self):
         self.assertEqual([name for name, _cmd in self.registered], [
-            "BFC_CreateMember", "BFC_CreateColumn", "BFC_CreateGrid"
+            "SteelStructures_CreateMember", "SteelStructures_CreateColumn", "SteelStructures_CreateGrid"
         ])
         resources = self.module.CreateGridCommand().GetResources()
         self.assertEqual(resources["Pixmap"], "grid.svg")

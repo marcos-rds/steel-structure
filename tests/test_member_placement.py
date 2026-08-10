@@ -11,7 +11,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-MEMBER = ROOT / "freecad/BancadaFCSteel/member.py"
+MEMBER = ROOT / "freecad/SteelStructures/member.py"
 
 
 class Vector:

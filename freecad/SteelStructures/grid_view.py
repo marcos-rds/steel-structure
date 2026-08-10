@@ -76,7 +76,7 @@ def _rgb3(value) -> tuple[float, float, float]:
 def _view_warning(message):
     try:
         import FreeCAD as App
-        App.Console.PrintWarning("Metal Structure: " + message + "\n")
+        App.Console.PrintWarning("Steel Structures: " + message + "\n")
     except Exception:
         pass
 

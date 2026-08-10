@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-PANEL = ROOT / "freecad/BancadaFCSteel/interactive/column_task_panel.py"
+PANEL = ROOT / "freecad/SteelStructures/interactive/column_task_panel.py"
 
 
 class Vector:

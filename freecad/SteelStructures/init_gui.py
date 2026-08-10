@@ -8,7 +8,7 @@ from .paths import WORKBENCH_ICON
 
 
 GENERAL_TOOLS_NATIVE = ("Draft_Move", "Draft_Rotate", "Draft_Clone")
-GENERAL_TOOLS_ORDER = ("Draft_Move", "BFC_MoveCopy", "Draft_Rotate", "Draft_Clone")
+GENERAL_TOOLS_ORDER = ("Draft_Move", "SteelStructures_MoveCopy", "Draft_Rotate", "Draft_Clone")
 _draft_tools_warning_emitted = False
 
 
@@ -18,7 +18,7 @@ def _report_missing_draft_commands(missing):
         return
     _draft_tools_warning_emitted = True
     App.Console.PrintWarning(
-        "Metal Structure: Ferramentas Gerais do Draft indisponíveis: "
+        "Steel Structures: Ferramentas Gerais do Draft indisponíveis: "
         + ", ".join(missing)
         + ".\n"
     )
@@ -43,16 +43,16 @@ def load_general_tools(commands_module):
     return result
 
 
-def _metal_structure_is_active():
+def _steel_structures_is_active():
     try:
         workbench = Gui.activeWorkbench()
     except Exception:
         return False
-    if getattr(workbench, "MenuText", None) == "Metal Structure":
+    if getattr(workbench, "MenuText", None) == "Steel Structures":
         return True
     name = getattr(workbench, "name", None)
     try:
-        return callable(name) and name() == "MetalStructureWorkbench"
+        return callable(name) and name() == "SteelStructuresWorkbench"
     except Exception:
         return False
 
@@ -75,7 +75,7 @@ def _activate_native_draft_interface():
 
 def ensure_draft_snap_toolbar_visible():
     """Restore Snapper visibility after a native tool finishes."""
-    if not _metal_structure_is_active():
+    if not _steel_structures_is_active():
         return False
     if getattr(App, "activeDraftCommand", None) is not None:
         return False
@@ -90,29 +90,29 @@ def schedule_draft_snap_toolbar_visible():
     QtCore.QTimer.singleShot(0, ensure_draft_snap_toolbar_visible)
 
 
-class MetalStructureWorkbench(Gui.Workbench):
+class SteelStructuresWorkbench(Gui.Workbench):
     """Workbench registration and GUI composition."""
 
-    MenuText = "Metal Structure"
+    MenuText = "Steel Structures"
     ToolTip = "Modelagem paramétrica de estruturas metálicas"
     Icon = WORKBENCH_ICON
 
     def Initialize(self):
         from . import commands  # noqa: F401 - registers FreeCAD commands
 
-        member_commands = ["BFC_CreateMember", "BFC_CreateColumn", "BFC_CreateGrid"]
+        member_commands = ["SteelStructures_CreateMember", "SteelStructures_CreateColumn", "SteelStructures_CreateGrid"]
         self.general_tools = load_general_tools(commands)
         try:
             from draftutils import init_tools
             self.snapbar = init_tools.get_draft_snap_commands()
         except (ImportError, AttributeError, RuntimeError, TypeError):
             self.snapbar = []
-        self.appendToolbar("Metal Structure - Elementos", member_commands)
+        self.appendToolbar("Steel Structures - Elementos", member_commands)
         if self.general_tools:
             self.appendToolbar("Ferramentas Gerais", self.general_tools)
         if self.snapbar:
             self.appendToolbar(QT_TRANSLATE_NOOP("Workbench", "Draft Snap"), self.snapbar)
-        self.appendMenu("Metal Structure", member_commands)
+        self.appendMenu("Steel Structures", member_commands)
         if self.general_tools:
             self.appendMenu("Ferramentas Gerais", self.general_tools)
 
@@ -136,4 +136,4 @@ class MetalStructureWorkbench(Gui.Workbench):
         return "Gui::PythonWorkbench"
 
 
-Gui.addWorkbench(MetalStructureWorkbench())
+Gui.addWorkbench(SteelStructuresWorkbench())

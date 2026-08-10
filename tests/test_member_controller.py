@@ -10,7 +10,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-PACKAGE = ROOT / "freecad" / "BancadaFCSteel"
+PACKAGE = ROOT / "freecad" / "SteelStructures"
 CONTROLLER = PACKAGE / "interactive" / "member_controller.py"
 
 

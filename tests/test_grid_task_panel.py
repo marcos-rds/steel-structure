@@ -11,7 +11,7 @@ from test_grid_geometry import grid as grid_geometry
 
 
 ROOT = Path(__file__).resolve().parents[1]
-PANEL = ROOT / "freecad/BancadaFCSteel/interactive/grid_task_panel.py"
+PANEL = ROOT / "freecad/SteelStructures/interactive/grid_task_panel.py"
 
 
 class GridTaskPanelContractTests(unittest.TestCase):

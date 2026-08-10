@@ -12,11 +12,11 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-MODULE_PATH = ROOT / "freecad/BancadaFCSteel/grid_geometry.py"
+MODULE_PATH = ROOT / "freecad/SteelStructures/grid_geometry.py"
 
 
 def load_grid_geometry():
-    name = "_metal_structure_grid_geometry_test"
+    name = "_steel_structures_grid_geometry_test"
     spec = importlib.util.spec_from_file_location(name, MODULE_PATH)
     module = importlib.util.module_from_spec(spec)
     sys.modules[name] = module

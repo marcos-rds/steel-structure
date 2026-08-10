@@ -11,8 +11,8 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-COMMANDS = ROOT / "freecad" / "BancadaFCSteel" / "commands.py"
-INTERACTIVE = ROOT / "freecad" / "BancadaFCSteel" / "interactive"
+COMMANDS = ROOT / "freecad" / "SteelStructures" / "commands.py"
+INTERACTIVE = ROOT / "freecad" / "SteelStructures" / "interactive"
 LEGACY_MODULES = (
     "member_task_panel.py",
     "point_capture.py",
@@ -41,7 +41,7 @@ class NativeCommandTests(unittest.TestCase):
             ):
                 names.append(node.args[0].value)
         self.assertEqual(names, [
-            "BFC_CreateMember", "BFC_CreateColumn", "BFC_CreateGrid", "BFC_MoveCopy"
+            "SteelStructures_CreateMember", "SteelStructures_CreateColumn", "SteelStructures_CreateGrid", "SteelStructures_MoveCopy"
         ])
 
     def test_command_loads_structural_member_draft_tool(self):

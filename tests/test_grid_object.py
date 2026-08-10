@@ -12,7 +12,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-PACKAGE_PATH = ROOT / "freecad/BancadaFCSteel"
+PACKAGE_PATH = ROOT / "freecad/SteelStructures"
 GRID_PATH = PACKAGE_PATH / "grid.py"
 SUPPORTED_PROPERTY_TYPES = {
     "App::PropertyString",
@@ -179,7 +179,7 @@ class FakePart(types.ModuleType):
 
 
 def load_modules():
-    for name in ("FreeCAD", "Part", "BancadaFCSteel.grid", "BancadaFCSteel.grid_geometry", "BancadaFCSteel"):
+    for name in ("FreeCAD", "Part", "SteelStructures.grid", "SteelStructures.grid_geometry", "SteelStructures"):
         sys.modules.pop(name, None)
     app = types.ModuleType("FreeCAD")
     app.Vector = Vector
@@ -187,16 +187,16 @@ def load_modules():
     app.Placement = Placement
     app.Console = FakeConsole
     part = FakePart()
-    package = types.ModuleType("BancadaFCSteel")
+    package = types.ModuleType("SteelStructures")
     package.__path__ = [str(PACKAGE_PATH)]
-    sys.modules.update({"FreeCAD": app, "Part": part, "BancadaFCSteel": package})
+    sys.modules.update({"FreeCAD": app, "Part": part, "SteelStructures": package})
     for short_name in ("grid_geometry", "grid"):
-        name = f"BancadaFCSteel.{short_name}"
+        name = f"SteelStructures.{short_name}"
         spec = importlib.util.spec_from_file_location(name, PACKAGE_PATH / f"{short_name}.py")
         module = importlib.util.module_from_spec(spec)
         sys.modules[name] = module
         spec.loader.exec_module(module)
-    return sys.modules["BancadaFCSteel.grid"], part
+    return sys.modules["SteelStructures.grid"], part
 
 
 grid, PART = load_modules()

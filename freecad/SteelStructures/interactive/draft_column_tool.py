@@ -59,7 +59,7 @@ class StructuralColumnDraftTool(gui_lines.Line):
             widget = getattr(self.ui, name, None)
             if widget is not None:
                 widget.setVisible(False)
-        self.obj = self.doc.addObject("Part::Feature", "MetalStructureColumnPreview")
+        self.obj = self.doc.addObject("Part::Feature", "SteelStructuresColumnPreview")
         gui_utils.format_object(self.obj)
         self.obj.ViewObject.ShowInTree = False
         self.obj.ViewObject.Transparency = 65
@@ -154,7 +154,7 @@ class StructuralColumnDraftTool(gui_lines.Line):
         try:
             result = self.controller.create(self.column_panel.creation_options(base))
         except Exception as exc:
-            App.Console.PrintError(f"Metal Structure: erro ao criar pilar: {exc}\n")
+            App.Console.PrintError(f"Steel Structures: erro ao criar pilar: {exc}\n")
             self.node = []
             return
         self.column_panel.creation_succeeded(result.next_default_name)

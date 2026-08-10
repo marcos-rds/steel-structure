@@ -1,8 +1,8 @@
-# Instruções de desenvolvimento — Metal Structure
+# Instruções de desenvolvimento — Steel Structures
 
 ## Contexto do projeto
 
-- Nome do projeto: Metal Structure.
+- Nome do projeto: Steel Structures.
 - Objetivo: bancada independente do FreeCAD dedicada exclusivamente a estruturas metálicas.
 - Versão-alvo atual: FreeCAD 1.1.3.
 - Python-alvo atual: Python 3.11.

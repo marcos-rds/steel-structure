@@ -297,7 +297,7 @@ class StructuralMemberProxy:
         if requested <= LENGTH_TOLERANCE or axis.Length <= LENGTH_TOLERANCE:
             if self._last_valid_length and self._last_valid_length > LENGTH_TOLERANCE:
                 obj.Length = self._last_valid_length
-            App.Console.PrintWarning("Metal Structure: comprimento ou direção inválida.\n")
+            App.Console.PrintWarning("Steel Structures: comprimento ou direção inválida.\n")
             return False
         direction = App.Vector(axis)
         direction.normalize()

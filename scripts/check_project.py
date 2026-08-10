@@ -1,4 +1,4 @@
-"""Static integrity checks for the Metal Structure workbench."""
+"""Static integrity checks for the Steel Structures workbench."""
 
 from __future__ import annotations
 
@@ -11,11 +11,11 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 PACKAGE_XML = PROJECT_ROOT / "package.xml"
-PACKAGE_INIT = PROJECT_ROOT / "freecad" / "BancadaFCSteel" / "__init__.py"
+PACKAGE_INIT = PROJECT_ROOT / "freecad" / "SteelStructures" / "__init__.py"
 CATALOG = (
     PROJECT_ROOT
     / "freecad"
-    / "BancadaFCSteel"
+    / "SteelStructures"
     / "catalogs"
     / "gerdau_w_initial.json"
 )
@@ -24,18 +24,18 @@ ESSENTIAL_FILES = (
     "package.xml",
     "README.md",
     "LICENSE",
-    "freecad/BancadaFCSteel/__init__.py",
-    "freecad/BancadaFCSteel/init_gui.py",
-    "freecad/BancadaFCSteel/commands.py",
-    "freecad/BancadaFCSteel/interactive/__init__.py",
-    "freecad/BancadaFCSteel/interactive/member_controller.py",
-    "freecad/BancadaFCSteel/interactive/draft_member_tool.py",
-    "freecad/BancadaFCSteel/interactive/profile_options_widget.py",
-    "freecad/BancadaFCSteel/member.py",
-    "freecad/BancadaFCSteel/profile_catalog.py",
-    "freecad/BancadaFCSteel/paths.py",
-    "freecad/BancadaFCSteel/catalogs/gerdau_w_initial.json",
-    "Resources/Icons/BancadaFCSteel.svg",
+    "freecad/SteelStructures/__init__.py",
+    "freecad/SteelStructures/init_gui.py",
+    "freecad/SteelStructures/commands.py",
+    "freecad/SteelStructures/interactive/__init__.py",
+    "freecad/SteelStructures/interactive/member_controller.py",
+    "freecad/SteelStructures/interactive/draft_member_tool.py",
+    "freecad/SteelStructures/interactive/profile_options_widget.py",
+    "freecad/SteelStructures/member.py",
+    "freecad/SteelStructures/profile_catalog.py",
+    "freecad/SteelStructures/paths.py",
+    "freecad/SteelStructures/catalogs/gerdau_w_initial.json",
+    "Resources/Icons/SteelStructures.svg",
     "Resources/Icons/CreateMember.svg",
     "Resources/Icons/StructuralMember.svg",
 )

@@ -1,4 +1,4 @@
-"""Integration contracts for BFC_CreateColumn and its native Draft tool."""
+"""Integration contracts for SteelStructures_CreateColumn and its native Draft tool."""
 
 from __future__ import annotations
 
@@ -10,10 +10,10 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-COMMANDS = ROOT / "freecad/BancadaFCSteel/commands.py"
-TOOL = ROOT / "freecad/BancadaFCSteel/interactive/draft_column_tool.py"
-GUI = ROOT / "freecad/BancadaFCSteel/init_gui.py"
-MEMBER = ROOT / "freecad/BancadaFCSteel/member.py"
+COMMANDS = ROOT / "freecad/SteelStructures/commands.py"
+TOOL = ROOT / "freecad/SteelStructures/interactive/draft_column_tool.py"
+GUI = ROOT / "freecad/SteelStructures/init_gui.py"
+MEMBER = ROOT / "freecad/SteelStructures/member.py"
 ICON = ROOT / "Resources/Icons/CreateColumn.svg"
 
 
@@ -39,12 +39,12 @@ class ColumnCommandContractTests(unittest.TestCase):
         cls.gui = GUI.read_text(encoding="utf-8")
 
     def test_command_is_registered_with_portuguese_resources(self):
-        self.assertIn('Gui.addCommand("BFC_CreateColumn", CreateColumnCommand())', self.commands)
+        self.assertIn('Gui.addCommand("SteelStructures_CreateColumn", CreateColumnCommand())', self.commands)
         self.assertIn('"MenuText": "Criar Pilar"', self.commands)
         self.assertIn("ponto de base", self.commands)
 
     def test_toolbar_and_menu_place_column_next_to_member(self):
-        expected = '["BFC_CreateMember", "BFC_CreateColumn", "BFC_CreateGrid"]'
+        expected = '["SteelStructures_CreateMember", "SteelStructures_CreateColumn", "SteelStructures_CreateGrid"]'
         self.assertIn(expected, self.gui)
 
     def test_icon_exists_and_is_valid_svg(self):
@@ -102,7 +102,7 @@ class ColumnCommandContractTests(unittest.TestCase):
         self.assertNotIn("arg[\"Position\"]", action)
 
     def test_preview_is_temporary_hidden_and_removed(self):
-        self.assertIn('addObject("Part::Feature", "MetalStructureColumnPreview")', self.tool)
+        self.assertIn('addObject("Part::Feature", "SteelStructuresColumnPreview")', self.tool)
         self.assertIn("ShowInTree = False", self.tool)
         self.assertIn("todo.ToDo.delay(self.doc.removeObject, name)", self.tool)
 

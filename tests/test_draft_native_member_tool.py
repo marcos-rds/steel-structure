@@ -6,9 +6,9 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-TOOL = ROOT / "freecad/BancadaFCSteel/interactive/draft_member_tool.py"
-OPTIONS = ROOT / "freecad/BancadaFCSteel/interactive/profile_options_widget.py"
-COMMANDS = ROOT / "freecad/BancadaFCSteel/commands.py"
+TOOL = ROOT / "freecad/SteelStructures/interactive/draft_member_tool.py"
+OPTIONS = ROOT / "freecad/SteelStructures/interactive/profile_options_widget.py"
+COMMANDS = ROOT / "freecad/SteelStructures/commands.py"
 
 
 class DraftNativeArchitectureTests(unittest.TestCase):
@@ -85,8 +85,8 @@ class DraftNativeArchitectureTests(unittest.TestCase):
 
     def test_registered_line_key_is_separate_from_preview_name(self):
         self.assertIn('Creator.Activated(self, "Line")', self.source)
-        self.assertIn('addObject("Part::Feature", "MetalStructureDraftPreview")', self.source)
-        self.assertNotIn('Creator.Activated(self, "MetalStructureDraftPreview")', self.source)
+        self.assertIn('addObject("Part::Feature", "SteelStructuresDraftPreview")', self.source)
+        self.assertNotIn('Creator.Activated(self, "SteelStructuresDraftPreview")', self.source)
 
     def test_native_line_ui_is_initialized_once_per_activation(self):
         activated = self.source.split("    def Activated", 1)[1].split(

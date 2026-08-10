@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
-"""GUI commands for Metal Structure."""
+"""GUI commands for Steel Structures."""
 
 from __future__ import annotations
 
@@ -46,14 +46,14 @@ def register_move_copy_command():
     """Register the thin adapter only when this Draft exposes copy mode."""
     global _move_copy_registered
     try:
-        if "BFC_MoveCopy" in set(Gui.listCommands()):
+        if "SteelStructures_MoveCopy" in set(Gui.listCommands()):
             _move_copy_registered = True
             return True
         import DraftTools
         probe = DraftTools.Move()
         if not hasattr(probe, "copymode"):
             return False
-        Gui.addCommand("BFC_MoveCopy", NativeMoveCopyCommand())
+        Gui.addCommand("SteelStructures_MoveCopy", NativeMoveCopyCommand())
         _move_copy_registered = True
         return True
     except (ImportError, AttributeError, RuntimeError, TypeError):
@@ -163,7 +163,7 @@ class CreateMemberCommand:
 
         if _member_session_is_active():
             App.Console.PrintWarning(
-                "Metal Structure: A ferramenta Criar elemento estrutural já está ativa.\n"
+                "Steel Structures: A ferramenta Criar elemento estrutural já está ativa.\n"
             )
             return
 
@@ -173,28 +173,28 @@ class CreateMemberCommand:
                 "Já existe um painel de tarefas ativo. "
                 "Feche-o antes de criar outro elemento estrutural."
             )
-            App.Console.PrintWarning(f"Metal Structure: {message}\n")
+            App.Console.PrintWarning(f"Steel Structures: {message}\n")
             QtWidgets.QMessageBox.information(
                 Gui.getMainWindow(),
-                "Metal Structure",
+                "Steel Structures",
                 message,
             )
             return
 
         document = App.ActiveDocument
         if document is None:
-            document = App.newDocument("MetalStructure")
+            document = App.newDocument("SteelStructures")
 
         try:
             tool_class = _load_native_draft_tool()
         except DraftInterfaceUnavailable:
             App.Console.PrintError(
-                "Metal Structure: interface Draft indisponível:\n"
+                "Steel Structures: interface Draft indisponível:\n"
                 + traceback.format_exc()
             )
             QtWidgets.QMessageBox.warning(
                 Gui.getMainWindow(),
-                "Metal Structure",
+                "Steel Structures",
                 "Não foi possível iniciar a ferramenta nativa. "
                 "Consulte a Vista de relatório.",
             )
@@ -206,7 +206,7 @@ class CreateMemberCommand:
         except Exception:
             failed_tool = tool or _active_member_tool
             App.Console.PrintError(
-                "Metal Structure: falha inesperada ao ativar a ferramenta nativa:\n"
+                "Steel Structures: falha inesperada ao ativar a ferramenta nativa:\n"
                 + traceback.format_exc()
             )
             try:
@@ -214,7 +214,7 @@ class CreateMemberCommand:
                     failed_tool.abort_activation(skip_native_ui_cleanup=True)
             except Exception:
                 App.Console.PrintError(
-                    "Metal Structure: falha adicional ao limpar a ativação parcial:\n"
+                    "Steel Structures: falha adicional ao limpar a ativação parcial:\n"
                     + traceback.format_exc()
                 )
             finally:
@@ -222,7 +222,7 @@ class CreateMemberCommand:
                     _active_member_tool = None
             QtWidgets.QMessageBox.warning(
                 Gui.getMainWindow(),
-                "Metal Structure",
+                "Steel Structures",
                 "Não foi possível iniciar a ferramenta nativa. "
                 "Consulte a Vista de relatório.",
             )
@@ -245,18 +245,18 @@ class CreateColumnCommand(CreateMemberCommand):
         _discard_stale_member_session()
         if _member_session_is_active():
             App.Console.PrintWarning(
-                "Metal Structure: já existe uma ferramenta estrutural interativa ativa.\n"
+                "Steel Structures: já existe uma ferramenta estrutural interativa ativa.\n"
             )
             return
         active_dialog = _get_active_task_dialog()
         if active_dialog is not None:
             App.Console.PrintWarning(
-                "Metal Structure: feche o painel de tarefas atual antes de criar um pilar.\n"
+                "Steel Structures: feche o painel de tarefas atual antes de criar um pilar.\n"
             )
             return
         document = App.ActiveDocument
         if document is None:
-            document = App.newDocument("MetalStructure")
+            document = App.newDocument("SteelStructures")
         try:
             tool_class = _load_native_draft_tool(column=True)
             _start_native_member_tool(
@@ -264,16 +264,16 @@ class CreateColumnCommand(CreateMemberCommand):
             )
         except DraftInterfaceUnavailable:
             App.Console.PrintError(
-                "Metal Structure: interface Draft indisponível:\n" + traceback.format_exc()
+                "Steel Structures: interface Draft indisponível:\n" + traceback.format_exc()
             )
             QtWidgets.QMessageBox.warning(
-                Gui.getMainWindow(), "Metal Structure",
+                Gui.getMainWindow(), "Steel Structures",
                 "Não foi possível iniciar Criar Pilar. Consulte a Vista de relatório.",
             )
         except Exception:
             failed_tool = _active_member_tool
             App.Console.PrintError(
-                "Metal Structure: falha inesperada ao ativar Criar Pilar:\n"
+                "Steel Structures: falha inesperada ao ativar Criar Pilar:\n"
                 + traceback.format_exc()
             )
             try:
@@ -297,14 +297,14 @@ class CreateGridCommand:
     def Activated(self):
         global _active_grid_panel
         if _active_grid_panel is not None and not getattr(_active_grid_panel, "_closed", False):
-            App.Console.PrintWarning("Metal Structure: o painel Criar Grid já está ativo.\n")
+            App.Console.PrintWarning("Steel Structures: o painel Criar Grid já está ativo.\n")
             return
         if _get_active_task_dialog() is not None:
-            App.Console.PrintWarning("Metal Structure: feche o painel de tarefas atual antes de criar um grid.\n")
+            App.Console.PrintWarning("Steel Structures: feche o painel de tarefas atual antes de criar um grid.\n")
             return
         document = App.ActiveDocument
         if document is None:
-            document = App.newDocument("MetalStructure")
+            document = App.newDocument("SteelStructures")
         panel = None
         grid_object = None
         try:
@@ -326,7 +326,7 @@ class CreateGridCommand:
             except Exception:
                 pass
         except Exception:
-            App.Console.PrintError("Metal Structure: falha ao iniciar Criar Grid:\n" + traceback.format_exc())
+            App.Console.PrintError("Steel Structures: falha ao iniciar Criar Grid:\n" + traceback.format_exc())
             if panel is not None:
                 panel.reject()
             else:
@@ -379,7 +379,7 @@ def _member_draft_tool_closed(tool):
 
 
 def close_member_tool():
-    """Close only the active native tool owned by Metal Structure."""
+    """Close only the active native tool owned by Steel Structures."""
     global _active_member_tool
 
     tool = _active_member_tool
@@ -393,6 +393,6 @@ def close_member_tool():
     return True
 
 
-Gui.addCommand("BFC_CreateMember", CreateMemberCommand())
-Gui.addCommand("BFC_CreateColumn", CreateColumnCommand())
-Gui.addCommand("BFC_CreateGrid", CreateGridCommand())
+Gui.addCommand("SteelStructures_CreateMember", CreateMemberCommand())
+Gui.addCommand("SteelStructures_CreateColumn", CreateColumnCommand())
+Gui.addCommand("SteelStructures_CreateGrid", CreateGridCommand())

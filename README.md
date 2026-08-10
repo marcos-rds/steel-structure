@@ -1,10 +1,10 @@
-# Metal Structure — FreeCAD
+# Steel Structures — FreeCAD
 
 Bancada paramétrica dedicada à modelagem de estruturas metálicas no FreeCAD.
 
 ## Versão 0.4.0
 
-- Um único comando público, **Criar elemento estrutural** (`BFC_CreateMember`), concentra o fluxo de criação.
+- Comandos dedicados criam membros, pilares e grids estruturais sob a identidade `SteelStructures_*`.
 - A ferramenta reutiliza a Linha nativa do Draft para escolher dois pontos, pelo mouse ou pelos controles numéricos do Draft.
 - Snaps, restrições, Relativo e Global seguem diretamente as configurações nativas do Draft.
 - O modo **Continuar** cria vários membros na mesma sessão.
@@ -27,8 +27,8 @@ Bancada paramétrica dedicada à modelagem de estruturas metálicas no FreeCAD.
 
 1. Feche o FreeCAD.
 2. Remova a pasta antiga `BancadaFC_Steel_v0.1.0` de `%APPDATA%\FreeCAD\Mod\`.
-3. Extraia a pasta `MetalStructure_v0.4.0` dentro de `%APPDATA%\FreeCAD\Mod\`.
-4. Reinicie o FreeCAD e selecione **Metal Structure**.
+3. Extraia a pasta `SteelStructures_v0.4.0` dentro de `%APPDATA%\FreeCAD\Mod\`.
+4. Reinicie o FreeCAD e selecione **Steel Structures**.
 
 ## Testes recomendados
 

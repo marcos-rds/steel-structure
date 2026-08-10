@@ -11,7 +11,7 @@ import tempfile
 
 import FreeCAD as App
 
-from BancadaFCSteel.grid import create_grid
+from SteelStructures.grid import create_grid
 
 
 def run():

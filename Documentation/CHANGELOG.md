@@ -1,5 +1,9 @@
 # Changelog
 
+## Não lançado
+
+- Migração integral da identidade atual de Metal Structure para Steel Structures, incluindo pacote Python, workbench, comandos e recursos, sem alterar a versão.
+
 ## 0.4.0 — 31/07/2026
 
 - Nova ferramenta `StructuralMemberDraftTool`, baseada diretamente na Linha nativa do Draft, para criação gráfica ou numérica por dois pontos.

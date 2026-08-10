@@ -93,7 +93,7 @@ def _restore_enumeration(obj, name: str, default: str) -> None:
 
 def _console_error(message: str) -> None:
     try:
-        App.Console.PrintError(f"Metal Structure: erro ao atualizar Grid Estrutural: {message}\n")
+        App.Console.PrintError(f"Steel Structures: erro ao atualizar Grid Estrutural: {message}\n")
     except Exception:
         pass
 

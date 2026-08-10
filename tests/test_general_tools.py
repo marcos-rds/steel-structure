@@ -10,7 +10,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-PACKAGE = ROOT / "freecad/BancadaFCSteel"
+PACKAGE = ROOT / "freecad/SteelStructures"
 
 
 class Workbench:
@@ -112,13 +112,13 @@ class GeneralToolsTests(unittest.TestCase):
     def test_native_ids_and_optional_copy_are_ordered_once(self):
         native_objects = {name: self.registered[name] for name in self.registered}
         result = self.module.load_general_tools(self.commands)
-        self.assertEqual(result, ["Draft_Move", "BFC_MoveCopy", "Draft_Rotate", "Draft_Clone"])
+        self.assertEqual(result, ["Draft_Move", "SteelStructures_MoveCopy", "Draft_Rotate", "Draft_Clone"])
         self.assertEqual(len(result), len(set(result)))
         for name, command in native_objects.items():
             self.assertIs(self.registered[name], command)
-        self.assertNotIn("BFC_Move", self.registered)
-        self.assertNotIn("BFC_Rotate", self.registered)
-        self.assertNotIn("BFC_Clone", self.registered)
+        self.assertNotIn("SteelStructures_Move", self.registered)
+        self.assertNotIn("SteelStructures_Rotate", self.registered)
+        self.assertNotIn("SteelStructures_Clone", self.registered)
 
     def test_native_toolbar_ids_execute_through_gui_without_wrappers(self):
         for command in self.module.GENERAL_TOOLS_NATIVE:
@@ -128,11 +128,11 @@ class GeneralToolsTests(unittest.TestCase):
     def test_move_copy_registration_is_idempotent(self):
         self.assertTrue(self.commands.register_move_copy_command())
         self.assertTrue(self.commands.register_move_copy_command())
-        self.assertEqual(self.add_calls.count("BFC_MoveCopy"), 1)
+        self.assertEqual(self.add_calls.count("SteelStructures_MoveCopy"), 1)
 
     def test_move_copy_delegates_to_native_move_copy_mode_only(self):
         self.assertTrue(self.commands.register_move_copy_command())
-        command = self.registered["BFC_MoveCopy"]
+        command = self.registered["SteelStructures_MoveCopy"]
         self.assertEqual(command.GetResources()["Pixmap"], "BIM_Copy")
         command.Activated()
         self.assertEqual(Move.activated, [True])
@@ -145,8 +145,8 @@ class GeneralToolsTests(unittest.TestCase):
         expected = ("Ferramentas Gerais", self.module.GENERAL_TOOLS_ORDER)
         self.assertIn(expected, [(title, tuple(items)) for title, items in workbench.toolbars])
         self.assertIn(expected, [(title, tuple(items)) for title, items in workbench.menus])
-        self.assertIn(("Metal Structure", [
-            "BFC_CreateMember", "BFC_CreateColumn", "BFC_CreateGrid"
+        self.assertIn(("Steel Structures", [
+            "SteelStructures_CreateMember", "SteelStructures_CreateColumn", "SteelStructures_CreateGrid"
         ]), workbench.menus)
 
     def test_repeated_activation_does_not_duplicate_bars(self):
@@ -167,10 +167,10 @@ class GeneralToolsTests(unittest.TestCase):
         class MoveWithoutCopy:
             pass
         sys.modules["DraftTools"].Move = MoveWithoutCopy
-        self.registered.pop("BFC_MoveCopy", None)
+        self.registered.pop("SteelStructures_MoveCopy", None)
         self.commands._move_copy_registered = False
         self.assertFalse(self.commands.register_move_copy_command())
-        self.assertNotIn("BFC_MoveCopy", self.registered)
+        self.assertNotIn("SteelStructures_MoveCopy", self.registered)
 
 
 if __name__ == "__main__":

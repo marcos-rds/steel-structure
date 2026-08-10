@@ -8,9 +8,9 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-WIDGET = ROOT / "freecad/BancadaFCSteel/interactive/profile_options_widget.py"
-MEMBER = ROOT / "freecad/BancadaFCSteel/member.py"
-COLUMN_PANEL = ROOT / "freecad/BancadaFCSteel/interactive/column_task_panel.py"
+WIDGET = ROOT / "freecad/SteelStructures/interactive/profile_options_widget.py"
+MEMBER = ROOT / "freecad/SteelStructures/member.py"
+COLUMN_PANEL = ROOT / "freecad/SteelStructures/interactive/column_task_panel.py"
 
 
 class MemberCreationTypeTests(unittest.TestCase):
