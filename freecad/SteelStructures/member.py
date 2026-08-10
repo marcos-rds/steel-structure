@@ -26,6 +26,7 @@ INSERTION_OPTIONS = [
 ELEMENT_TYPES = ["Membro", "Pilar", "Viga", "Contraventamento"]
 MATERIALS = ["ASTM A572 Grau 50", "ASTM A36", "Personalizado"]
 LENGTH_TOLERANCE = 1e-7
+FRAME_TOLERANCE = 1e-7
 
 
 def _quantity_value(value) -> float:
@@ -112,9 +113,27 @@ def _insertion_translation(profile: profile_catalog.Profile, mode: str) -> Tuple
     return translations.get(mode, (0.0, 0.0))
 
 
-def _axis_rotation(direction: App.Vector) -> App.Rotation:
-    """Map the local +Z extrusion axis onto the global member direction."""
-    return App.Rotation(App.Vector(0.0, 0.0, 1.0), direction)
+def _member_frame_rotation(direction: App.Vector) -> App.Rotation:
+    """Map the local section frame onto a deterministic structural frame.
+
+    The section width, height and extrusion axes are local +X, +Y and +Z.
+    Away from global Z, local +Y follows the projection of global Z onto the
+    section plane.  Nearly vertical members retain the historical shortest-arc
+    alignment, including the approved identity orientation for +Z columns.
+    """
+    longitudinal = App.Vector(direction)
+    longitudinal.normalize()
+    global_up = App.Vector(0.0, 0.0, 1.0)
+    section_vertical = global_up.sub(longitudinal * global_up.dot(longitudinal))
+    if section_vertical.Length <= FRAME_TOLERANCE:
+        return App.Rotation(global_up, longitudinal)
+
+    section_vertical.normalize()
+    section_transverse = section_vertical.cross(longitudinal)
+    section_transverse.normalize()
+    return App.Rotation(
+        section_transverse, section_vertical, longitudinal, "ZXY"
+    )
 
 
 def _copy_placement(placement):
@@ -376,7 +395,7 @@ class StructuralMemberProxy:
         # Keep the shape local and drive position/orientation through the
         # Part::Feature Placement. This fixes members remaining vertical when
         # the end point is in X/Y and makes the custom section rotation work.
-        alignment = _axis_rotation(direction)
+        alignment = _member_frame_rotation(direction)
         roll = App.Rotation(App.Vector(0.0, 0.0, 1.0), float(obj.Rotation.Value))
         combined_rotation = alignment.multiply(roll)
         base = start.sub(direction * start_extension)

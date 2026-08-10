@@ -24,6 +24,11 @@ class Vector:
     def add(self, other): return Vector(self.x + other.x, self.y + other.y, self.z + other.z)
     def sub(self, other): return Vector(self.x - other.x, self.y - other.y, self.z - other.z)
     def __mul__(self, value): return Vector(self.x * value, self.y * value, self.z * value)
+    def dot(self, other): return self.x * other.x + self.y * other.y + self.z * other.z
+    def cross(self, other):
+        return Vector(self.y * other.z - self.z * other.y,
+                      self.z * other.x - self.x * other.z,
+                      self.x * other.y - self.y * other.x)
     def normalize(self):
         length = self.Length; self.x /= length; self.y /= length; self.z /= length
 
@@ -41,9 +46,13 @@ def transpose(matrix): return tuple(tuple(matrix[j][i] for j in range(3)) for i 
 
 
 class Rotation:
-    def __init__(self, axis=None, value=None, matrix=None):
+    def __init__(self, axis=None, value=None, z_axis=None, priority=None, matrix=None):
         if matrix is not None:
             self.matrix = matrix; return
+        if z_axis is not None:
+            x, y, z = Vector(axis), Vector(value), Vector(z_axis)
+            self.matrix = ((x.x, y.x, z.x), (x.y, y.y, z.y), (x.z, y.z, z.z))
+            return
         axis = Vector(axis or Vector(0, 0, 1))
         if isinstance(value, Vector):
             target = Vector(value); target.normalize()
