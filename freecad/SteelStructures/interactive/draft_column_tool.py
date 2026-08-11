@@ -11,6 +11,7 @@ from draftutils.messages import _toolmsg
 from .. import profile_catalog
 from ..member import _i_section_face, _insertion_translation
 from ..paths import COLUMN_ICON
+from ..preferences import load_column_creation_settings, save_column_creation_settings
 from .column_task_panel import ColumnTaskPanel, column_top
 from .member_controller import MemberController
 
@@ -49,11 +50,13 @@ class StructuralColumnDraftTool(gui_lines.Line):
         self.controller = MemberController(self.doc)
         self.controller.start()
         self.column_panel = ColumnTaskPanel(self.doc, self._preview_options_changed)
+        settings = load_column_creation_settings()
+        self.column_panel.apply_creation_settings(settings)
         self.ui.lineUi(title="Criar Pilar", icon="Draft_Draft", extra=self.column_panel)
         self.ui.baseWidget.setWindowTitle("Criar Pilar")
         self.ui.baseWidget.setWindowIcon(QtGui.QIcon(icon or COLUMN_ICON))
-        self.ui.continueMode = True
-        self.ui.continueCmd.setChecked(True)
+        self.ui.continueMode = settings.continue_creating
+        self.ui.continueCmd.setChecked(self.ui.continueMode)
         self.ui.continueCmd.setText("Continuar criando")
         for name in ("labellength", "lengthValue", "labelangle", "angleValue", "angleLock"):
             widget = getattr(self.ui, name, None)
@@ -152,11 +155,15 @@ class StructuralColumnDraftTool(gui_lines.Line):
 
     def _confirm_base(self, base):
         try:
-            result = self.controller.create(self.column_panel.creation_options(base))
+            options = self.column_panel.creation_options(base)
+            result = self.controller.create(options)
         except Exception as exc:
             App.Console.PrintError(f"Steel Structures: erro ao criar pilar: {exc}\n")
             self.node = []
             return
+        save_column_creation_settings(
+            self.column_panel.creation_settings(self.ui.continueMode)
+        )
         self.column_panel.creation_succeeded(result.next_default_name)
         if self.ui.continueMode:
             self._reset_for_continue()

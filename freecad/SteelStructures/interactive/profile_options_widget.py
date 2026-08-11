@@ -5,6 +5,7 @@ from PySide import QtGui, QtWidgets
 
 from .. import profile_catalog
 from ..member import ELEMENT_TYPES, INSERTION_OPTIONS
+from ..preferences import MemberCreationSettings
 from .member_controller import MemberCreationOptions, compact_profile_designation, next_default_label
 
 
@@ -123,6 +124,43 @@ class ProfileOptionsWidget(QtWidgets.QGroupBox):
     def creation_succeeded(self, next_name):
         self._name_custom = False
         self._set_name(next_name)
+
+    def apply_creation_settings(self, settings):
+        """Restore validated reusable values without persisting object names."""
+        widgets = (self.element_type, self.category, self.series, self.profile,
+                   self.insertion, self.rotation)
+        previous = [widget.blockSignals(True) for widget in widgets]
+        try:
+            self.element_type.setCurrentText(getattr(settings, "element_type", "Pilar"))
+            self.category.setCurrentText(settings.category)
+            self.series.clear()
+            self.series.addItems(profile_catalog.series_for_category(settings.category))
+            self.series.setCurrentText(settings.series)
+            self.profile.clear()
+            for designation in profile_catalog.designations(settings.category, settings.series):
+                self.profile.addItem(compact_profile_designation(designation), designation)
+            index = self.profile.findData(settings.designation)
+            if index >= 0:
+                self.profile.setCurrentIndex(index)
+            self.insertion.setCurrentText(settings.insertion)
+            self.rotation.setValue(settings.rotation)
+        finally:
+            for widget, blocked in zip(widgets, previous):
+                widget.blockSignals(blocked)
+        red, green, blue = settings.color
+        self._color = QtGui.QColor.fromRgbF(red, green, blue)
+        self._update_color_button()
+        self._name_custom = False
+        self.refresh_automatic_name()
+
+    def creation_settings(self):
+        return MemberCreationSettings(
+            category=self.category.currentText(), series=self.series.currentText(),
+            designation=self.profile_designation,
+            insertion=self.insertion.currentText(), rotation=float(self.rotation.value()),
+            color=tuple(float(value) for value in self.rgb),
+            element_type=self.element_type.currentText(),
+        )
 
     def state(self):
         return {

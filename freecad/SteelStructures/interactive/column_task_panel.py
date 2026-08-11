@@ -4,6 +4,7 @@
 from PySide import QtWidgets
 
 from .profile_options_widget import ProfileOptionsWidget
+from ..preferences import ColumnCreationSettings
 
 
 DEFAULT_COLUMN_HEIGHT = 3000.0
@@ -57,6 +58,19 @@ class ColumnTaskPanel(QtWidgets.QGroupBox):
 
     def creation_succeeded(self, next_name):
         self.profile_options.creation_succeeded(next_name)
+
+    def apply_creation_settings(self, settings):
+        self.profile_options.apply_creation_settings(settings)
+        self.height.setValue(settings.height)
+
+    def creation_settings(self, continue_creating):
+        profile = self.profile_options.creation_settings()
+        return ColumnCreationSettings(
+            category=profile.category, series=profile.series,
+            designation=profile.designation, insertion=profile.insertion,
+            rotation=profile.rotation, color=profile.color,
+            height=self.height_value, continue_creating=bool(continue_creating),
+        )
 
 
 __all__ = [
