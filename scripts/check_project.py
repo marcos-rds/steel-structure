@@ -17,7 +17,7 @@ CATALOG = (
     / "freecad"
     / "SteelStructures"
     / "catalogs"
-    / "gerdau_w_initial.json"
+    / "gerdau_construcao_metalica_2023_01.json"
 )
 
 ESSENTIAL_FILES = (
@@ -34,25 +34,29 @@ ESSENTIAL_FILES = (
     "freecad/SteelStructures/member.py",
     "freecad/SteelStructures/profile_catalog.py",
     "freecad/SteelStructures/paths.py",
-    "freecad/SteelStructures/catalogs/gerdau_w_initial.json",
+    "freecad/SteelStructures/profiles/__init__.py",
+    "freecad/SteelStructures/profiles/models.py",
+    "freecad/SteelStructures/profiles/catalog.py",
+    "freecad/SteelStructures/profiles/validation.py",
+    "freecad/SteelStructures/catalogs/gerdau_construcao_metalica_2023_01.json",
     "Resources/Icons/SteelStructures.svg",
     "Resources/Icons/CreateMember.svg",
     "Resources/Icons/StructuralMember.svg",
 )
 
 REQUIRED_PROFILE_FIELDS = {
-    "manufacturer",
-    "family",
+    "id",
+    "series_id",
     "designation",
-    "mass_per_m",
-    "d",
-    "bf",
-    "tw",
-    "tf",
-    "area_cm2",
-    "source",
+    "equivalent_designation",
+    "aliases",
+    "catalog_markers",
+    "availability_status",
+    "geometry_type",
+    "geometry",
+    "physical_properties",
+    "section_properties",
 }
-POSITIVE_PROFILE_FIELDS = ("mass_per_m", "d", "bf", "tw", "tf", "area_cm2")
 
 
 def package_version() -> str:
@@ -78,6 +82,8 @@ def python_package_version() -> str:
 
 def catalog_profiles() -> list[dict]:
     payload = json.loads(CATALOG.read_text(encoding="utf-8"))
+    if payload.get("schema_version") != 2:
+        raise ValueError("o catálogo não usa schema_version 2")
     profiles = payload.get("profiles")
     if not isinstance(profiles, list):
         raise ValueError("o catálogo não contém uma lista 'profiles'")
@@ -114,8 +120,11 @@ def run_checks() -> list[str]:
         errors.append(f"catálogo JSON inválido: {exc}")
         profiles = []
 
-    if len(profiles) != 22:
-        errors.append(f"quantidade de perfis incorreta: esperado 22, encontrado {len(profiles)}")
+    if len(profiles) != 108:
+        errors.append(f"quantidade de perfis incorreta: esperado 108, encontrado {len(profiles)}")
+    counts = {series: sum(profile.get("series_id") == series for profile in profiles) for series in ("w", "hp")}
+    if counts != {"w": 100, "hp": 8}:
+        errors.append(f"quantidade por série incorreta: {counts!r}")
 
     designations: list[str] = []
     for index, profile in enumerate(profiles, start=1):
@@ -128,8 +137,12 @@ def run_checks() -> list[str]:
         designation = profile.get("designation")
         if isinstance(designation, str):
             designations.append(designation)
-        for field in POSITIVE_PROFILE_FIELDS:
-            value = profile.get(field)
+        numeric_values = {}
+        for group in ("geometry", "physical_properties", "section_properties"):
+            values = profile.get(group, {})
+            if isinstance(values, dict):
+                numeric_values.update(values)
+        for field, value in numeric_values.items():
             if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
                 errors.append(
                     f"perfil {index} possui valor não positivo ou não numérico em {field}: {value!r}"
@@ -160,7 +173,7 @@ def main() -> int:
         return 1
     print("OK: package.xml é XML válido.")
     print("OK: package.xml e __version__ indicam a mesma versão.")
-    print("OK: catálogo inicial é JSON válido e contém exatamente 22 perfis.")
+    print("OK: catálogo Gerdau 01/23 é JSON válido e contém 100 W e 8 HP.")
     print("OK: designações são únicas e todos os perfis possuem campos e valores válidos.")
     print("OK: todos os arquivos Python compilam sintaticamente.")
     print("OK: todos os arquivos essenciais existem.")

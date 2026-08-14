@@ -18,22 +18,22 @@ CATALOG = (
     / "freecad"
     / "SteelStructures"
     / "catalogs"
-    / "gerdau_w_initial.json"
+    / "gerdau_construcao_metalica_2023_01.json"
 )
 
 REQUIRED_PROFILE_FIELDS = {
-    "manufacturer",
-    "family",
+    "id",
+    "series_id",
     "designation",
-    "mass_per_m",
-    "d",
-    "bf",
-    "tw",
-    "tf",
-    "area_cm2",
-    "source",
+    "equivalent_designation",
+    "aliases",
+    "catalog_markers",
+    "availability_status",
+    "geometry_type",
+    "geometry",
+    "physical_properties",
+    "section_properties",
 }
-POSITIVE_PROFILE_FIELDS = ("mass_per_m", "d", "bf", "tw", "tf", "area_cm2")
 ESSENTIAL_FILES = (
     "package.xml",
     "README.md",
@@ -50,7 +50,11 @@ ESSENTIAL_FILES = (
     "freecad/SteelStructures/member.py",
     "freecad/SteelStructures/profile_catalog.py",
     "freecad/SteelStructures/paths.py",
-    "freecad/SteelStructures/catalogs/gerdau_w_initial.json",
+    "freecad/SteelStructures/profiles/__init__.py",
+    "freecad/SteelStructures/profiles/models.py",
+    "freecad/SteelStructures/profiles/catalog.py",
+    "freecad/SteelStructures/profiles/validation.py",
+    "freecad/SteelStructures/catalogs/gerdau_construcao_metalica_2023_01.json",
     "Resources/Icons/SteelStructures.svg",
     "Resources/Icons/CreateMember.svg",
     "Resources/Icons/CreateColumn.svg",
@@ -177,10 +181,13 @@ class CatalogIntegrityTests(unittest.TestCase):
 
     def test_catalog_is_valid_json_with_profiles(self):
         self.assertIsInstance(self.payload, dict)
+        self.assertEqual(self.payload["schema_version"], 2)
         self.assertIsInstance(self.profiles, list)
 
-    def test_catalog_contains_exactly_22_profiles(self):
-        self.assertEqual(len(self.profiles), 22)
+    def test_catalog_contains_exactly_108_profiles(self):
+        self.assertEqual(len(self.profiles), 108)
+        self.assertEqual(sum(p["series_id"] == "w" for p in self.profiles), 100)
+        self.assertEqual(sum(p["series_id"] == "hp" for p in self.profiles), 8)
 
     def test_designations_are_unique(self):
         designations = [profile["designation"] for profile in self.profiles]
@@ -193,9 +200,13 @@ class CatalogIntegrityTests(unittest.TestCase):
 
     def test_profile_numeric_values_are_positive(self):
         for profile in self.profiles:
-            for field in POSITIVE_PROFILE_FIELDS:
+            values = {
+                **profile["geometry"],
+                **profile["physical_properties"],
+                **profile["section_properties"],
+            }
+            for field, value in values.items():
                 with self.subTest(profile=profile.get("designation"), field=field):
-                    value = profile[field]
                     self.assertIsInstance(value, (int, float))
                     self.assertNotIsInstance(value, bool)
                     self.assertGreater(value, 0)
