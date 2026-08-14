@@ -324,6 +324,7 @@ def validate_catalog_payload(payload, path: Path):
             manufacturer=manufacturer,
             family=series_definition.family,
             geometry_type=geometry_type,
+            geometry_variant=series_definition.geometry_variant,
             geometry=immutable_mapping(geometry),
             physical_properties=physical,
             section_properties=immutable_mapping(section),

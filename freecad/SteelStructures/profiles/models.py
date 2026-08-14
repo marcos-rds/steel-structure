@@ -85,6 +85,7 @@ class ProfileDefinition:
     manufacturer: ManufacturerDefinition
     family: str
     geometry_type: str
+    geometry_variant: str | None
     geometry: Mapping[str, float]
     physical_properties: PhysicalProperties
     section_properties: Mapping[str, float]

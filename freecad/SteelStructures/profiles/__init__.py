@@ -2,6 +2,18 @@
 """Typed structural-profile catalog domain API."""
 
 from .catalog import ProfileLibrary, normalize_search_text
+from .geometry import (
+    LineSegment2D,
+    PathSegment2D,
+    Point2D,
+    SectionBounds2D,
+    SectionGeometry2D,
+    SectionGeometryError,
+    SectionPath2D,
+    UnsupportedSectionGeometryError,
+    build_parallel_flange_i_section,
+    build_section_geometry,
+)
 from .models import (
     CatalogMetadata,
     CatalogSource,
@@ -21,8 +33,12 @@ from .validation import (
 
 __all__ = [
     "CatalogError", "CatalogMetadata", "CatalogSource",
-    "CatalogValidationError", "CategoryDefinition", "ManufacturerDefinition",
+    "CatalogValidationError", "CategoryDefinition", "LineSegment2D",
+    "ManufacturerDefinition", "PathSegment2D", "Point2D",
     "PhysicalProperties", "ProfileDefinition", "ProfileLibrary",
-    "ProfileNotFoundError", "ProfileRef", "SeriesDefinition",
+    "ProfileNotFoundError", "ProfileRef", "SectionBounds2D",
+    "SectionGeometry2D", "SectionGeometryError", "SectionPath2D",
+    "SeriesDefinition", "UnsupportedSectionGeometryError",
+    "build_parallel_flange_i_section", "build_section_geometry",
     "convert_to_canonical", "normalize_search_text",
 ]
