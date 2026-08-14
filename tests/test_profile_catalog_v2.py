@@ -122,13 +122,19 @@ class CurrentCatalogTests(unittest.TestCase):
         cls.profiles = cls.library.list_profiles()
 
     def test_identity_metadata_and_exact_profile_set(self):
-        self.assertEqual(len(self.profiles), 108)
+        self.assertEqual(len(self.profiles), 218)
         self.assertTrue(set(EXPECTED_IDS).issubset({item.ref.profile_id for item in self.profiles}))
         self.assertTrue(all(item.ref.catalog_id == "gerdau-construcao-metalica-2023-01" for item in self.profiles))
         self.assertEqual(self.library.list_categories()[0].id, "rolled-steel")
         self.assertEqual(self.library.list_series()[0].id, "w")
         self.assertEqual(len(self.library.list_profiles(series_id="w")), 100)
         self.assertEqual(len(self.library.list_profiles(series_id="hp")), 8)
+        expected_counts = {"w": 100, "hp": 8, "i": 8, "u": 12, "t": 10,
+                           "equal-angle-inch": 50, "equal-angle-metric": 30}
+        self.assertEqual(
+            {series: len(self.library.list_profiles(series_id=series)) for series in expected_counts},
+            expected_counts,
+        )
         metadata = self.library.list_catalogs()[0]
         self.assertEqual(metadata.manufacturer.name, "Gerdau")
         self.assertEqual(metadata.source.source_revision, "01/23")
@@ -205,11 +211,11 @@ class CurrentCatalogTests(unittest.TestCase):
         self.assertEqual(sample.section_properties["wx"], 751400.0)
         self.assertEqual(sample.section_properties["rx"], 133.3)
 
-    def test_all_108_records_have_complete_published_fields_and_unique_ids(self):
-        self.assertEqual(len({p["id"] for p in self.raw["profiles"]}), 108)
+    def test_all_218_records_have_unique_ids_and_w_hp_complete_fields(self):
+        self.assertEqual(len({p["id"] for p in self.raw["profiles"]}), 218)
         section_keys = {"ix", "wx", "rx", "zx", "iy", "wy", "ry", "zy", "rt", "it", "cw",
                         "slenderness_flange", "slenderness_web"}
-        for raw in self.raw["profiles"]:
+        for raw in (p for p in self.raw["profiles"] if p["series_id"] in {"w", "hp"}):
             with self.subTest(profile=raw["id"]):
                 self.assertEqual(set(raw["geometry"]), {"d", "bf", "tw", "tf", "h", "d_prime"})
                 self.assertEqual(set(raw["physical_properties"]), {"mass_per_length", "area", "surface_area_per_length"})
@@ -258,8 +264,8 @@ class MultiCatalogAndReloadTests(unittest.TestCase):
             self.write(directory, "a.json", first)
             self.write(directory, "b.json", second)
             library = ProfileLibrary(Path(directory))
-            self.assertEqual(len(library.list_profiles()), 216)
-            self.assertEqual(library.list_profiles()[0].designation, library.list_profiles()[108].designation)
+            self.assertEqual(len(library.list_profiles()), 436)
+            self.assertEqual(library.list_profiles()[0].designation, library.list_profiles()[218].designation)
 
     def test_duplicate_profile_ref_across_files_is_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -289,6 +295,9 @@ class LegacyFacadeTests(unittest.TestCase):
         self.assertEqual(profile_catalog.series_for_category("Aço dobrado"), [])
         self.assertEqual(len(profile_catalog.designations("Aço Laminado", "Perfis W")), 100)
         self.assertEqual(len(profile_catalog.designations("Aço Laminado", "Perfis HP")), 8)
+        self.assertEqual(len(profile_catalog.profiles()), 108)
+        with self.assertRaises(KeyError):
+            profile_catalog.get('U 3" x 6,10')
 
     def test_legacy_profile_contract_and_quantitative_values_are_preserved(self):
         item = profile_catalog.get("W 150 x 13,0")

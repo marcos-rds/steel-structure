@@ -23,6 +23,7 @@ from .models import (
 ID_PATTERN = re.compile(r"^[a-z0-9]+(?:[.-][a-z0-9]+)*$")
 UNIT_FACTORS = {
     "length": {"mm": 1.0},
+    "centroid": {"mm": 1.0, "cm": 10.0},
     "radius_of_gyration": {"mm": 1.0, "cm": 10.0},
     "area": {"mm2": 1.0, "cm2": 100.0},
     "mass_per_length": {"kg/m": 1.0},
@@ -44,6 +45,7 @@ SECTION_PROPERTY_QUANTITIES = {
     "rx": "radius_of_gyration",
     "ry": "radius_of_gyration",
     "rt": "radius_of_gyration",
+    "rz_min": "radius_of_gyration",
     "cw": "warping_constant",
     "slenderness_flange": "dimensionless",
     "slenderness_web": "dimensionless",
@@ -206,12 +208,15 @@ def validate_catalog_payload(payload, path: Path):
             _string(raw.get("name"), path, catalog_id, f"series[{index}].name"),
             _string(raw.get("family"), path, catalog_id, f"series[{index}].family"),
             _string(raw.get("geometry_type"), path, catalog_id, f"series[{index}].geometry_type"),
+            _string(raw.get("geometry_variant"), path, catalog_id, f"series[{index}].geometry_variant", True),
+            _string(raw.get("geometry_notes"), path, catalog_id, f"series[{index}].geometry_notes", True),
         )
         series_by_id[series_id] = definition
         series.append(definition)
 
     profiles = []
     profile_ids = set()
+    designations_by_series = set()
     for index, raw in enumerate(_list(payload.get("profiles"), path, catalog_id, "profiles")):
         raw = _mapping(raw, path, catalog_id, f"profiles[{index}]")
         profile_id = _id(raw.get("id"), path, catalog_id, f"profiles[{index}].id")
@@ -222,19 +227,40 @@ def validate_catalog_payload(payload, path: Path):
         if series_id not in series_by_id:
             raise _error(path, catalog_id, f"perfil {profile_id} referencia série inexistente: {series_id}")
         series_definition = series_by_id[series_id]
+        designation = _string(raw.get("designation"), path, catalog_id, f"profiles[{index}].designation")
+        designation_key = (series_id, designation)
+        if designation_key in designations_by_series:
+            raise _error(path, catalog_id, f"designação duplicada na série {series_id}: {designation!r}")
+        designations_by_series.add(designation_key)
         geometry_type = _string(raw.get("geometry_type"), path, catalog_id, f"profiles[{index}].geometry_type")
         geometry_raw = _mapping(raw.get("geometry"), path, catalog_id, f"profiles[{index}].geometry")
         geometry = {}
-        if geometry_type == "i_section":
-            for parameter in ("d", "bf", "tw", "tf", "h", "d_prime"):
+        if geometry_type in {"i_section", "channel_section", "tee_section"}:
+            for parameter in ("d", "bf", "tw", "tf"):
                 geometry[parameter] = convert_to_canonical(
                     _number(geometry_raw.get(parameter), path, catalog_id, f"profiles[{index}].geometry.{parameter}", True),
                     "length", units["length"],
                 )
+            for parameter in ("h", "d_prime"):
+                if parameter in geometry_raw:
+                    geometry[parameter] = convert_to_canonical(
+                        _number(geometry_raw.get(parameter), path, catalog_id, f"profiles[{index}].geometry.{parameter}", True),
+                        "length", units["length"],
+                    )
             if geometry["tw"] >= geometry["bf"]:
                 raise _error(path, catalog_id, f"perfil {profile_id}: tw deve ser menor que bf")
-            if 2.0 * geometry["tf"] >= geometry["d"]:
+            if geometry_type in {"i_section", "channel_section"} and 2.0 * geometry["tf"] >= geometry["d"]:
                 raise _error(path, catalog_id, f"perfil {profile_id}: 2*tf deve ser menor que d")
+            if geometry_type == "tee_section" and geometry["tf"] >= geometry["d"]:
+                raise _error(path, catalog_id, f"perfil {profile_id}: tf deve ser menor que d")
+        elif geometry_type == "equal_angle":
+            for parameter in ("b", "t"):
+                geometry[parameter] = convert_to_canonical(
+                    _number(geometry_raw.get(parameter), path, catalog_id, f"profiles[{index}].geometry.{parameter}", True),
+                    "length", units["length"],
+                )
+            if geometry["t"] >= geometry["b"]:
+                raise _error(path, catalog_id, f"perfil {profile_id}: t deve ser menor que b")
         else:
             raise _error(path, catalog_id, f"geometry_type não suportado: {geometry_type!r}")
 
@@ -268,6 +294,15 @@ def validate_catalog_payload(payload, path: Path):
                 _number(value, path, catalog_id, f"profiles[{index}].section_properties.{key}", True),
                 quantity, units[quantity],
             )
+        centroid_raw = _mapping(raw.get("centroid", {}), path, catalog_id, f"profiles[{index}].centroid")
+        centroid = {}
+        for key, value in centroid_raw.items():
+            if key != "x":
+                raise _error(path, catalog_id, f"coordenada de centroide desconhecida: {key!r}")
+            centroid[key] = convert_to_canonical(
+                _number(value, path, catalog_id, f"profiles[{index}].centroid.{key}", True),
+                "centroid", units.get("centroid", units["length"]),
+            )
         aliases_raw = _list(raw.get("aliases", []), path, catalog_id, f"profiles[{index}].aliases")
         aliases = tuple(_string(value, path, catalog_id, f"profiles[{index}].aliases") for value in aliases_raw)
         markers_raw = _list(raw.get("catalog_markers", []), path, catalog_id, f"profiles[{index}].catalog_markers")
@@ -279,7 +314,7 @@ def validate_catalog_payload(payload, path: Path):
             raise _error(path, catalog_id, f"perfil {profile_id}: availability_status inválido: {availability!r}")
         profiles.append(ProfileDefinition(
             ref=ProfileRef(catalog_id, profile_id),
-            designation=_string(raw.get("designation"), path, catalog_id, f"profiles[{index}].designation"),
+            designation=designation,
             equivalent_designation=_string(raw.get("equivalent_designation"), path, catalog_id, f"profiles[{index}].equivalent_designation", True),
             aliases=aliases,
             catalog_markers=markers,
@@ -292,6 +327,7 @@ def validate_catalog_payload(payload, path: Path):
             geometry=immutable_mapping(geometry),
             physical_properties=physical,
             section_properties=immutable_mapping(section),
+            centroid=immutable_mapping(centroid),
             catalog=metadata,
         ))
     return metadata, tuple(categories), tuple(series), tuple(profiles)

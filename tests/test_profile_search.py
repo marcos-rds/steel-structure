@@ -38,3 +38,15 @@ class ProfileSearchTests(unittest.TestCase):
         for query, expected in cases.items():
             with self.subTest(query=query):
                 self.assertIn(expected, [item.designation for item in self.library.search(query)])
+
+    def test_stage_2b_natural_search_aliases(self):
+        cases = {
+            "I3x8.48": 'I 3" x 8,48', "I3x8,48": 'I 3" x 8,48',
+            "U6x12.2": 'U 6" x 12,20', "U 6 x 12,20": 'U 6" x 12,20',
+            "T1.25": 'T 1 1/4" x 1/8"', "T1 1/4": 'T 1 1/4" x 1/8"',
+            "L2x1/4": 'L 2" x 1/4"', "L2x0.25": 'L 2" x 1/4"',
+            "L50x5": "L 50 x 5", "50x5": "L 50 x 5",
+        }
+        for query, expected in cases.items():
+            with self.subTest(query=query):
+                self.assertIn(expected, [item.designation for item in self.library.search(query)])

@@ -13,6 +13,10 @@ from .profiles import ProfileLibrary
 # The typed API exposes only categories declared by actual catalogs.
 KNOWN_CATEGORIES = ["Aço Laminado", "Aço dobrado"]
 
+# Temporary application capability until geometry generators for the other
+# catalog families are integrated and validated.
+SUPPORTED_CREATION_SERIES = {"w", "hp"}
+
 
 @dataclass(frozen=True)
 class Profile:
@@ -69,6 +73,8 @@ def _load() -> Dict[str, Profile]:
     }
     result = {}
     for definition in _LIBRARY.list_profiles():
+        if definition.series_id not in SUPPORTED_CREATION_SERIES:
+            continue
         # The legacy contract has no catalog namespace. Keep its historical
         # global-designation constraint while new consumers use ProfileRef.
         if definition.designation in result:

@@ -61,6 +61,8 @@ class SeriesDefinition:
     name: str
     family: str
     geometry_type: str
+    geometry_variant: str | None = None
+    geometry_notes: str | None = None
 
 
 @dataclass(frozen=True)
@@ -86,4 +88,7 @@ class ProfileDefinition:
     geometry: Mapping[str, float]
     physical_properties: PhysicalProperties
     section_properties: Mapping[str, float]
+    # Section coordinate in the publication's geometric convention; it is not
+    # a StructuralMember placement offset or a bounding-box center.
+    centroid: Mapping[str, float]
     catalog: CatalogMetadata

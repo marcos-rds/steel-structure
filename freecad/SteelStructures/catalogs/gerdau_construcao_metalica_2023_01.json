@@ -30,7 +30,8 @@
     "warping_constant": "cm6",
     "surface_area_per_length": "m2/m",
     "dimensionless": "1",
-    "radius_of_gyration": "cm"
+    "radius_of_gyration": "cm",
+    "centroid": "cm"
   },
   "categories": [
     {
@@ -44,14 +45,63 @@
       "category_id": "rolled-steel",
       "name": "Perfis W",
       "family": "w",
-      "geometry_type": "i_section"
+      "geometry_type": "i_section",
+      "geometry_variant": "parallel_flange",
+      "geometry_notes": "A tabela não fornece numericamente o raio R mostrado no desenho."
     },
     {
       "id": "hp",
       "category_id": "rolled-steel",
       "name": "Perfis HP",
       "family": "hp",
-      "geometry_type": "i_section"
+      "geometry_type": "i_section",
+      "geometry_variant": "parallel_flange",
+      "geometry_notes": "A tabela não fornece numericamente o raio R mostrado no desenho."
+    },
+    {
+      "id": "i",
+      "category_id": "rolled-steel",
+      "name": "Perfis I",
+      "family": "i",
+      "geometry_type": "i_section",
+      "geometry_variant": "tapered_flange",
+      "geometry_notes": "A tabela fornece dimensões principais, mas não dados suficientes para reconstrução exata das faces internas inclinadas e concordâncias."
+    },
+    {
+      "id": "u",
+      "category_id": "rolled-steel",
+      "name": "Perfis U",
+      "family": "u",
+      "geometry_type": "channel_section",
+      "geometry_variant": "tapered_flange",
+      "geometry_notes": "A tabela fornece dimensões principais, mas não dados suficientes para reconstrução exata das faces internas inclinadas e concordâncias."
+    },
+    {
+      "id": "t",
+      "category_id": "rolled-steel",
+      "name": "Perfis T",
+      "family": "t",
+      "geometry_type": "tee_section",
+      "geometry_variant": "standard_tee",
+      "geometry_notes": "Não há raio numérico suficiente para reprodução integral das concordâncias."
+    },
+    {
+      "id": "equal-angle-inch",
+      "category_id": "rolled-steel",
+      "name": "Cantoneiras - Polegadas",
+      "family": "equal_angle",
+      "geometry_type": "equal_angle",
+      "geometry_variant": "equal_leg",
+      "geometry_notes": "Não há raio numérico suficiente para reprodução integral das concordâncias."
+    },
+    {
+      "id": "equal-angle-metric",
+      "category_id": "rolled-steel",
+      "name": "Cantoneiras - Métricas",
+      "family": "equal_angle",
+      "geometry_type": "equal_angle",
+      "geometry_variant": "equal_leg",
+      "geometry_notes": "Não há raio numérico suficiente para reprodução integral das concordâncias."
     }
   ],
   "profiles": [
@@ -4797,6 +4847,3760 @@
         "slenderness_flange": 5.92,
         "slenderness_web": 32.76,
         "cw": 14676643
+      }
+    },
+    {
+      "id": "i-3x8.48",
+      "series_id": "i",
+      "designation": "I 3\" x 8,48",
+      "equivalent_designation": null,
+      "aliases": [
+        "I3",
+        "I3x8.48",
+        "I3x8,48"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "i_section",
+      "geometry": {
+        "d": 76.2,
+        "tw": 4.32,
+        "bf": 59.18,
+        "tf": 6.6
+      },
+      "physical_properties": {
+        "mass_per_length": 8.48,
+        "area": 10.8
+      },
+      "section_properties": {
+        "ix": 105.1,
+        "wx": 27.6,
+        "rx": 3.12,
+        "iy": 18.9,
+        "wy": 6.4,
+        "ry": 1.33,
+        "rt": 1.45
+      }
+    },
+    {
+      "id": "i-3x9.68",
+      "series_id": "i",
+      "designation": "I 3\" x 9,68",
+      "equivalent_designation": null,
+      "aliases": [
+        "I3",
+        "I3x9.68",
+        "I3x9,68"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "i_section",
+      "geometry": {
+        "d": 76.2,
+        "tw": 6.38,
+        "bf": 61.24,
+        "tf": 6.6
+      },
+      "physical_properties": {
+        "mass_per_length": 9.68,
+        "area": 12.32
+      },
+      "section_properties": {
+        "ix": 115.0,
+        "wx": 30.18,
+        "rx": 3.06,
+        "iy": 45.6,
+        "wy": 11.48,
+        "ry": 1.92,
+        "rt": 1.98
+      }
+    },
+    {
+      "id": "i-4x11.46",
+      "series_id": "i",
+      "designation": "I 4\" x 11,46",
+      "equivalent_designation": null,
+      "aliases": [
+        "I4",
+        "I4x11.46",
+        "I4x11,46"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "i_section",
+      "geometry": {
+        "d": 101.6,
+        "tw": 4.9,
+        "bf": 67.6,
+        "tf": 7.44
+      },
+      "physical_properties": {
+        "mass_per_length": 11.46,
+        "area": 14.5
+      },
+      "section_properties": {
+        "ix": 252.0,
+        "wx": 49.7,
+        "rx": 4.17,
+        "iy": 31.7,
+        "wy": 9.4,
+        "ry": 1.48,
+        "rt": 1.68
+      }
+    },
+    {
+      "id": "i-4x12.65",
+      "series_id": "i",
+      "designation": "I 4\" x 12,65",
+      "equivalent_designation": null,
+      "aliases": [
+        "I4",
+        "I4x12.65",
+        "I4x12,65"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "i_section",
+      "geometry": {
+        "d": 101.6,
+        "tw": 6.43,
+        "bf": 69.2,
+        "tf": 7.44
+      },
+      "physical_properties": {
+        "mass_per_length": 12.65,
+        "area": 16.11
+      },
+      "section_properties": {
+        "ix": 266.0,
+        "wx": 52.4,
+        "rx": 4.06,
+        "iy": 34.3,
+        "wy": 9.9,
+        "ry": 1.46,
+        "rt": 1.83
+      }
+    },
+    {
+      "id": "i-5x14.88",
+      "series_id": "i",
+      "designation": "I 5\" x 14,88",
+      "equivalent_designation": null,
+      "aliases": [
+        "I5",
+        "I5x14.88",
+        "I5x14,88"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "i_section",
+      "geometry": {
+        "d": 127.0,
+        "tw": 5.44,
+        "bf": 76.3,
+        "tf": 8.28
+      },
+      "physical_properties": {
+        "mass_per_length": 14.88,
+        "area": 18.8
+      },
+      "section_properties": {
+        "ix": 511.0,
+        "wx": 80.4,
+        "rx": 5.21,
+        "iy": 50.2,
+        "wy": 13.2,
+        "ry": 1.63,
+        "rt": 1.88
+      }
+    },
+    {
+      "id": "i-5x18.24",
+      "series_id": "i",
+      "designation": "I 5\" x 18,24",
+      "equivalent_designation": null,
+      "aliases": [
+        "I5",
+        "I5x18.24",
+        "I5x18,24"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "i_section",
+      "geometry": {
+        "d": 127.0,
+        "tw": 8.81,
+        "bf": 79.7,
+        "tf": 8.28
+      },
+      "physical_properties": {
+        "mass_per_length": 18.24,
+        "area": 23.24
+      },
+      "section_properties": {
+        "ix": 570.0,
+        "wx": 89.8,
+        "rx": 4.95,
+        "iy": 58.6,
+        "wy": 14.7,
+        "ry": 1.59,
+        "rt": 1.92
+      }
+    },
+    {
+      "id": "i-6x18.60",
+      "series_id": "i",
+      "designation": "I 6\" x 18,60",
+      "equivalent_designation": null,
+      "aliases": [
+        "I6",
+        "I6x18.60",
+        "I6x18,60"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "i_section",
+      "geometry": {
+        "d": 152.4,
+        "tw": 5.89,
+        "bf": 84.63,
+        "tf": 9.12
+      },
+      "physical_properties": {
+        "mass_per_length": 18.6,
+        "area": 23.6
+      },
+      "section_properties": {
+        "ix": 919.0,
+        "wx": 120.6,
+        "rx": 6.24,
+        "iy": 75.7,
+        "wy": 17.9,
+        "ry": 1.79,
+        "rt": 2.08
+      }
+    },
+    {
+      "id": "i-6x22.00",
+      "series_id": "i",
+      "designation": "I 6\" x 22,00",
+      "equivalent_designation": null,
+      "aliases": [
+        "I6",
+        "I6x22.00",
+        "I6x22,00"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "i_section",
+      "geometry": {
+        "d": 152.4,
+        "tw": 8.71,
+        "bf": 87.5,
+        "tf": 9.12
+      },
+      "physical_properties": {
+        "mass_per_length": 22.0,
+        "area": 27.97
+      },
+      "section_properties": {
+        "ix": 1003.0,
+        "wx": 131.7,
+        "rx": 5.99,
+        "iy": 84.9,
+        "wy": 19.4,
+        "ry": 1.74,
+        "rt": 2.26
+      }
+    },
+    {
+      "id": "u-3x6.10",
+      "series_id": "u",
+      "designation": "U 3\" x 6,10",
+      "equivalent_designation": null,
+      "aliases": [
+        "U3",
+        "U3x6.10",
+        "U3x6,10"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "channel_section",
+      "geometry": {
+        "d": 76.2,
+        "tw": 4.32,
+        "bf": 35.81,
+        "tf": 6.93
+      },
+      "physical_properties": {
+        "mass_per_length": 6.1,
+        "area": 7.78
+      },
+      "section_properties": {
+        "ix": 68.9,
+        "wx": 18.1,
+        "rx": 2.98,
+        "iy": 8.2,
+        "wy": 3.32,
+        "ry": 1.03
+      },
+      "centroid": {
+        "x": 1.11
+      }
+    },
+    {
+      "id": "u-3x7.44",
+      "series_id": "u",
+      "designation": "U 3\" x 7,44",
+      "equivalent_designation": null,
+      "aliases": [
+        "U3",
+        "U3x7.44",
+        "U3x7,44"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "channel_section",
+      "geometry": {
+        "d": 76.2,
+        "tw": 6.55,
+        "bf": 35.05,
+        "tf": 6.93
+      },
+      "physical_properties": {
+        "mass_per_length": 7.44,
+        "area": 9.48
+      },
+      "section_properties": {
+        "ix": 77.2,
+        "wx": 20.3,
+        "rx": 2.85,
+        "iy": 10.3,
+        "wy": 3.82,
+        "ry": 1.04
+      },
+      "centroid": {
+        "x": 1.11
+      }
+    },
+    {
+      "id": "u-4x8.04",
+      "series_id": "u",
+      "designation": "U 4\" x 8,04",
+      "equivalent_designation": null,
+      "aliases": [
+        "U4",
+        "U4x8.04",
+        "U4x8,04"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "channel_section",
+      "geometry": {
+        "d": 101.6,
+        "tw": 4.67,
+        "bf": 40.23,
+        "tf": 7.52
+      },
+      "physical_properties": {
+        "mass_per_length": 8.04,
+        "area": 10.1
+      },
+      "section_properties": {
+        "ix": 159.5,
+        "wx": 31.4,
+        "rx": 3.97,
+        "iy": 13.1,
+        "wy": 4.61,
+        "ry": 1.14
+      },
+      "centroid": {
+        "x": 1.16
+      }
+    },
+    {
+      "id": "u-4x9.30",
+      "series_id": "u",
+      "designation": "U 4\" x 9,30",
+      "equivalent_designation": null,
+      "aliases": [
+        "U4",
+        "U4x9.30",
+        "U4x9,30"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "channel_section",
+      "geometry": {
+        "d": 101.6,
+        "tw": 6.27,
+        "bf": 41.83,
+        "tf": 7.52
+      },
+      "physical_properties": {
+        "mass_per_length": 9.3,
+        "area": 11.9
+      },
+      "section_properties": {
+        "ix": 174.4,
+        "wx": 34.3,
+        "rx": 3.84,
+        "iy": 15.5,
+        "wy": 5.1,
+        "ry": 1.14
+      },
+      "centroid": {
+        "x": 1.15
+      }
+    },
+    {
+      "id": "u-6x12.20",
+      "series_id": "u",
+      "designation": "U 6\" x 12,20",
+      "equivalent_designation": null,
+      "aliases": [
+        "U6",
+        "U6x12.20",
+        "U6x12,20"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "channel_section",
+      "geometry": {
+        "d": 152.4,
+        "tw": 5.08,
+        "bf": 48.77,
+        "tf": 8.71
+      },
+      "physical_properties": {
+        "mass_per_length": 12.2,
+        "area": 15.5
+      },
+      "section_properties": {
+        "ix": 546.0,
+        "wx": 71.7,
+        "rx": 5.94,
+        "iy": 28.8,
+        "wy": 8.16,
+        "ry": 1.36
+      },
+      "centroid": {
+        "x": 1.3
+      }
+    },
+    {
+      "id": "u-6x15.62",
+      "series_id": "u",
+      "designation": "U 6\" x 15,62",
+      "equivalent_designation": null,
+      "aliases": [
+        "U6",
+        "U6x15.62",
+        "U6x15,62"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "channel_section",
+      "geometry": {
+        "d": 152.4,
+        "tw": 7.98,
+        "bf": 51.66,
+        "tf": 8.71
+      },
+      "physical_properties": {
+        "mass_per_length": 15.62,
+        "area": 19.9
+      },
+      "section_properties": {
+        "ix": 632.0,
+        "wx": 82.9,
+        "rx": 5.63,
+        "iy": 36.0,
+        "wy": 9.24,
+        "ry": 1.34
+      },
+      "centroid": {
+        "x": 1.27
+      }
+    },
+    {
+      "id": "u-8x17.10",
+      "series_id": "u",
+      "designation": "U 8\" x 17,10",
+      "equivalent_designation": null,
+      "aliases": [
+        "U8",
+        "U8x17.10",
+        "U8x17,10"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "channel_section",
+      "geometry": {
+        "d": 203.2,
+        "tw": 5.59,
+        "bf": 57.4,
+        "tf": 9.5
+      },
+      "physical_properties": {
+        "mass_per_length": 17.1,
+        "area": 21.68
+      },
+      "section_properties": {
+        "ix": 1344.3,
+        "wx": 132.7,
+        "rx": 7.87,
+        "iy": 54.1,
+        "wy": 12.94,
+        "ry": 1.42
+      },
+      "centroid": {
+        "x": 1.47
+      }
+    },
+    {
+      "id": "u-8x20.50",
+      "series_id": "u",
+      "designation": "U 8\" x 20,50",
+      "equivalent_designation": null,
+      "aliases": [
+        "U8",
+        "U8x20.50",
+        "U8x20,50"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "channel_section",
+      "geometry": {
+        "d": 203.2,
+        "tw": 7.7,
+        "bf": 59.51,
+        "tf": 9.5
+      },
+      "physical_properties": {
+        "mass_per_length": 20.5,
+        "area": 25.93
+      },
+      "section_properties": {
+        "ix": 1490.0,
+        "wx": 147.5,
+        "rx": 7.59,
+        "iy": 62.4,
+        "wy": 14.09,
+        "ry": 1.42
+      },
+      "centroid": {
+        "x": 1.42
+      }
+    },
+    {
+      "id": "u-10x22.77",
+      "series_id": "u",
+      "designation": "U 10\" x 22,77",
+      "equivalent_designation": null,
+      "aliases": [
+        "U10",
+        "U10x22.77",
+        "U10x22,77"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "channel_section",
+      "geometry": {
+        "d": 254.0,
+        "tw": 6.1,
+        "bf": 66.04,
+        "tf": 11.1
+      },
+      "physical_properties": {
+        "mass_per_length": 22.77,
+        "area": 29.0
+      },
+      "section_properties": {
+        "ix": 2800.0,
+        "wx": 221.0,
+        "rx": 9.84,
+        "iy": 95.0,
+        "wy": 19.0,
+        "ry": 1.81
+      },
+      "centroid": {
+        "x": 1.61
+      }
+    },
+    {
+      "id": "u-10x30.80",
+      "series_id": "u",
+      "designation": "U 10\" x 30,80",
+      "equivalent_designation": null,
+      "aliases": [
+        "U10",
+        "U10x30.80",
+        "U10x30,80"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "channel_section",
+      "geometry": {
+        "d": 254.0,
+        "tw": 7.2,
+        "bf": 74.0,
+        "tf": 12.7
+      },
+      "physical_properties": {
+        "mass_per_length": 30.8,
+        "area": 39.3
+      },
+      "section_properties": {
+        "ix": 5370.0,
+        "wx": 352.0,
+        "rx": 11.7,
+        "iy": 161.0,
+        "wy": 28.3,
+        "ry": 2.03
+      },
+      "centroid": {
+        "x": 1.77
+      }
+    },
+    {
+      "id": "u-12x29.76",
+      "series_id": "u",
+      "designation": "U 12\" x 29,76",
+      "equivalent_designation": null,
+      "aliases": [
+        "U12",
+        "U12x29.76",
+        "U12x29,76"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "channel_section",
+      "geometry": {
+        "d": 305.0,
+        "tw": 9.63,
+        "bf": 69.57,
+        "tf": 11.1
+      },
+      "physical_properties": {
+        "mass_per_length": 29.76,
+        "area": 37.9
+      },
+      "section_properties": {
+        "ix": 3290.0,
+        "wx": 259.0,
+        "rx": 9.31,
+        "iy": 117.0,
+        "wy": 21.6,
+        "ry": 1.76
+      },
+      "centroid": {
+        "x": 1.54
+      }
+    },
+    {
+      "id": "u-12x37.00",
+      "series_id": "u",
+      "designation": "U 12\" x 37,00",
+      "equivalent_designation": null,
+      "aliases": [
+        "U12",
+        "U12x37.00",
+        "U12x37,00"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "channel_section",
+      "geometry": {
+        "d": 305.0,
+        "tw": 9.8,
+        "bf": 77.0,
+        "tf": 12.7
+      },
+      "physical_properties": {
+        "mass_per_length": 37.0,
+        "area": 47.4
+      },
+      "section_properties": {
+        "ix": 6010.0,
+        "wx": 394.0,
+        "rx": 11.3,
+        "iy": 186.0,
+        "wy": 30.9,
+        "ry": 1.98
+      },
+      "centroid": {
+        "x": 1.71
+      }
+    },
+    {
+      "id": "t-0.625x0.125",
+      "series_id": "t",
+      "designation": "T 5/8\" x 1/8\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "T5/8x1/8",
+        "T0.625x0.125",
+        "T0.625"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "tee_section",
+      "geometry": {
+        "d": 15.88,
+        "bf": 15.88,
+        "tw": 3.18,
+        "tf": 3.18
+      },
+      "physical_properties": {
+        "mass_per_length": 0.71,
+        "area": 0.9
+      },
+      "section_properties": {
+        "ix": 0.2,
+        "wx": 0.19,
+        "rx": 0.47,
+        "iy": 0.11,
+        "wy": 0.14,
+        "ry": 0.35
+      },
+      "centroid": {
+        "x": 0.51
+      }
+    },
+    {
+      "id": "t-0.75x0.125",
+      "series_id": "t",
+      "designation": "T 3/4\" x 1/8\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "T3/4x1/8",
+        "T0.75x0.125",
+        "T0.75"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "tee_section",
+      "geometry": {
+        "d": 19.05,
+        "bf": 19.05,
+        "tw": 3.18,
+        "tf": 3.18
+      },
+      "physical_properties": {
+        "mass_per_length": 0.86,
+        "area": 1.13
+      },
+      "section_properties": {
+        "ix": 0.36,
+        "wx": 0.27,
+        "rx": 0.57,
+        "iy": 0.19,
+        "wy": 0.2,
+        "ry": 0.41
+      },
+      "centroid": {
+        "x": 0.59
+      }
+    },
+    {
+      "id": "t-0.875x0.125",
+      "series_id": "t",
+      "designation": "T 7/8\" x 1/8\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "T7/8x1/8",
+        "T0.875x0.125",
+        "T0.875"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "tee_section",
+      "geometry": {
+        "d": 22.22,
+        "bf": 22.22,
+        "tw": 3.18,
+        "tf": 3.18
+      },
+      "physical_properties": {
+        "mass_per_length": 0.99,
+        "area": 1.34
+      },
+      "section_properties": {
+        "ix": 0.59,
+        "wx": 0.38,
+        "rx": 0.67,
+        "iy": 0.33,
+        "wy": 0.27,
+        "ry": 0.48
+      },
+      "centroid": {
+        "x": 0.67
+      }
+    },
+    {
+      "id": "t-1x0.125",
+      "series_id": "t",
+      "designation": "T 1\" x 1/8\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "T1x1/8",
+        "T1x0.125",
+        "T1"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "tee_section",
+      "geometry": {
+        "d": 25.4,
+        "bf": 25.4,
+        "tw": 3.18,
+        "tf": 3.18
+      },
+      "physical_properties": {
+        "mass_per_length": 1.18,
+        "area": 1.54
+      },
+      "section_properties": {
+        "ix": 0.9,
+        "wx": 0.5,
+        "rx": 0.77,
+        "iy": 0.44,
+        "wy": 0.35,
+        "ry": 0.54
+      },
+      "centroid": {
+        "x": 0.75
+      }
+    },
+    {
+      "id": "t-1.25x0.125",
+      "series_id": "t",
+      "designation": "T 1 1/4\" x 1/8\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "T1 1/4x1/8",
+        "T1.25x0.125",
+        "T1.25"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "tee_section",
+      "geometry": {
+        "d": 31.75,
+        "bf": 31.75,
+        "tw": 3.18,
+        "tf": 3.18
+      },
+      "physical_properties": {
+        "mass_per_length": 1.5,
+        "area": 1.92
+      },
+      "section_properties": {
+        "ix": 1.84,
+        "wx": 0.81,
+        "rx": 0.98,
+        "iy": 0.86,
+        "wy": 0.54,
+        "ry": 0.67
+      },
+      "centroid": {
+        "x": 0.91
+      }
+    },
+    {
+      "id": "t-1.5x0.125",
+      "series_id": "t",
+      "designation": "T 1 1/2\" x 1/8\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "T1 1/2x1/8",
+        "T1.5x0.125",
+        "T1.5"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "tee_section",
+      "geometry": {
+        "d": 38.1,
+        "bf": 38.1,
+        "tw": 3.18,
+        "tf": 3.18
+      },
+      "physical_properties": {
+        "mass_per_length": 1.82,
+        "area": 2.32
+      },
+      "section_properties": {
+        "ix": 3.24,
+        "wx": 1.18,
+        "rx": 1.18,
+        "iy": 1.47,
+        "wy": 0.77,
+        "ry": 0.8
+      },
+      "centroid": {
+        "x": 1.07
+      }
+    },
+    {
+      "id": "t-1.25x0.1875",
+      "series_id": "t",
+      "designation": "T 1 1/4\" x 3/16\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "T1 1/4x3/16",
+        "T1.25x0.1875",
+        "T1.25"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "tee_section",
+      "geometry": {
+        "d": 31.75,
+        "bf": 31.75,
+        "tw": 4.76,
+        "tf": 4.76
+      },
+      "physical_properties": {
+        "mass_per_length": 2.16,
+        "area": 2.79
+      },
+      "section_properties": {
+        "ix": 2.56,
+        "wx": 1.16,
+        "rx": 0.96,
+        "iy": 1.29,
+        "wy": 0.82,
+        "ry": 0.68
+      },
+      "centroid": {
+        "x": 0.97
+      }
+    },
+    {
+      "id": "t-1.5x0.1875",
+      "series_id": "t",
+      "designation": "T 1 1/2\" x 3/16\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "T1 1/2x3/16",
+        "T1.5x0.1875",
+        "T1.5"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "tee_section",
+      "geometry": {
+        "d": 38.1,
+        "bf": 38.1,
+        "tw": 4.76,
+        "tf": 4.76
+      },
+      "physical_properties": {
+        "mass_per_length": 2.65,
+        "area": 3.4
+      },
+      "section_properties": {
+        "ix": 4.56,
+        "wx": 1.7,
+        "rx": 1.16,
+        "iy": 2.22,
+        "wy": 1.17,
+        "ry": 0.81
+      },
+      "centroid": {
+        "x": 1.13
+      }
+    },
+    {
+      "id": "t-2x0.1875",
+      "series_id": "t",
+      "designation": "T 2\" x 3/16\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "T2x3/16",
+        "T2x0.1875",
+        "T2"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "tee_section",
+      "geometry": {
+        "d": 50.8,
+        "bf": 50.8,
+        "tw": 4.76,
+        "tf": 4.76
+      },
+      "physical_properties": {
+        "mass_per_length": 3.62,
+        "area": 4.61
+      },
+      "section_properties": {
+        "ix": 11.33,
+        "wx": 3.12,
+        "rx": 1.57,
+        "iy": 5.24,
+        "wy": 2.06,
+        "ry": 1.07
+      },
+      "centroid": {
+        "x": 1.45
+      }
+    },
+    {
+      "id": "t-2x0.25",
+      "series_id": "t",
+      "designation": "T 2\" x 1/4\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "T2x1/4",
+        "T2x0.25",
+        "T2"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "tee_section",
+      "geometry": {
+        "d": 50.8,
+        "bf": 50.8,
+        "tw": 6.35,
+        "tf": 6.35
+      },
+      "physical_properties": {
+        "mass_per_length": 4.74,
+        "area": 6.05
+      },
+      "section_properties": {
+        "ix": 14.47,
+        "wx": 4.04,
+        "rx": 1.55,
+        "iy": 7.03,
+        "wy": 2.77,
+        "ry": 1.08
+      },
+      "centroid": {
+        "x": 1.5
+      }
+    },
+    {
+      "id": "equal-angle-inch-0.5x0.125",
+      "series_id": "equal-angle-inch",
+      "designation": "L 1/2\" x 1/8\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "L1/2x1/8",
+        "L0.5x0.125",
+        "0.5x0.125"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 12.7,
+        "t": 3.18
+      },
+      "physical_properties": {
+        "mass_per_length": 0.55,
+        "area": 0.7
+      },
+      "section_properties": {
+        "ix": 0.1,
+        "iy": 0.1,
+        "wx": 0.11,
+        "wy": 0.11,
+        "rx": 0.37,
+        "ry": 0.37,
+        "rz_min": 0.25
+      },
+      "centroid": {
+        "x": 0.43
+      }
+    },
+    {
+      "id": "equal-angle-inch-0.625x0.125",
+      "series_id": "equal-angle-inch",
+      "designation": "L 5/8\" x 1/8\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "L5/8x1/8",
+        "L0.625x0.125",
+        "0.625x0.125"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 15.88,
+        "t": 3.18
+      },
+      "physical_properties": {
+        "mass_per_length": 0.71,
+        "area": 0.9
+      },
+      "section_properties": {
+        "ix": 0.2,
+        "iy": 0.2,
+        "wx": 0.19,
+        "wy": 0.19,
+        "rx": 0.47,
+        "ry": 0.47,
+        "rz_min": 0.32
+      },
+      "centroid": {
+        "x": 0.51
+      }
+    },
+    {
+      "id": "equal-angle-inch-0.75x0.125",
+      "series_id": "equal-angle-inch",
+      "designation": "L 3/4\" x 1/8\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "L3/4x1/8",
+        "L0.75x0.125",
+        "0.75x0.125"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 19.05,
+        "t": 3.18
+      },
+      "physical_properties": {
+        "mass_per_length": 0.87,
+        "area": 1.11
+      },
+      "section_properties": {
+        "ix": 0.36,
+        "iy": 0.36,
+        "wx": 0.27,
+        "wy": 0.27,
+        "rx": 0.57,
+        "ry": 0.57,
+        "rz_min": 0.38
+      },
+      "centroid": {
+        "x": 0.59
+      }
+    },
+    {
+      "id": "equal-angle-inch-0.875x0.125",
+      "series_id": "equal-angle-inch",
+      "designation": "L 7/8\" x 1/8\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "L7/8x1/8",
+        "L0.875x0.125",
+        "0.875x0.125"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 22.2,
+        "t": 3.18
+      },
+      "physical_properties": {
+        "mass_per_length": 1.04,
+        "area": 1.32
+      },
+      "section_properties": {
+        "ix": 0.58,
+        "iy": 0.58,
+        "wx": 0.38,
+        "wy": 0.38,
+        "rx": 0.66,
+        "ry": 0.66,
+        "rz_min": 0.46
+      },
+      "centroid": {
+        "x": 0.66
+      }
+    },
+    {
+      "id": "equal-angle-inch-1x0.125",
+      "series_id": "equal-angle-inch",
+      "designation": "L 1\" x 1/8\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "L1x1/8",
+        "L1x0.125",
+        "1x0.125"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 25.4,
+        "t": 3.18
+      },
+      "physical_properties": {
+        "mass_per_length": 1.19,
+        "area": 1.48
+      },
+      "section_properties": {
+        "ix": 0.83,
+        "iy": 0.83,
+        "wx": 0.49,
+        "wy": 0.49,
+        "rx": 0.79,
+        "ry": 0.79,
+        "rz_min": 0.48
+      },
+      "centroid": {
+        "x": 0.76
+      }
+    },
+    {
+      "id": "equal-angle-inch-1x0.1875",
+      "series_id": "equal-angle-inch",
+      "designation": "L 1\" x 3/16\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "L1x3/16",
+        "L1x0.1875",
+        "1x0.1875"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 25.4,
+        "t": 4.76
+      },
+      "physical_properties": {
+        "mass_per_length": 1.73,
+        "area": 2.19
+      },
+      "section_properties": {
+        "ix": 1.25,
+        "iy": 1.25,
+        "wx": 0.66,
+        "wy": 0.66,
+        "rx": 0.76,
+        "ry": 0.76,
+        "rz_min": 0.48
+      },
+      "centroid": {
+        "x": 0.81
+      }
+    },
+    {
+      "id": "equal-angle-inch-1x0.25",
+      "series_id": "equal-angle-inch",
+      "designation": "L 1\" x 1/4\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "L1x1/4",
+        "L1x0.25",
+        "1x0.25"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 25.4,
+        "t": 6.35
+      },
+      "physical_properties": {
+        "mass_per_length": 2.22,
+        "area": 2.84
+      },
+      "section_properties": {
+        "ix": 1.66,
+        "iy": 1.66,
+        "wx": 0.98,
+        "wy": 0.98,
+        "rx": 0.76,
+        "ry": 0.76,
+        "rz_min": 0.48
+      },
+      "centroid": {
+        "x": 0.86
+      }
+    },
+    {
+      "id": "equal-angle-inch-1.25x0.125",
+      "series_id": "equal-angle-inch",
+      "designation": "L 1 1/4\" x 1/8\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "L11/4x1/8",
+        "L1.25x0.125",
+        "1.25x0.125"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 31.75,
+        "t": 3.18
+      },
+      "physical_properties": {
+        "mass_per_length": 1.5,
+        "area": 1.93
+      },
+      "section_properties": {
+        "ix": 1.67,
+        "iy": 1.67,
+        "wx": 0.82,
+        "wy": 0.82,
+        "rx": 0.97,
+        "ry": 0.97,
+        "rz_min": 0.64
+      },
+      "centroid": {
+        "x": 0.89
+      }
+    },
+    {
+      "id": "equal-angle-inch-1.25x0.1875",
+      "series_id": "equal-angle-inch",
+      "designation": "L 1 1/4\" x 3/16\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "L11/4x3/16",
+        "L1.25x0.1875",
+        "1.25x0.1875"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 31.75,
+        "t": 4.76
+      },
+      "physical_properties": {
+        "mass_per_length": 2.2,
+        "area": 2.77
+      },
+      "section_properties": {
+        "ix": 2.5,
+        "iy": 2.5,
+        "wx": 1.15,
+        "wy": 1.15,
+        "rx": 0.97,
+        "ry": 0.97,
+        "rz_min": 0.61
+      },
+      "centroid": {
+        "x": 0.97
+      }
+    },
+    {
+      "id": "equal-angle-inch-1.25x0.25",
+      "series_id": "equal-angle-inch",
+      "designation": "L 1 1/4\" x 1/4\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "L11/4x1/4",
+        "L1.25x0.25",
+        "1.25x0.25"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 31.75,
+        "t": 6.35
+      },
+      "physical_properties": {
+        "mass_per_length": 2.86,
+        "area": 3.62
+      },
+      "section_properties": {
+        "ix": 3.33,
+        "iy": 3.33,
+        "wx": 1.47,
+        "wy": 1.47,
+        "rx": 0.94,
+        "ry": 0.94,
+        "rz_min": 0.61
+      },
+      "centroid": {
+        "x": 1.02
+      }
+    },
+    {
+      "id": "equal-angle-inch-1.5x0.125",
+      "series_id": "equal-angle-inch",
+      "designation": "L 1 1/2\" x 1/8\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "L11/2x1/8",
+        "L1.5x0.125",
+        "1.5x0.125"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 38.1,
+        "t": 3.18
+      },
+      "physical_properties": {
+        "mass_per_length": 1.83,
+        "area": 2.32
+      },
+      "section_properties": {
+        "ix": 3.33,
+        "iy": 3.33,
+        "wx": 1.15,
+        "wy": 1.15,
+        "rx": 1.17,
+        "ry": 1.17,
+        "rz_min": 0.76
+      },
+      "centroid": {
+        "x": 1.07
+      }
+    },
+    {
+      "id": "equal-angle-inch-1.5x0.1875",
+      "series_id": "equal-angle-inch",
+      "designation": "L 1 1/2\" x 3/16\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "L11/2x3/16",
+        "L1.5x0.1875",
+        "1.5x0.1875"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 38.1,
+        "t": 4.76
+      },
+      "physical_properties": {
+        "mass_per_length": 2.68,
+        "area": 3.42
+      },
+      "section_properties": {
+        "ix": 4.58,
+        "iy": 4.58,
+        "wx": 1.64,
+        "wy": 1.64,
+        "rx": 1.17,
+        "ry": 1.17,
+        "rz_min": 0.74
+      },
+      "centroid": {
+        "x": 1.12
+      }
+    },
+    {
+      "id": "equal-angle-inch-1.5x0.25",
+      "series_id": "equal-angle-inch",
+      "designation": "L 1 1/2\" x 1/4\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "L11/2x1/4",
+        "L1.5x0.25",
+        "1.5x0.25"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 38.1,
+        "t": 6.35
+      },
+      "physical_properties": {
+        "mass_per_length": 3.48,
+        "area": 4.45
+      },
+      "section_properties": {
+        "ix": 5.83,
+        "iy": 5.83,
+        "wx": 2.13,
+        "wy": 2.13,
+        "rx": 1.15,
+        "ry": 1.15,
+        "rz_min": 0.74
+      },
+      "centroid": {
+        "x": 1.19
+      }
+    },
+    {
+      "id": "equal-angle-inch-1.75x0.125",
+      "series_id": "equal-angle-inch",
+      "designation": "L 1 3/4\" x 1/8\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "L13/4x1/8",
+        "L1.75x0.125",
+        "1.75x0.125"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 44.45,
+        "t": 3.18
+      },
+      "physical_properties": {
+        "mass_per_length": 2.14,
+        "area": 2.71
+      },
+      "section_properties": {
+        "ix": 5.41,
+        "iy": 5.41,
+        "wx": 1.64,
+        "wy": 1.64,
+        "rx": 1.4,
+        "ry": 1.4,
+        "rz_min": 0.89
+      },
+      "centroid": {
+        "x": 1.22
+      }
+    },
+    {
+      "id": "equal-angle-inch-1.75x0.1875",
+      "series_id": "equal-angle-inch",
+      "designation": "L 1 3/4\" x 3/16\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "L13/4x3/16",
+        "L1.75x0.1875",
+        "1.75x0.1875"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 44.45,
+        "t": 4.76
+      },
+      "physical_properties": {
+        "mass_per_length": 3.15,
+        "area": 4.0
+      },
+      "section_properties": {
+        "ix": 7.5,
+        "iy": 7.5,
+        "wx": 2.3,
+        "wy": 2.3,
+        "rx": 1.37,
+        "ry": 1.37,
+        "rz_min": 0.89
+      },
+      "centroid": {
+        "x": 1.3
+      }
+    },
+    {
+      "id": "equal-angle-inch-1.75x0.25",
+      "series_id": "equal-angle-inch",
+      "designation": "L 1 3/4\" x 1/4\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "L13/4x1/4",
+        "L1.75x0.25",
+        "1.75x0.25"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 44.45,
+        "t": 6.35
+      },
+      "physical_properties": {
+        "mass_per_length": 4.12,
+        "area": 5.22
+      },
+      "section_properties": {
+        "ix": 9.57,
+        "iy": 9.57,
+        "wx": 3.13,
+        "wy": 3.13,
+        "rx": 1.35,
+        "ry": 1.35,
+        "rz_min": 0.86
+      },
+      "centroid": {
+        "x": 1.35
+      }
+    },
+    {
+      "id": "equal-angle-inch-2x0.125",
+      "series_id": "equal-angle-inch",
+      "designation": "L 2\" x 1/8\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "L2x1/8",
+        "L2x0.125",
+        "2x0.125"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 50.8,
+        "t": 3.18
+      },
+      "physical_properties": {
+        "mass_per_length": 2.46,
+        "area": 3.1
+      },
+      "section_properties": {
+        "ix": 7.91,
+        "iy": 7.91,
+        "wx": 2.13,
+        "wy": 2.13,
+        "rx": 1.6,
+        "ry": 1.6,
+        "rz_min": 1.02
+      },
+      "centroid": {
+        "x": 1.4
+      }
+    },
+    {
+      "id": "equal-angle-inch-2x0.1875",
+      "series_id": "equal-angle-inch",
+      "designation": "L 2\" x 3/16\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "L2x3/16",
+        "L2x0.1875",
+        "2x0.1875"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 50.8,
+        "t": 4.76
+      },
+      "physical_properties": {
+        "mass_per_length": 3.63,
+        "area": 4.58
+      },
+      "section_properties": {
+        "ix": 11.7,
+        "iy": 11.7,
+        "wx": 3.13,
+        "wy": 3.13,
+        "rx": 1.58,
+        "ry": 1.58,
+        "rz_min": 1.02
+      },
+      "centroid": {
+        "x": 1.45
+      }
+    },
+    {
+      "id": "equal-angle-inch-2x0.25",
+      "series_id": "equal-angle-inch",
+      "designation": "L 2\" x 1/4\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "L2x1/4",
+        "L2x0.25",
+        "2x0.25"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 50.8,
+        "t": 6.35
+      },
+      "physical_properties": {
+        "mass_per_length": 4.74,
+        "area": 6.06
+      },
+      "section_properties": {
+        "ix": 14.6,
+        "iy": 14.6,
+        "wx": 4.1,
+        "wy": 4.1,
+        "rx": 1.55,
+        "ry": 1.55,
+        "rz_min": 0.99
+      },
+      "centroid": {
+        "x": 1.5
+      }
+    },
+    {
+      "id": "equal-angle-inch-2x0.3125",
+      "series_id": "equal-angle-inch",
+      "designation": "L 2\" x 5/16\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "L2x5/16",
+        "L2x0.3125",
+        "2x0.3125"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 50.8,
+        "t": 7.94
+      },
+      "physical_properties": {
+        "mass_per_length": 5.83,
+        "area": 7.42
+      },
+      "section_properties": {
+        "ix": 17.5,
+        "iy": 17.5,
+        "wx": 4.91,
+        "wy": 4.91,
+        "rx": 1.53,
+        "ry": 1.53,
+        "rz_min": 0.99
+      },
+      "centroid": {
+        "x": 1.55
+      }
+    },
+    {
+      "id": "equal-angle-inch-2x0.375",
+      "series_id": "equal-angle-inch",
+      "designation": "L 2\" x 3/8\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "L2x3/8",
+        "L2x0.375",
+        "2x0.375"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 50.8,
+        "t": 9.52
+      },
+      "physical_properties": {
+        "mass_per_length": 6.99,
+        "area": 8.76
+      },
+      "section_properties": {
+        "ix": 20.0,
+        "iy": 20.0,
+        "wx": 5.73,
+        "wy": 5.73,
+        "rx": 1.5,
+        "ry": 1.5,
+        "rz_min": 0.99
+      },
+      "centroid": {
+        "x": 1.63
+      }
+    },
+    {
+      "id": "equal-angle-inch-2.5x0.1875",
+      "series_id": "equal-angle-inch",
+      "designation": "L 2 1/2\" x 3/16\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "L21/2x3/16",
+        "L2.5x0.1875",
+        "2.5x0.1875"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 63.5,
+        "t": 4.76
+      },
+      "physical_properties": {
+        "mass_per_length": 4.57,
+        "area": 5.8
+      },
+      "section_properties": {
+        "ix": 23.0,
+        "iy": 23.0,
+        "wx": 4.91,
+        "wy": 4.91,
+        "rx": 1.98,
+        "ry": 1.98,
+        "rz_min": 1.24
+      },
+      "centroid": {
+        "x": 1.75
+      }
+    },
+    {
+      "id": "equal-angle-inch-2.5x0.25",
+      "series_id": "equal-angle-inch",
+      "designation": "L 2 1/2\" x 1/4\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "L21/2x1/4",
+        "L2.5x0.25",
+        "2.5x0.25"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 63.5,
+        "t": 6.35
+      },
+      "physical_properties": {
+        "mass_per_length": 6.1,
+        "area": 7.67
+      },
+      "section_properties": {
+        "ix": 29.0,
+        "iy": 29.0,
+        "wx": 6.4,
+        "wy": 6.4,
+        "rx": 1.96,
+        "ry": 1.96,
+        "rz_min": 1.24
+      },
+      "centroid": {
+        "x": 1.83
+      }
+    },
+    {
+      "id": "equal-angle-inch-2.5x0.3125",
+      "series_id": "equal-angle-inch",
+      "designation": "L 2 1/2\" x 5/16\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "L21/2x5/16",
+        "L2.5x0.3125",
+        "2.5x0.3125"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 63.5,
+        "t": 7.94
+      },
+      "physical_properties": {
+        "mass_per_length": 7.44,
+        "area": 9.48
+      },
+      "section_properties": {
+        "ix": 35.0,
+        "iy": 35.0,
+        "wx": 7.87,
+        "wy": 7.87,
+        "rx": 1.93,
+        "ry": 1.93,
+        "rz_min": 1.24
+      },
+      "centroid": {
+        "x": 1.88
+      }
+    },
+    {
+      "id": "equal-angle-inch-2.5x0.375",
+      "series_id": "equal-angle-inch",
+      "designation": "L 2 1/2\" x 3/8\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "L21/2x3/8",
+        "L2.5x0.375",
+        "2.5x0.375"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 63.5,
+        "t": 9.52
+      },
+      "physical_properties": {
+        "mass_per_length": 8.78,
+        "area": 11.16
+      },
+      "section_properties": {
+        "ix": 41.0,
+        "iy": 41.0,
+        "wx": 9.35,
+        "wy": 9.35,
+        "rx": 1.91,
+        "ry": 1.91,
+        "rz_min": 1.22
+      },
+      "centroid": {
+        "x": 1.93
+      }
+    },
+    {
+      "id": "equal-angle-inch-3x0.1875",
+      "series_id": "equal-angle-inch",
+      "designation": "L 3\" x 3/16\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "L3x3/16",
+        "L3x0.1875",
+        "3x0.1875"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 76.2,
+        "t": 4.76
+      },
+      "physical_properties": {
+        "mass_per_length": 5.52,
+        "area": 7.03
+      },
+      "section_properties": {
+        "ix": 40.0,
+        "iy": 40.0,
+        "wx": 7.21,
+        "wy": 7.21,
+        "rx": 2.39,
+        "ry": 2.39,
+        "rz_min": 1.5
+      },
+      "centroid": {
+        "x": 2.08
+      }
+    },
+    {
+      "id": "equal-angle-inch-3x0.25",
+      "series_id": "equal-angle-inch",
+      "designation": "L 3\" x 1/4\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "L3x1/4",
+        "L3x0.25",
+        "3x0.25"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 76.2,
+        "t": 6.35
+      },
+      "physical_properties": {
+        "mass_per_length": 7.29,
+        "area": 9.29
+      },
+      "section_properties": {
+        "ix": 50.0,
+        "iy": 50.0,
+        "wx": 9.5,
+        "wy": 9.5,
+        "rx": 2.36,
+        "ry": 2.36,
+        "rz_min": 1.5
+      },
+      "centroid": {
+        "x": 2.13
+      }
+    },
+    {
+      "id": "equal-angle-inch-3x0.3125",
+      "series_id": "equal-angle-inch",
+      "designation": "L 3\" x 5/16\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "L3x5/16",
+        "L3x0.3125",
+        "3x0.3125"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 76.2,
+        "t": 7.94
+      },
+      "physical_properties": {
+        "mass_per_length": 9.07,
+        "area": 11.48
+      },
+      "section_properties": {
+        "ix": 62.0,
+        "iy": 62.0,
+        "wx": 11.6,
+        "wy": 11.6,
+        "rx": 2.34,
+        "ry": 2.34,
+        "rz_min": 1.5
+      },
+      "centroid": {
+        "x": 2.21
+      }
+    },
+    {
+      "id": "equal-angle-inch-3x0.375",
+      "series_id": "equal-angle-inch",
+      "designation": "L 3\" x 3/8\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "L3x3/8",
+        "L3x0.375",
+        "3x0.375"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 76.2,
+        "t": 9.52
+      },
+      "physical_properties": {
+        "mass_per_length": 10.71,
+        "area": 13.61
+      },
+      "section_properties": {
+        "ix": 75.0,
+        "iy": 75.0,
+        "wx": 13.6,
+        "wy": 13.6,
+        "rx": 2.31,
+        "ry": 2.31,
+        "rz_min": 1.47
+      },
+      "centroid": {
+        "x": 2.26
+      }
+    },
+    {
+      "id": "equal-angle-inch-3x0.5",
+      "series_id": "equal-angle-inch",
+      "designation": "L 3\" x 1/2\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "L3x1/2",
+        "L3x0.5",
+        "3x0.5"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 76.2,
+        "t": 12.7
+      },
+      "physical_properties": {
+        "mass_per_length": 14.0,
+        "area": 17.74
+      },
+      "section_properties": {
+        "ix": 91.0,
+        "iy": 91.0,
+        "wx": 18.0,
+        "wy": 18.0,
+        "rx": 2.29,
+        "ry": 2.29,
+        "rz_min": 1.47
+      },
+      "centroid": {
+        "x": 2.36
+      }
+    },
+    {
+      "id": "equal-angle-inch-3.5x0.25",
+      "series_id": "equal-angle-inch",
+      "designation": "L 3 1/2\" x 1/4\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "L31/2x1/4",
+        "L3.5x0.25",
+        "3.5x0.25"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 88.9,
+        "t": 6.35
+      },
+      "physical_properties": {
+        "mass_per_length": 8.56,
+        "area": 10.9
+      },
+      "section_properties": {
+        "ix": 83.7,
+        "iy": 83.7,
+        "wx": 13.0,
+        "wy": 13.0,
+        "rx": 2.77,
+        "ry": 2.77,
+        "rz_min": 1.76
+      },
+      "centroid": {
+        "x": 2.46
+      }
+    },
+    {
+      "id": "equal-angle-inch-3.5x0.3125",
+      "series_id": "equal-angle-inch",
+      "designation": "L 3 1/2\" x 5/16\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "L31/2x5/16",
+        "L3.5x0.3125",
+        "3.5x0.3125"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 88.9,
+        "t": 7.94
+      },
+      "physical_properties": {
+        "mass_per_length": 10.59,
+        "area": 13.5
+      },
+      "section_properties": {
+        "ix": 102.0,
+        "iy": 102.0,
+        "wx": 16.0,
+        "wy": 16.0,
+        "rx": 2.75,
+        "ry": 2.75,
+        "rz_min": 1.75
+      },
+      "centroid": {
+        "x": 2.52
+      }
+    },
+    {
+      "id": "equal-angle-inch-3.5x0.375",
+      "series_id": "equal-angle-inch",
+      "designation": "L 3 1/2\" x 3/8\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "L31/2x3/8",
+        "L3.5x0.375",
+        "3.5x0.375"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 88.9,
+        "t": 9.52
+      },
+      "physical_properties": {
+        "mass_per_length": 12.58,
+        "area": 16.0
+      },
+      "section_properties": {
+        "ix": 121.0,
+        "iy": 121.0,
+        "wx": 19.2,
+        "wy": 19.2,
+        "rx": 2.75,
+        "ry": 2.75,
+        "rz_min": 1.75
+      },
+      "centroid": {
+        "x": 2.58
+      }
+    },
+    {
+      "id": "equal-angle-inch-4x0.25",
+      "series_id": "equal-angle-inch",
+      "designation": "L 4\" x 1/4\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "L4x1/4",
+        "L4x0.25",
+        "4x0.25"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 101.6,
+        "t": 6.35
+      },
+      "physical_properties": {
+        "mass_per_length": 9.81,
+        "area": 12.51
+      },
+      "section_properties": {
+        "ix": 125.0,
+        "iy": 125.0,
+        "wx": 16.4,
+        "wy": 16.4,
+        "rx": 3.17,
+        "ry": 3.17,
+        "rz_min": 2.0
+      },
+      "centroid": {
+        "x": 2.77
+      }
+    },
+    {
+      "id": "equal-angle-inch-4x0.3125",
+      "series_id": "equal-angle-inch",
+      "designation": "L 4\" x 5/16\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "L4x5/16",
+        "L4x0.3125",
+        "4x0.3125"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 101.6,
+        "t": 7.94
+      },
+      "physical_properties": {
+        "mass_per_length": 12.19,
+        "area": 15.48
+      },
+      "section_properties": {
+        "ix": 154.0,
+        "iy": 154.0,
+        "wx": 21.3,
+        "wy": 21.3,
+        "rx": 3.15,
+        "ry": 3.15,
+        "rz_min": 2.0
+      },
+      "centroid": {
+        "x": 2.84
+      }
+    },
+    {
+      "id": "equal-angle-inch-4x0.375",
+      "series_id": "equal-angle-inch",
+      "designation": "L 4\" x 3/8\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "L4x3/8",
+        "L4x0.375",
+        "4x0.375"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 101.6,
+        "t": 9.52
+      },
+      "physical_properties": {
+        "mass_per_length": 14.57,
+        "area": 18.45
+      },
+      "section_properties": {
+        "ix": 183.0,
+        "iy": 183.0,
+        "wx": 24.6,
+        "wy": 24.6,
+        "rx": 3.12,
+        "ry": 3.12,
+        "rz_min": 2.0
+      },
+      "centroid": {
+        "x": 2.9
+      }
+    },
+    {
+      "id": "equal-angle-inch-4x0.4375",
+      "series_id": "equal-angle-inch",
+      "designation": "L 4\" x 7/16\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "L4x7/16",
+        "L4x0.4375",
+        "4x0.4375"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 101.6,
+        "t": 11.11
+      },
+      "physical_properties": {
+        "mass_per_length": 16.8,
+        "area": 21.35
+      },
+      "section_properties": {
+        "ix": 208.0,
+        "iy": 208.0,
+        "wx": 29.5,
+        "wy": 29.5,
+        "rx": 3.12,
+        "ry": 3.12,
+        "rz_min": 1.98
+      },
+      "centroid": {
+        "x": 2.95
+      }
+    },
+    {
+      "id": "equal-angle-inch-4x0.5",
+      "series_id": "equal-angle-inch",
+      "designation": "L 4\" x 1/2\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "L4x1/2",
+        "L4x0.5",
+        "4x0.5"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 101.6,
+        "t": 12.7
+      },
+      "physical_properties": {
+        "mass_per_length": 19.03,
+        "area": 24.19
+      },
+      "section_properties": {
+        "ix": 233.0,
+        "iy": 233.0,
+        "wx": 32.8,
+        "wy": 32.8,
+        "rx": 3.1,
+        "ry": 3.1,
+        "rz_min": 1.98
+      },
+      "centroid": {
+        "x": 3.0
+      }
+    },
+    {
+      "id": "equal-angle-inch-5x0.25",
+      "series_id": "equal-angle-inch",
+      "designation": "L 5\" x 1/4\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "L5x1/4",
+        "L5x0.25",
+        "5x0.25"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 127.0,
+        "t": 6.35
+      },
+      "physical_properties": {
+        "mass_per_length": 12.34,
+        "area": 15.73
+      },
+      "section_properties": {
+        "ix": 251.63,
+        "iy": 251.63,
+        "wx": 27.09,
+        "wy": 27.09,
+        "rx": 4.0,
+        "ry": 4.0,
+        "rz_min": 2.53
+      },
+      "centroid": {
+        "x": 3.41
+      }
+    },
+    {
+      "id": "equal-angle-inch-5x0.3125",
+      "series_id": "equal-angle-inch",
+      "designation": "L 5\" x 5/16\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "L5x5/16",
+        "L5x0.3125",
+        "5x0.3125"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 127.0,
+        "t": 7.94
+      },
+      "physical_properties": {
+        "mass_per_length": 15.31,
+        "area": 19.5
+      },
+      "section_properties": {
+        "ix": 308.0,
+        "iy": 308.0,
+        "wx": 33.4,
+        "wy": 33.4,
+        "rx": 3.97,
+        "ry": 3.97,
+        "rz_min": 2.53
+      },
+      "centroid": {
+        "x": 3.47
+      }
+    },
+    {
+      "id": "equal-angle-inch-5x0.375",
+      "series_id": "equal-angle-inch",
+      "designation": "L 5\" x 3/8\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "L5x3/8",
+        "L5x0.375",
+        "5x0.375"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 127.0,
+        "t": 9.52
+      },
+      "physical_properties": {
+        "mass_per_length": 18.3,
+        "area": 23.29
+      },
+      "section_properties": {
+        "ix": 362.0,
+        "iy": 362.0,
+        "wx": 39.5,
+        "wy": 39.5,
+        "rx": 3.94,
+        "ry": 3.94,
+        "rz_min": 2.51
+      },
+      "centroid": {
+        "x": 3.53
+      }
+    },
+    {
+      "id": "equal-angle-inch-5x0.5",
+      "series_id": "equal-angle-inch",
+      "designation": "L 5\" x 1/2\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "L5x1/2",
+        "L5x0.5",
+        "5x0.5"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 127.0,
+        "t": 12.7
+      },
+      "physical_properties": {
+        "mass_per_length": 24.1,
+        "area": 30.64
+      },
+      "section_properties": {
+        "ix": 470.0,
+        "iy": 470.0,
+        "wx": 52.5,
+        "wy": 52.5,
+        "rx": 3.91,
+        "ry": 3.91,
+        "rz_min": 2.49
+      },
+      "centroid": {
+        "x": 3.63
+      }
+    },
+    {
+      "id": "equal-angle-inch-5x0.625",
+      "series_id": "equal-angle-inch",
+      "designation": "L 5\" x 5/8\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "L5x5/8",
+        "L5x0.625",
+        "5x0.625"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 127.0,
+        "t": 15.88
+      },
+      "physical_properties": {
+        "mass_per_length": 29.8,
+        "area": 37.8
+      },
+      "section_properties": {
+        "ix": 566.0,
+        "iy": 566.0,
+        "wx": 64.0,
+        "wy": 64.0,
+        "rx": 3.86,
+        "ry": 3.86,
+        "rz_min": 2.46
+      },
+      "centroid": {
+        "x": 3.76
+      }
+    },
+    {
+      "id": "equal-angle-inch-5x0.4375",
+      "series_id": "equal-angle-inch",
+      "designation": "L 5\" x 7/16\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "L5x7/16",
+        "L5x0.4375",
+        "5x0.4375"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 127.0,
+        "t": 11.11
+      },
+      "physical_properties": {
+        "mass_per_length": 23.52,
+        "area": 26.96
+      },
+      "section_properties": {
+        "ix": 416.68,
+        "iy": 416.68,
+        "wx": 45.71,
+        "wy": 45.71,
+        "rx": 3.93,
+        "ry": 3.93,
+        "rz_min": 2.5
+      },
+      "centroid": {
+        "x": 3.58
+      }
+    },
+    {
+      "id": "equal-angle-inch-6x0.375",
+      "series_id": "equal-angle-inch",
+      "designation": "L 6\" x 3/8\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "L6x3/8",
+        "L6x0.375",
+        "6x0.375"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 152.4,
+        "t": 9.52
+      },
+      "physical_properties": {
+        "mass_per_length": 22.2,
+        "area": 28.1
+      },
+      "section_properties": {
+        "ix": 641.0,
+        "iy": 641.0,
+        "wx": 57.4,
+        "wy": 57.4,
+        "rx": 4.78,
+        "ry": 4.78,
+        "rz_min": 3.02
+      },
+      "centroid": {
+        "x": 4.17
+      }
+    },
+    {
+      "id": "equal-angle-inch-6x0.5",
+      "series_id": "equal-angle-inch",
+      "designation": "L 6\" x 1/2\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "L6x1/2",
+        "L6x0.5",
+        "6x0.5"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 152.4,
+        "t": 12.7
+      },
+      "physical_properties": {
+        "mass_per_length": 29.2,
+        "area": 37.09
+      },
+      "section_properties": {
+        "ix": 828.0,
+        "iy": 828.0,
+        "wx": 75.4,
+        "wy": 75.4,
+        "rx": 4.72,
+        "ry": 4.72,
+        "rz_min": 3.0
+      },
+      "centroid": {
+        "x": 4.27
+      }
+    },
+    {
+      "id": "equal-angle-inch-6x0.625",
+      "series_id": "equal-angle-inch",
+      "designation": "L 6\" x 5/8\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "L6x5/8",
+        "L6x0.625",
+        "6x0.625"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 152.4,
+        "t": 15.88
+      },
+      "physical_properties": {
+        "mass_per_length": 36.0,
+        "area": 45.86
+      },
+      "section_properties": {
+        "ix": 1007.0,
+        "iy": 1007.0,
+        "wx": 93.5,
+        "wy": 93.5,
+        "rx": 4.67,
+        "ry": 4.67,
+        "rz_min": 2.97
+      },
+      "centroid": {
+        "x": 4.39
+      }
+    },
+    {
+      "id": "equal-angle-inch-6x0.75",
+      "series_id": "equal-angle-inch",
+      "designation": "L 6\" x 3/4\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "L6x3/4",
+        "L6x0.75",
+        "6x0.75"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 152.4,
+        "t": 19.05
+      },
+      "physical_properties": {
+        "mass_per_length": 42.7,
+        "area": 54.44
+      },
+      "section_properties": {
+        "ix": 1173.0,
+        "iy": 1173.0,
+        "wx": 109.9,
+        "wy": 109.9,
+        "rx": 4.65,
+        "ry": 4.65,
+        "rz_min": 2.97
+      },
+      "centroid": {
+        "x": 4.52
+      }
+    },
+    {
+      "id": "equal-angle-inch-8x0.625",
+      "series_id": "equal-angle-inch",
+      "designation": "L 8\" x 5/8\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "L8x5/8",
+        "L8x0.625",
+        "8x0.625"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 203.2,
+        "t": 15.88
+      },
+      "physical_properties": {
+        "mass_per_length": 48.7,
+        "area": 62.9
+      },
+      "section_properties": {
+        "ix": 2472.4,
+        "iy": 2472.4,
+        "wx": 168.9,
+        "wy": 168.9,
+        "rx": 6.31,
+        "ry": 6.31,
+        "rz_min": 4.01
+      },
+      "centroid": {
+        "x": 5.66
+      }
+    },
+    {
+      "id": "equal-angle-inch-8x0.75",
+      "series_id": "equal-angle-inch",
+      "designation": "L 8\" x 3/4\"",
+      "equivalent_designation": null,
+      "aliases": [
+        "L8x3/4",
+        "L8x0.75",
+        "8x0.75"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 203.2,
+        "t": 19.05
+      },
+      "physical_properties": {
+        "mass_per_length": 57.9,
+        "area": 73.81
+      },
+      "section_properties": {
+        "ix": 2901.1,
+        "iy": 2901.1,
+        "wx": 199.9,
+        "wy": 199.9,
+        "rx": 6.27,
+        "ry": 6.27,
+        "rz_min": 3.99
+      },
+      "centroid": {
+        "x": 5.79
+      }
+    },
+    {
+      "id": "equal-angle-metric-40x3",
+      "series_id": "equal-angle-metric",
+      "designation": "L 40 x 3",
+      "equivalent_designation": null,
+      "aliases": [
+        "L40",
+        "L40x3",
+        "40x3"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 40,
+        "t": 3
+      },
+      "physical_properties": {
+        "mass_per_length": 1.87,
+        "area": 2.31
+      },
+      "section_properties": {
+        "ix": 3.58,
+        "iy": 3.58,
+        "wx": 1.24,
+        "wy": 1.24,
+        "rx": 1.24,
+        "ry": 1.24,
+        "rz_min": 0.79
+      },
+      "centroid": {
+        "x": 1.1
+      }
+    },
+    {
+      "id": "equal-angle-metric-40x4",
+      "series_id": "equal-angle-metric",
+      "designation": "L 40 x 4",
+      "equivalent_designation": null,
+      "aliases": [
+        "L40",
+        "L40x4",
+        "40x4"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 40,
+        "t": 4
+      },
+      "physical_properties": {
+        "mass_per_length": 2.42,
+        "area": 3.08
+      },
+      "section_properties": {
+        "ix": 4.47,
+        "iy": 4.47,
+        "wx": 1.55,
+        "wy": 1.55,
+        "rx": 1.22,
+        "ry": 1.22,
+        "rz_min": 0.79
+      },
+      "centroid": {
+        "x": 1.15
+      }
+    },
+    {
+      "id": "equal-angle-metric-40x5",
+      "series_id": "equal-angle-metric",
+      "designation": "L 40 x 5",
+      "equivalent_designation": null,
+      "aliases": [
+        "L40",
+        "L40x5",
+        "40x5"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 40,
+        "t": 5
+      },
+      "physical_properties": {
+        "mass_per_length": 3.0,
+        "area": 3.75
+      },
+      "section_properties": {
+        "ix": 5.56,
+        "iy": 5.56,
+        "wx": 1.97,
+        "wy": 1.97,
+        "rx": 1.22,
+        "ry": 1.22,
+        "rz_min": 0.79
+      },
+      "centroid": {
+        "x": 1.18
+      }
+    },
+    {
+      "id": "equal-angle-metric-45x3",
+      "series_id": "equal-angle-metric",
+      "designation": "L 45 x 3",
+      "equivalent_designation": null,
+      "aliases": [
+        "L45",
+        "L45x3",
+        "45x3"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 45,
+        "t": 3
+      },
+      "physical_properties": {
+        "mass_per_length": 2.12,
+        "area": 2.61
+      },
+      "section_properties": {
+        "ix": 5.16,
+        "iy": 5.16,
+        "wx": 1.58,
+        "wy": 1.58,
+        "rx": 1.41,
+        "ry": 1.41,
+        "rz_min": 0.89
+      },
+      "centroid": {
+        "x": 1.23
+      }
+    },
+    {
+      "id": "equal-angle-metric-45x4",
+      "series_id": "equal-angle-metric",
+      "designation": "L 45 x 4",
+      "equivalent_designation": null,
+      "aliases": [
+        "L45",
+        "L45x4",
+        "45x4"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 45,
+        "t": 4
+      },
+      "physical_properties": {
+        "mass_per_length": 2.77,
+        "area": 3.44
+      },
+      "section_properties": {
+        "ix": 6.67,
+        "iy": 6.67,
+        "wx": 2.07,
+        "wy": 2.07,
+        "rx": 1.39,
+        "ry": 1.39,
+        "rz_min": 0.89
+      },
+      "centroid": {
+        "x": 1.28
+      }
+    },
+    {
+      "id": "equal-angle-metric-45x5",
+      "series_id": "equal-angle-metric",
+      "designation": "L 45 x 5",
+      "equivalent_designation": null,
+      "aliases": [
+        "L45",
+        "L45x5",
+        "45x5"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 45,
+        "t": 5
+      },
+      "physical_properties": {
+        "mass_per_length": 3.38,
+        "area": 4.3
+      },
+      "section_properties": {
+        "ix": 7.84,
+        "iy": 7.84,
+        "wx": 2.43,
+        "wy": 2.43,
+        "rx": 1.35,
+        "ry": 1.35,
+        "rz_min": 0.87
+      },
+      "centroid": {
+        "x": 1.4
+      }
+    },
+    {
+      "id": "equal-angle-metric-50x3",
+      "series_id": "equal-angle-metric",
+      "designation": "L 50 x 3",
+      "equivalent_designation": null,
+      "aliases": [
+        "L50",
+        "L50x3",
+        "50x3"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 50,
+        "t": 3
+      },
+      "physical_properties": {
+        "mass_per_length": 2.36,
+        "area": 2.91
+      },
+      "section_properties": {
+        "ix": 7.15,
+        "iy": 7.15,
+        "wx": 1.96,
+        "wy": 1.96,
+        "rx": 1.57,
+        "ry": 1.57,
+        "rz_min": 0.99
+      },
+      "centroid": {
+        "x": 1.35
+      }
+    },
+    {
+      "id": "equal-angle-metric-50x4",
+      "series_id": "equal-angle-metric",
+      "designation": "L 50 x 4",
+      "equivalent_designation": null,
+      "aliases": [
+        "L50",
+        "L50x4",
+        "50x4"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 50,
+        "t": 4
+      },
+      "physical_properties": {
+        "mass_per_length": 3.09,
+        "area": 3.84
+      },
+      "section_properties": {
+        "ix": 9.26,
+        "iy": 9.26,
+        "wx": 2.57,
+        "wy": 2.57,
+        "rx": 1.55,
+        "ry": 1.55,
+        "rz_min": 0.99
+      },
+      "centroid": {
+        "x": 1.4
+      }
+    },
+    {
+      "id": "equal-angle-metric-50x5",
+      "series_id": "equal-angle-metric",
+      "designation": "L 50 x 5",
+      "equivalent_designation": null,
+      "aliases": [
+        "L50",
+        "L50x5",
+        "50x5"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 50,
+        "t": 5
+      },
+      "physical_properties": {
+        "mass_per_length": 3.77,
+        "area": 4.8
+      },
+      "section_properties": {
+        "ix": 11.0,
+        "iy": 11.0,
+        "wx": 3.05,
+        "wy": 3.05,
+        "rx": 1.54,
+        "ry": 1.54,
+        "rz_min": 0.97
+      },
+      "centroid": {
+        "x": 1.42
+      }
+    },
+    {
+      "id": "equal-angle-metric-50x6",
+      "series_id": "equal-angle-metric",
+      "designation": "L 50 x 6",
+      "equivalent_designation": null,
+      "aliases": [
+        "L50",
+        "L50x6",
+        "50x6"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 50,
+        "t": 6
+      },
+      "physical_properties": {
+        "mass_per_length": 4.47,
+        "area": 5.69
+      },
+      "section_properties": {
+        "ix": 12.8,
+        "iy": 12.8,
+        "wx": 3.72,
+        "wy": 3.72,
+        "rx": 1.51,
+        "ry": 1.51,
+        "rz_min": 0.97
+      },
+      "centroid": {
+        "x": 1.56
+      }
+    },
+    {
+      "id": "equal-angle-metric-60x4",
+      "series_id": "equal-angle-metric",
+      "designation": "L 60 x 4",
+      "equivalent_designation": null,
+      "aliases": [
+        "L60",
+        "L60x4",
+        "60x4"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 60,
+        "t": 4
+      },
+      "physical_properties": {
+        "mass_per_length": 3.64,
+        "area": 4.64
+      },
+      "section_properties": {
+        "ix": 16.31,
+        "iy": 16.31,
+        "wx": 3.75,
+        "wy": 3.75,
+        "rx": 1.88,
+        "ry": 1.88,
+        "rz_min": 1.19
+      },
+      "centroid": {
+        "x": 1.65
+      }
+    },
+    {
+      "id": "equal-angle-metric-60x5",
+      "series_id": "equal-angle-metric",
+      "designation": "L 60 x 5",
+      "equivalent_designation": null,
+      "aliases": [
+        "L60",
+        "L60x5",
+        "60x5"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 60,
+        "t": 5
+      },
+      "physical_properties": {
+        "mass_per_length": 4.57,
+        "area": 5.82
+      },
+      "section_properties": {
+        "ix": 19.4,
+        "iy": 19.4,
+        "wx": 4.45,
+        "wy": 4.45,
+        "rx": 1.82,
+        "ry": 1.82,
+        "rz_min": 1.17
+      },
+      "centroid": {
+        "x": 1.64
+      }
+    },
+    {
+      "id": "equal-angle-metric-60x6",
+      "series_id": "equal-angle-metric",
+      "designation": "L 60 x 6",
+      "equivalent_designation": null,
+      "aliases": [
+        "L60",
+        "L60x6",
+        "60x6"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 60,
+        "t": 6
+      },
+      "physical_properties": {
+        "mass_per_length": 5.42,
+        "area": 6.91
+      },
+      "section_properties": {
+        "ix": 22.8,
+        "iy": 22.8,
+        "wx": 5.29,
+        "wy": 5.29,
+        "rx": 1.82,
+        "ry": 1.82,
+        "rz_min": 1.17
+      },
+      "centroid": {
+        "x": 1.82
+      }
+    },
+    {
+      "id": "equal-angle-metric-65x4",
+      "series_id": "equal-angle-metric",
+      "designation": "L 65 x 4",
+      "equivalent_designation": null,
+      "aliases": [
+        "L65",
+        "L65x4",
+        "65x4"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 65,
+        "t": 4
+      },
+      "physical_properties": {
+        "mass_per_length": 3.96,
+        "area": 5.04
+      },
+      "section_properties": {
+        "ix": 20.9,
+        "iy": 20.9,
+        "wx": 4.42,
+        "wy": 4.42,
+        "rx": 2.03,
+        "ry": 2.03,
+        "rz_min": 1.29
+      },
+      "centroid": {
+        "x": 1.77
+      }
+    },
+    {
+      "id": "equal-angle-metric-65x5",
+      "series_id": "equal-angle-metric",
+      "designation": "L 65 x 5",
+      "equivalent_designation": null,
+      "aliases": [
+        "L65",
+        "L65x5",
+        "65x5"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 65,
+        "t": 5
+      },
+      "physical_properties": {
+        "mass_per_length": 4.98,
+        "area": 6.34
+      },
+      "section_properties": {
+        "ix": 24.7,
+        "iy": 24.7,
+        "wx": 5.2,
+        "wy": 5.2,
+        "rx": 2.01,
+        "ry": 2.01,
+        "rz_min": 1.28
+      },
+      "centroid": {
+        "x": 1.77
+      }
+    },
+    {
+      "id": "equal-angle-metric-65x6",
+      "series_id": "equal-angle-metric",
+      "designation": "L 65 x 6",
+      "equivalent_designation": null,
+      "aliases": [
+        "L65",
+        "L65x6",
+        "65x6"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 65,
+        "t": 6
+      },
+      "physical_properties": {
+        "mass_per_length": 5.91,
+        "area": 7.44
+      },
+      "section_properties": {
+        "ix": 30.0,
+        "iy": 30.0,
+        "wx": 6.44,
+        "wy": 6.44,
+        "rx": 2.01,
+        "ry": 2.01,
+        "rz_min": 1.28
+      },
+      "centroid": {
+        "x": 1.84
+      }
+    },
+    {
+      "id": "equal-angle-metric-75x5",
+      "series_id": "equal-angle-metric",
+      "designation": "L 75 x 5",
+      "equivalent_designation": null,
+      "aliases": [
+        "L75",
+        "L75x5",
+        "75x5"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 75,
+        "t": 5
+      },
+      "physical_properties": {
+        "mass_per_length": 5.71,
+        "area": 7.27
+      },
+      "section_properties": {
+        "ix": 38.7,
+        "iy": 38.7,
+        "wx": 7.06,
+        "wy": 7.06,
+        "rx": 2.31,
+        "ry": 2.31,
+        "rz_min": 1.48
+      },
+      "centroid": {
+        "x": 2.02
+      }
+    },
+    {
+      "id": "equal-angle-metric-75x6",
+      "series_id": "equal-angle-metric",
+      "designation": "L 75 x 6",
+      "equivalent_designation": null,
+      "aliases": [
+        "L75",
+        "L75x6",
+        "75x6"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 75,
+        "t": 6
+      },
+      "physical_properties": {
+        "mass_per_length": 6.87,
+        "area": 8.72
+      },
+      "section_properties": {
+        "ix": 45.7,
+        "iy": 45.7,
+        "wx": 8.4,
+        "wy": 8.4,
+        "rx": 2.3,
+        "ry": 2.3,
+        "rz_min": 1.48
+      },
+      "centroid": {
+        "x": 2.05
+      }
+    },
+    {
+      "id": "equal-angle-metric-75x7",
+      "series_id": "equal-angle-metric",
+      "designation": "L 75 x 7",
+      "equivalent_designation": null,
+      "aliases": [
+        "L75",
+        "L75x7",
+        "75x7"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 75,
+        "t": 7
+      },
+      "physical_properties": {
+        "mass_per_length": 7.92,
+        "area": 10.1
+      },
+      "section_properties": {
+        "ix": 52.6,
+        "iy": 52.6,
+        "wx": 9.73,
+        "wy": 9.73,
+        "rx": 2.28,
+        "ry": 2.28,
+        "rz_min": 1.46
+      },
+      "centroid": {
+        "x": 2.09
+      }
+    },
+    {
+      "id": "equal-angle-metric-80x5",
+      "series_id": "equal-angle-metric",
+      "designation": "L 80 x 5",
+      "equivalent_designation": null,
+      "aliases": [
+        "L80",
+        "L80x5",
+        "80x5"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 80,
+        "t": 5
+      },
+      "physical_properties": {
+        "mass_per_length": 6.08,
+        "area": 7.75
+      },
+      "section_properties": {
+        "ix": 48.6,
+        "iy": 48.6,
+        "wx": 8.35,
+        "wy": 8.35,
+        "rx": 2.5,
+        "ry": 2.5,
+        "rz_min": 1.59
+      },
+      "centroid": {
+        "x": 2.18
+      }
+    },
+    {
+      "id": "equal-angle-metric-80x6",
+      "series_id": "equal-angle-metric",
+      "designation": "L 80 x 6",
+      "equivalent_designation": null,
+      "aliases": [
+        "L80",
+        "L80x6",
+        "80x6"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 80,
+        "t": 6
+      },
+      "physical_properties": {
+        "mass_per_length": 7.25,
+        "area": 9.24
+      },
+      "section_properties": {
+        "ix": 57.3,
+        "iy": 57.3,
+        "wx": 9.91,
+        "wy": 9.91,
+        "rx": 2.49,
+        "ry": 2.49,
+        "rz_min": 1.58
+      },
+      "centroid": {
+        "x": 2.22
+      }
+    },
+    {
+      "id": "equal-angle-metric-80x7",
+      "series_id": "equal-angle-metric",
+      "designation": "L 80 x 7",
+      "equivalent_designation": null,
+      "aliases": [
+        "L80",
+        "L80x7",
+        "80x7"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 80,
+        "t": 7
+      },
+      "physical_properties": {
+        "mass_per_length": 8.49,
+        "area": 10.8
+      },
+      "section_properties": {
+        "ix": 64.2,
+        "iy": 64.2,
+        "wx": 11.1,
+        "wy": 11.1,
+        "rx": 2.44,
+        "ry": 2.44,
+        "rz_min": 1.57
+      },
+      "centroid": {
+        "x": 2.21
+      }
+    },
+    {
+      "id": "equal-angle-metric-80x8",
+      "series_id": "equal-angle-metric",
+      "designation": "L 80 x 8",
+      "equivalent_designation": null,
+      "aliases": [
+        "L80",
+        "L80x8",
+        "80x8"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 80,
+        "t": 8
+      },
+      "physical_properties": {
+        "mass_per_length": 9.66,
+        "area": 12.3
+      },
+      "section_properties": {
+        "ix": 72.3,
+        "iy": 72.3,
+        "wx": 12.6,
+        "wy": 12.6,
+        "rx": 2.42,
+        "ry": 2.42,
+        "rz_min": 1.55
+      },
+      "centroid": {
+        "x": 2.26
+      }
+    },
+    {
+      "id": "equal-angle-metric-90x6",
+      "series_id": "equal-angle-metric",
+      "designation": "L 90 x 6",
+      "equivalent_designation": null,
+      "aliases": [
+        "L90",
+        "L90x6",
+        "90x6"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 90,
+        "t": 6
+      },
+      "physical_properties": {
+        "mass_per_length": 8.3,
+        "area": 10.6
+      },
+      "section_properties": {
+        "ix": 80.3,
+        "iy": 80.3,
+        "wx": 12.2,
+        "wy": 12.2,
+        "rx": 2.76,
+        "ry": 2.76,
+        "rz_min": 1.78
+      },
+      "centroid": {
+        "x": 2.41
+      }
+    },
+    {
+      "id": "equal-angle-metric-90x7",
+      "series_id": "equal-angle-metric",
+      "designation": "L 90 x 7",
+      "equivalent_designation": null,
+      "aliases": [
+        "L90",
+        "L90x7",
+        "90x7"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 90,
+        "t": 7
+      },
+      "physical_properties": {
+        "mass_per_length": 9.5,
+        "area": 12.1
+      },
+      "section_properties": {
+        "ix": 94.8,
+        "iy": 94.8,
+        "wx": 14.6,
+        "wy": 14.6,
+        "rx": 2.8,
+        "ry": 2.8,
+        "rz_min": 1.78
+      },
+      "centroid": {
+        "x": 2.51
+      }
+    },
+    {
+      "id": "equal-angle-metric-90x8",
+      "series_id": "equal-angle-metric",
+      "designation": "L 90 x 8",
+      "equivalent_designation": null,
+      "aliases": [
+        "L90",
+        "L90x8",
+        "90x8"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 90,
+        "t": 8
+      },
+      "physical_properties": {
+        "mass_per_length": 10.9,
+        "area": 13.9
+      },
+      "section_properties": {
+        "ix": 104.0,
+        "iy": 104.0,
+        "wx": 16.1,
+        "wy": 16.1,
+        "rx": 2.74,
+        "ry": 2.74,
+        "rz_min": 1.76
+      },
+      "centroid": {
+        "x": 2.5
+      }
+    },
+    {
+      "id": "equal-angle-metric-100x6",
+      "series_id": "equal-angle-metric",
+      "designation": "L 100 x 6",
+      "equivalent_designation": null,
+      "aliases": [
+        "L100",
+        "L100x6",
+        "100x6"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 100,
+        "t": 6
+      },
+      "physical_properties": {
+        "mass_per_length": 9.14,
+        "area": 11.64
+      },
+      "section_properties": {
+        "ix": 114.4,
+        "iy": 114.4,
+        "wx": 15.7,
+        "wy": 15.7,
+        "rx": 3.13,
+        "ry": 3.13,
+        "rz_min": 1.99
+      },
+      "centroid": {
+        "x": 2.72
+      }
+    },
+    {
+      "id": "equal-angle-metric-100x7",
+      "series_id": "equal-angle-metric",
+      "designation": "L 100 x 7",
+      "equivalent_designation": null,
+      "aliases": [
+        "L100",
+        "L100x7",
+        "100x7"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 100,
+        "t": 7
+      },
+      "physical_properties": {
+        "mass_per_length": 10.7,
+        "area": 13.7
+      },
+      "section_properties": {
+        "ix": 128.0,
+        "iy": 128.0,
+        "wx": 17.5,
+        "wy": 17.5,
+        "rx": 3.06,
+        "ry": 3.06,
+        "rz_min": 1.97
+      },
+      "centroid": {
+        "x": 2.69
+      }
+    },
+    {
+      "id": "equal-angle-metric-100x8",
+      "series_id": "equal-angle-metric",
+      "designation": "L 100 x 8",
+      "equivalent_designation": null,
+      "aliases": [
+        "L100",
+        "L100x8",
+        "100x8"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 100,
+        "t": 8
+      },
+      "physical_properties": {
+        "mass_per_length": 12.2,
+        "area": 15.5
+      },
+      "section_properties": {
+        "ix": 145.0,
+        "iy": 145.0,
+        "wx": 19.9,
+        "wy": 19.9,
+        "rx": 3.06,
+        "ry": 3.06,
+        "rz_min": 1.96
+      },
+      "centroid": {
+        "x": 2.74
+      }
+    },
+    {
+      "id": "equal-angle-metric-100x9",
+      "series_id": "equal-angle-metric",
+      "designation": "L 100 x 9",
+      "equivalent_designation": null,
+      "aliases": [
+        "L100",
+        "L100x9",
+        "100x9"
+      ],
+      "catalog_markers": [],
+      "availability_status": "standard",
+      "geometry_type": "equal_angle",
+      "geometry": {
+        "b": 100,
+        "t": 9
+      },
+      "physical_properties": {
+        "mass_per_length": 13.5,
+        "area": 17.2
+      },
+      "section_properties": {
+        "ix": 164.3,
+        "iy": 164.3,
+        "wx": 22.9,
+        "wy": 22.9,
+        "rx": 3.09,
+        "ry": 3.09,
+        "rz_min": 1.97
+      },
+      "centroid": {
+        "x": 2.83
       }
     }
   ]

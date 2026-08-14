@@ -80,10 +80,15 @@ def python_package_version() -> str:
     raise ValueError("__version__ não foi encontrada em __init__.py")
 
 
-def catalog_profiles() -> list[dict]:
+def catalog_payload() -> dict:
     payload = json.loads(CATALOG.read_text(encoding="utf-8"))
     if payload.get("schema_version") != 2:
         raise ValueError("o catálogo não usa schema_version 2")
+    return payload
+
+
+def catalog_profiles() -> list[dict]:
+    payload = catalog_payload()
     profiles = payload.get("profiles")
     if not isinstance(profiles, list):
         raise ValueError("o catálogo não contém uma lista 'profiles'")
@@ -114,17 +119,25 @@ def run_checks() -> list[str]:
             f"versões divergentes: package.xml={manifest_version}, __version__={internal_version}"
         )
 
+    payload = {}
     try:
-        profiles = catalog_profiles()
+        payload = catalog_payload()
+        profiles = payload.get("profiles")
+        if not isinstance(profiles, list):
+            raise ValueError("o catálogo não contém uma lista 'profiles'")
     except (json.JSONDecodeError, OSError, ValueError) as exc:
         errors.append(f"catálogo JSON inválido: {exc}")
         profiles = []
 
-    if len(profiles) != 108:
-        errors.append(f"quantidade de perfis incorreta: esperado 108, encontrado {len(profiles)}")
-    counts = {series: sum(profile.get("series_id") == series for profile in profiles) for series in ("w", "hp")}
-    if counts != {"w": 100, "hp": 8}:
+    if len(profiles) != 218:
+        errors.append(f"quantidade de perfis incorreta: esperado 218, encontrado {len(profiles)}")
+    expected_counts = {"w": 100, "hp": 8, "i": 8, "u": 12, "t": 10,
+                       "equal-angle-inch": 50, "equal-angle-metric": 30}
+    counts = {series: sum(profile.get("series_id") == series for profile in profiles) for series in expected_counts}
+    if counts != expected_counts:
         errors.append(f"quantidade por série incorreta: {counts!r}")
+    if len(payload.get("series", [])) != 7:
+        errors.append(f"quantidade de séries incorreta: esperado 7, encontrado {len(payload.get('series', []))}")
 
     designations: list[str] = []
     for index, profile in enumerate(profiles, start=1):
@@ -138,7 +151,7 @@ def run_checks() -> list[str]:
         if isinstance(designation, str):
             designations.append(designation)
         numeric_values = {}
-        for group in ("geometry", "physical_properties", "section_properties"):
+        for group in ("geometry", "physical_properties", "section_properties", "centroid"):
             values = profile.get(group, {})
             if isinstance(values, dict):
                 numeric_values.update(values)
@@ -173,7 +186,7 @@ def main() -> int:
         return 1
     print("OK: package.xml é XML válido.")
     print("OK: package.xml e __version__ indicam a mesma versão.")
-    print("OK: catálogo Gerdau 01/23 é JSON válido e contém 100 W e 8 HP.")
+    print("OK: catálogo Gerdau 01/23 é JSON válido e contém 218 perfis em 7 séries.")
     print("OK: designações são únicas e todos os perfis possuem campos e valores válidos.")
     print("OK: todos os arquivos Python compilam sintaticamente.")
     print("OK: todos os arquivos essenciais existem.")

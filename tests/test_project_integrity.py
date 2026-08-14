@@ -184,10 +184,14 @@ class CatalogIntegrityTests(unittest.TestCase):
         self.assertEqual(self.payload["schema_version"], 2)
         self.assertIsInstance(self.profiles, list)
 
-    def test_catalog_contains_exactly_108_profiles(self):
-        self.assertEqual(len(self.profiles), 108)
-        self.assertEqual(sum(p["series_id"] == "w" for p in self.profiles), 100)
-        self.assertEqual(sum(p["series_id"] == "hp" for p in self.profiles), 8)
+    def test_catalog_contains_exactly_218_profiles(self):
+        self.assertEqual(len(self.profiles), 218)
+        expected = {"w": 100, "hp": 8, "i": 8, "u": 12, "t": 10,
+                    "equal-angle-inch": 50, "equal-angle-metric": 30}
+        self.assertEqual(
+            {series: sum(p["series_id"] == series for p in self.profiles) for series in expected},
+            expected,
+        )
 
     def test_designations_are_unique(self):
         designations = [profile["designation"] for profile in self.profiles]
@@ -204,6 +208,7 @@ class CatalogIntegrityTests(unittest.TestCase):
                 **profile["geometry"],
                 **profile["physical_properties"],
                 **profile["section_properties"],
+                **profile.get("centroid", {}),
             }
             for field, value in values.items():
                 with self.subTest(profile=profile.get("designation"), field=field):
