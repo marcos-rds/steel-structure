@@ -65,6 +65,22 @@ class DraftNativeArchitectureTests(unittest.TestCase):
         self.assertIn("compact_profile_designation(designation), designation", self.options)
         self.assertIn("self.profile.currentData()", self.options)
 
+    def test_profile_widget_integrates_the_shared_browser_once(self):
+        self.assertIn('QPushButton("Selecionar Perfil...")', self.options)
+        self.assertIn("ProfileBrowserDialog.SELECT_MODE", self.options)
+        self.assertIn("initial_profile_ref=self._current_profile_ref()", self.options)
+        self.assertEqual(self.options.count("def _open_profile_browser"), 1)
+
+    def test_browser_selection_updates_combos_atomically_and_notifies_profile_once(self):
+        method = self.options.split("    def set_profile_ref", 1)[1].split(
+            "    def _mark_custom_name", 1
+        )[0]
+        self.assertIn("widgets = (self.category, self.series, self.profile)", method)
+        self.assertIn("widget.blockSignals(True)", method)
+        self.assertEqual(method.count("currentIndexChanged.emit"), 1)
+        for unrelated in ("insertion", "rotation", "_color", "element_type"):
+            self.assertNotIn(f"self.{unrelated}", method)
+
     def test_command_uses_official_draft_initialization_without_legacy_panel(self):
         self.assertIn("import DraftTools", self.commands)
         self.assertIn("Não foi possível iniciar a ferramenta nativa", self.commands)

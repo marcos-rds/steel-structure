@@ -155,7 +155,9 @@ def _load_browser_runtime_module():
     interactive = types.ModuleType(root_name + ".interactive")
     interactive.__path__ = []
     pyside = types.ModuleType("PySide")
-    pyside.QtCore = types.SimpleNamespace()
+    pyside.QtCore = types.SimpleNamespace(Qt=types.SimpleNamespace(
+        UserRole=32, ItemDataRole=types.SimpleNamespace(UserRole=32)
+    ))
     pyside.QtGui = types.SimpleNamespace()
     pyside.QtWidgets = types.SimpleNamespace(QDialog=object)
     preview_module = types.ModuleType(root_name + ".interactive.profile_browser_preview")
@@ -537,6 +539,82 @@ class ProfileBrowserModelTests(unittest.TestCase):
         self.assertIn('"Eixo X-X": (1, 0, 1, 1)', source)
         self.assertIn('"Eixo Y-Y": (1, 1, 1, 1)', source)
         self.assertIn("QGridLayout(page)", source)
+
+    def test_select_mode_accepts_only_profiles_allowed_by_its_capability(self):
+        module = _load_browser_runtime_module()
+        accepted = []
+        dialog = types.SimpleNamespace(
+            mode=module.ProfileBrowserDialog.SELECT_MODE,
+            SELECT_MODE=module.ProfileBrowserDialog.SELECT_MODE,
+            selected_profile=lambda: self.library.search("W150x13")[0],
+            _is_profile_selectable=lambda profile: profile.series_id in {"w", "hp"},
+            accept=lambda: accepted.append(True),
+        )
+        dialog._current_profile_is_selectable = types.MethodType(
+            module.ProfileBrowserDialog._current_profile_is_selectable, dialog
+        )
+        module.ProfileBrowserDialog._accept_selected(dialog)
+        self.assertEqual(accepted, [True])
+        dialog.selected_profile = lambda: self.library.search("U6x12.2")[0]
+        module.ProfileBrowserDialog._accept_selected(dialog)
+        self.assertEqual(accepted, [True])
+
+        for query in ("I3x8.48", "U6x12.2", "T2x1/4", "L50x5", "L2x1/4"):
+            dialog.selected_profile = lambda query=query: self.library.search(query)[0]
+            self.assertFalse(dialog._current_profile_is_selectable())
+        for query in ("W310x52", "HP310x132"):
+            dialog.selected_profile = lambda query=query: self.library.search(query)[0]
+            self.assertTrue(dialog._current_profile_is_selectable())
+
+    def test_select_and_browse_button_contracts_remain_distinct(self):
+        source = (ROOT / "freecad/SteelStructures/interactive/profile_browser.py").read_text("utf-8")
+        self.assertIn("QDialogButtonBox.Cancel | QtWidgets.QDialogButtonBox.Ok", source)
+        self.assertIn('setText("Selecionar")', source)
+        self.assertIn("QDialogButtonBox.Close", source)
+        self.assertIn("buttons.accepted.connect(self._accept_selected)", source)
+        self.assertIn("initial_profile_ref", source)
+
+    def test_initial_profile_ref_is_preserved_and_missing_ref_falls_back_to_w(self):
+        module = _load_browser_runtime_module()
+
+        class TreeItem:
+            def __init__(self, value, children=()):
+                self.value, self.children = value, list(children)
+
+            def data(self, _column, _role):
+                return self.value
+
+            def childCount(self):
+                return len(self.children)
+
+            def child(self, index):
+                return self.children[index]
+
+        hp_item = TreeItem(("rolled-steel", "hp"))
+        w_item = TreeItem(("rolled-steel", "w"))
+        root = TreeItem(("rolled-steel", None), (w_item, hp_item))
+        selected_items = []
+        selected_refs = []
+        tree = types.SimpleNamespace(
+            topLevelItemCount=lambda: 1,
+            topLevelItem=lambda _index: root,
+            setCurrentItem=lambda item: selected_items.append(item),
+        )
+        dialog = types.SimpleNamespace(
+            library=self.library, tree=tree,
+            _is_profile_selectable=lambda profile: profile.series_id in {"w", "hp"},
+            _select_table_ref=lambda ref: selected_refs.append(ref),
+            _select_initial_series=lambda: self.fail("catalog has selectable profiles"),
+        )
+        hp_ref = self.library.search("HP310x132")[0].ref
+        module.ProfileBrowserDialog._select_initial_profile(dialog, hp_ref)
+        self.assertIs(selected_items[-1], hp_item)
+        self.assertEqual(selected_refs[-1], hp_ref)
+
+        missing = type(hp_ref)(hp_ref.catalog_id, "missing")
+        module.ProfileBrowserDialog._select_initial_profile(dialog, missing)
+        self.assertIs(selected_items[-1], w_item)
+        self.assertEqual(selected_refs[-1], self.library.list_profiles(series_id="w")[0].ref)
 
 
 if __name__ == "__main__":

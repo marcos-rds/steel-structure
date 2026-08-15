@@ -6,7 +6,10 @@ from __future__ import annotations
 from PySide import QtCore, QtGui, QtWidgets
 
 from ..paths import CATALOGS_DIR
-from ..profiles import ProfileLibrary, UnsupportedSectionGeometryError, build_section_geometry
+from ..profiles import (
+    ProfileLibrary, ProfileNotFoundError, UnsupportedSectionGeometryError,
+    build_section_geometry,
+)
 from ..profiles.presentation import (
     profile_dimension_rows, profile_preview_dimension_rows,
     profile_property_groups, profile_source_rows,
@@ -25,13 +28,15 @@ class ProfileBrowserDialog(QtWidgets.QDialog):
     BROWSE_MODE = "browse"
     SELECT_MODE = "select"
 
-    def __init__(self, parent=None, mode=BROWSE_MODE, library=None):
+    def __init__(self, parent=None, mode=BROWSE_MODE, library=None,
+                 initial_profile_ref=None, is_profile_selectable=None):
         super().__init__(parent)
         if mode not in (self.BROWSE_MODE, self.SELECT_MODE):
             raise ValueError("modo inválido para o Catálogo de Perfis")
         self.mode = mode
         self.library = library or ProfileLibrary(CATALOGS_DIR)
         self.model = ProfileBrowserModel(self.library)
+        self._is_profile_selectable = is_profile_selectable or (lambda _profile: True)
         self._series = {item.id: item for item in self.library.list_series()}
         self.setWindowTitle("Catálogo de Perfis")
         self.setModal(True)
@@ -39,7 +44,7 @@ class ProfileBrowserDialog(QtWidgets.QDialog):
         self.setMinimumSize(760, 500)
         self._build_ui()
         self._populate_tree()
-        self._select_initial_series()
+        self._select_initial_profile(initial_profile_ref)
 
     def selected_profile_ref(self):
         return self.model.selected_ref
@@ -111,13 +116,18 @@ class ProfileBrowserDialog(QtWidgets.QDialog):
         if self.mode == self.SELECT_MODE:
             buttons.setStandardButtons(QtWidgets.QDialogButtonBox.Cancel | QtWidgets.QDialogButtonBox.Ok)
             buttons.button(QtWidgets.QDialogButtonBox.Ok).setText("Selecionar")
-            buttons.accepted.connect(self.accept)
+            buttons.accepted.connect(self._accept_selected)
             buttons.rejected.connect(self.reject)
             self.select_button = buttons.button(QtWidgets.QDialogButtonBox.Ok)
+            self.select_button.setEnabled(False)
         else:
             buttons.setStandardButtons(QtWidgets.QDialogButtonBox.Close)
             buttons.rejected.connect(self.reject)
             self.select_button = None
+        self.selection_message = QtWidgets.QLabel()
+        self.selection_message.setWordWrap(True)
+        self.selection_message.setVisible(False)
+        root.addWidget(self.selection_message)
         root.addWidget(buttons)
         self.tree.currentItemChanged.connect(self._tree_changed)
         self.search.textChanged.connect(self._search_changed)
@@ -140,6 +150,43 @@ class ProfileBrowserDialog(QtWidgets.QDialog):
     def _select_initial_series(self):
         root = self.tree.topLevelItem(0)
         self.tree.setCurrentItem(root.child(0) if root and root.childCount() else root)
+
+    def _select_initial_profile(self, initial_ref):
+        profile = None
+        if initial_ref is not None:
+            try:
+                profile = self.library.get(initial_ref)
+            except (ProfileNotFoundError, TypeError):
+                pass
+        if profile is None:
+            profile = next(
+                (item for item in self.library.list_profiles()
+                 if self._is_profile_selectable(item)),
+                None,
+            )
+        if profile is None:
+            self._select_initial_series()
+            return
+        role = _user_role()
+        for root_index in range(self.tree.topLevelItemCount()):
+            root = self.tree.topLevelItem(root_index)
+            candidates = [root] + [root.child(i) for i in range(root.childCount())]
+            for item in candidates:
+                if item.data(0, role) == (profile.category_id, profile.series_id):
+                    self.tree.setCurrentItem(item)
+                    self._select_table_ref(profile.ref)
+                    return
+        self._select_initial_series()
+
+    def _select_table_ref(self, ref):
+        role = _user_role()
+        for row in range(self.table.rowCount()):
+            item = self.table.item(row, 0)
+            if item.data(role) == ref:
+                self.table.selectRow(row)
+                self.table.scrollToItem(item)
+                return True
+        return False
 
     def _tree_changed(self, current, _previous):
         if current is None:
@@ -176,7 +223,15 @@ class ProfileBrowserDialog(QtWidgets.QDialog):
             self._show_profile(self.model.select(item.data(_user_role())))
 
     def _double_clicked(self, _item):
-        if self.mode == self.SELECT_MODE and self.selected_profile_ref() is not None:
+        if self.mode == self.SELECT_MODE:
+            self._accept_selected()
+
+    def _current_profile_is_selectable(self):
+        profile = self.selected_profile()
+        return profile is not None and self._is_profile_selectable(profile)
+
+    def _accept_selected(self):
+        if self.mode == self.SELECT_MODE and self._current_profile_is_selectable():
             self.accept()
 
     def _clear_layout(self, layout):
@@ -243,7 +298,15 @@ class ProfileBrowserDialog(QtWidgets.QDialog):
         self.tabs.blockSignals(False)
         self._update_preview(profile)
         if self.select_button is not None:
-            self.select_button.setEnabled(True)
+            selectable = self._is_profile_selectable(profile)
+            message = (
+                "" if selectable else
+                "Criação geométrica ainda não disponível para esta série."
+            )
+            self.select_button.setEnabled(selectable)
+            self.select_button.setToolTip(message)
+            self.selection_message.setText(message)
+            self.selection_message.setVisible(not selectable)
 
     def _current_preview_mode(self):
         tabs = getattr(self, "tabs", None)
@@ -281,6 +344,8 @@ class ProfileBrowserDialog(QtWidgets.QDialog):
         self.tabs.clear()
         if self.select_button is not None:
             self.select_button.setEnabled(False)
+            self.selection_message.clear()
+            self.selection_message.setVisible(False)
 
 
 def browse_profiles(parent=None):

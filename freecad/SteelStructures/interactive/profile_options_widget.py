@@ -40,6 +40,9 @@ class ProfileOptionsWidget(QtWidgets.QGroupBox):
         self.series.currentTextChanged.connect(self._series_changed)
         self.profile = QtWidgets.QComboBox()
         self.profile.currentTextChanged.connect(self.refresh_automatic_name)
+        self.profile_browser_button = QtWidgets.QPushButton("Selecionar Perfil...")
+        self.profile_browser_button.setToolTip("Abrir Catálogo de Perfis")
+        self.profile_browser_button.clicked.connect(self._open_profile_browser)
         self.insertion = QtWidgets.QComboBox()
         self.insertion.addItems(INSERTION_OPTIONS)
         self.rotation = QtWidgets.QDoubleSpinBox()
@@ -54,8 +57,57 @@ class ProfileOptionsWidget(QtWidgets.QGroupBox):
             ("Perfil:", self.profile), ("Inserção:", self.insertion),
             ("Rotação da seção:", self.rotation), ("Cor:", self.color_button)):
             form.addRow(label, widget)
+            if widget is self.profile:
+                form.addRow("", self.profile_browser_button)
         self._category_changed(self.category.currentText())
         self.refresh_automatic_name()
+
+    def _current_profile_ref(self):
+        try:
+            return profile_catalog.ref_for_designation(self.profile_designation)
+        except KeyError:
+            return None
+
+    def _create_profile_browser_dialog(self):
+        from .profile_browser import ProfileBrowserDialog
+        return ProfileBrowserDialog(
+            parent=self,
+            mode=ProfileBrowserDialog.SELECT_MODE,
+            initial_profile_ref=self._current_profile_ref(),
+            is_profile_selectable=lambda profile: (
+                profile.series_id in profile_catalog.SUPPORTED_CREATION_SERIES
+            ),
+        )
+
+    def _open_profile_browser(self):
+        dialog = self._create_profile_browser_dialog()
+        if dialog.exec() == QtWidgets.QDialog.Accepted:
+            selected = dialog.selected_profile_ref()
+            if selected is not None:
+                self.set_profile_ref(selected)
+
+    def set_profile_ref(self, ref):
+        """Apply one Browser selection atomically and notify consumers once."""
+        category, series, designation = profile_catalog.selection_for_ref(ref)
+        widgets = (self.category, self.series, self.profile)
+        previous = [widget.blockSignals(True) for widget in widgets]
+        try:
+            self.category.setCurrentText(category)
+            self.series.clear()
+            self.series.addItems(profile_catalog.series_for_category(category))
+            self.series.setCurrentText(series)
+            self.profile.clear()
+            for item in profile_catalog.designations(category, series):
+                self.profile.addItem(compact_profile_designation(item), item)
+            index = self.profile.findData(designation)
+            if index < 0:
+                raise ValueError(f"Perfil indisponível para criação: {designation}")
+            self.profile.setCurrentIndex(index)
+        finally:
+            for widget, blocked in zip(widgets, previous):
+                widget.blockSignals(blocked)
+        self.refresh_automatic_name()
+        self.profile.currentIndexChanged.emit(self.profile.currentIndex())
 
     def _mark_custom_name(self, _text):
         if not self._programmatic_name:

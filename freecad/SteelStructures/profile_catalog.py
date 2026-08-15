@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Dict, List
 
 from .paths import CATALOGS_DIR
-from .profiles import ProfileLibrary
+from .profiles import ProfileLibrary, ProfileRef
 
 # Preserve the current UI, including its intentionally empty folded-steel entry.
 # The typed API exposes only categories declared by actual catalogs.
@@ -126,6 +126,33 @@ def get(designation: str) -> Profile:
     if designation not in catalog:
         raise KeyError(f"Perfil não encontrado: {designation}")
     return catalog[designation]
+
+
+def ref_for_designation(designation: str) -> ProfileRef:
+    """Return the stable typed identity behind a creation-profile designation."""
+    if designation not in profiles():
+        raise KeyError(f"Perfil não encontrado: {designation}")
+    for definition in _LIBRARY.list_profiles():
+        if (definition.series_id in SUPPORTED_CREATION_SERIES
+                and definition.designation == designation):
+            return definition.ref
+    raise KeyError(f"Perfil não encontrado: {designation}")
+
+
+def selection_for_ref(ref: ProfileRef):
+    """Bridge a typed identity to the current category/series/combo values."""
+    definition = _LIBRARY.get(ref)
+    if definition.series_id not in SUPPORTED_CREATION_SERIES:
+        raise ValueError("A série do perfil ainda não possui geometria de criação.")
+    category = next(
+        item.name for item in _LIBRARY.list_categories()
+        if item.catalog_id == ref.catalog_id and item.id == definition.category_id
+    )
+    series = next(
+        item.name for item in _LIBRARY.list_series(definition.category_id)
+        if item.catalog_id == ref.catalog_id and item.id == definition.series_id
+    )
+    return category, series, definition.designation
 
 
 def reload():

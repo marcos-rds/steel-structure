@@ -7,6 +7,7 @@ import json
 import unittest
 from pathlib import Path
 
+from freecad.SteelStructures import profile_catalog
 from freecad.SteelStructures.paths import CATALOGS_DIR
 from freecad.SteelStructures.profiles import CatalogValidationError, ProfileLibrary, ProfileRef
 from freecad.SteelStructures.profiles.validation import validate_catalog_payload
@@ -33,6 +34,22 @@ class Stage2BCatalogTests(unittest.TestCase):
         self.assertEqual(len(self.profiles), 218)
         self.assertEqual(len({item.ref for item in self.profiles}), 218)
         self.assertEqual({sid: len(self.library.list_profiles(series_id=sid)) for sid in expected}, expected)
+
+    def test_creation_combo_bridge_round_trips_w_and_hp_profile_refs(self):
+        for designation, expected_series in (
+            ("W 150 x 13,0", "Perfis W"),
+            ("HP 310 x 132,0", "Perfis HP"),
+        ):
+            ref = profile_catalog.ref_for_designation(designation)
+            category, series, restored = profile_catalog.selection_for_ref(ref)
+            self.assertEqual(category, "Aço Laminado")
+            self.assertEqual(series, expected_series)
+            self.assertEqual(restored, designation)
+
+    def test_creation_combo_bridge_rejects_non_constructible_profile(self):
+        ref = ProfileRef(CATALOG_ID, "u-6x12.20")
+        with self.assertRaises(ValueError):
+            profile_catalog.selection_for_ref(ref)
 
     def test_series_geometry_types_variants_and_notes(self):
         expected = {

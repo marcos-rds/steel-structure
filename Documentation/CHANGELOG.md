@@ -2,6 +2,8 @@
 
 ## Não lançado
 
+- Integrado o Catálogo de Perfis a Criar Membro e Criar Pilar como seletor complementar, mantendo consulta das 218 bitolas e confirmação restrita a W/HP.
+
 - Adicionado o Catálogo de Perfis nativo, com navegação das sete séries, busca, propriedades técnicas e pré-visualização 2D para W/HP.
 - Migração integral da identidade atual de Metal Structure para Steel Structures, incluindo pacote Python, workbench, comandos e recursos, sem alterar a versão.
 
