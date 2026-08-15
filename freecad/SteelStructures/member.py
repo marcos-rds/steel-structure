@@ -10,6 +10,8 @@ import Part
 
 from . import profile_catalog
 from .paths import OBJECT_ICON
+from .profiles.freecad_geometry import section_geometry_to_face
+from .profiles.geometry import build_parallel_flange_i_section
 
 INSERTION_OPTIONS = [
     "Centroide",
@@ -71,29 +73,14 @@ def _set_enum(obj, name: str, options, preferred: str | None = None, empty_text:
 
 
 def _i_section_face(profile: profile_catalog.Profile) -> Part.Face:
-    """Create a sharp-cornered I section centered at its centroid."""
-    half_b = profile.bf / 2.0
-    half_d = profile.d / 2.0
-    half_tw = profile.tw / 2.0
-    tf = profile.tf
-
-    coordinates = [
-        (-half_b, -half_d),
-        (half_b, -half_d),
-        (half_b, -half_d + tf),
-        (half_tw, -half_d + tf),
-        (half_tw, half_d - tf),
-        (half_b, half_d - tf),
-        (half_b, half_d),
-        (-half_b, half_d),
-        (-half_b, half_d - tf),
-        (-half_tw, half_d - tf),
-        (-half_tw, -half_d + tf),
-        (-half_b, -half_d + tf),
-    ]
-    points = [App.Vector(x, y, 0.0) for x, y in coordinates]
-    points.append(points[0])
-    return Part.Face(Part.makePolygon(points))
+    """Create the legacy W/HP Face through the common section geometry core."""
+    # The compatibility facade intentionally exposes only constructible W/HP
+    # profiles.  Their typed geometry contract is parallel-flange I-section;
+    # avoid manufacturing a partial ProfileDefinition solely for this bridge.
+    geometry = build_parallel_flange_i_section(
+        d=profile.d, bf=profile.bf, tw=profile.tw, tf=profile.tf
+    )
+    return section_geometry_to_face(geometry)
 
 
 def _insertion_translation(profile: profile_catalog.Profile, mode: str) -> Tuple[float, float]:

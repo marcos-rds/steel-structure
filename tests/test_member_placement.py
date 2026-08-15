@@ -93,9 +93,14 @@ class Quantity:
 
 
 class Face:
-    def __init__(self, _wire): self.translation = Vector()
+    def __init__(self, wire): self.wire = wire; self.translation = Vector()
     def translate(self, vector): self.translation = Vector(vector)
     def extrude(self, vector): return types.SimpleNamespace(local_vector=Vector(vector), face_translation=self.translation)
+
+
+class Wire:
+    def __init__(self, edges): self.edges = list(edges)
+    def isClosed(self): return bool(self.edges) and self.edges[-1][1].x == self.edges[0][0].x and self.edges[-1][1].y == self.edges[0][0].y
 
 
 PROFILE = types.SimpleNamespace(bf=150.0, d=150.0, tw=6.0, tf=9.0, mass_per_m=13.0,
@@ -108,8 +113,8 @@ def load_member():
     app = types.ModuleType("FreeCAD")
     app.Vector, app.Rotation, app.Placement = Vector, Rotation, Placement
     app.Console = types.SimpleNamespace(PrintWarning=lambda *_args: None)
-    part = types.ModuleType("Part"); part.Face = Face; part.Shape = lambda: types.SimpleNamespace(empty=True)
-    part.makePolygon = lambda points: points
+    part = types.ModuleType("Part"); part.Face = Face; part.Wire = Wire; part.Shape = lambda: types.SimpleNamespace(empty=True)
+    part.makeLine = lambda start, end: (start, end)
     catalog = types.ModuleType(f"{package_name}.profile_catalog")
     catalog.Profile = object; catalog.get = lambda _name: PROFILE
     paths = types.ModuleType(f"{package_name}.paths"); paths.OBJECT_ICON = "member.svg"
