@@ -42,6 +42,24 @@ class NativeMoveCopyCommand:
         tool.Activated()
 
 
+class ProfileBrowserCommand:
+    """Open the read-only catalog browser without requiring a document."""
+
+    def GetResources(self):
+        return {
+            "MenuText": "Catálogo de Perfis",
+            "ToolTip": "Explorar perfis estruturais e propriedades do catálogo",
+        }
+
+    def IsActive(self):
+        return True
+
+    def Activated(self):
+        from .interactive.profile_browser import browse_profiles
+
+        browse_profiles(Gui.getMainWindow())
+
+
 def register_move_copy_command():
     """Register the thin adapter only when this Draft exposes copy mode."""
     global _move_copy_registered
@@ -396,3 +414,4 @@ def close_member_tool():
 Gui.addCommand("SteelStructures_CreateMember", CreateMemberCommand())
 Gui.addCommand("SteelStructures_CreateColumn", CreateColumnCommand())
 Gui.addCommand("SteelStructures_CreateGrid", CreateGridCommand())
+Gui.addCommand("SteelStructures_ProfileBrowser", ProfileBrowserCommand())

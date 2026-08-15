@@ -101,7 +101,8 @@ class GridCommandTests(unittest.TestCase):
 
     def test_registration_and_resources(self):
         self.assertEqual([name for name, _cmd in self.registered], [
-            "SteelStructures_CreateMember", "SteelStructures_CreateColumn", "SteelStructures_CreateGrid"
+            "SteelStructures_CreateMember", "SteelStructures_CreateColumn", "SteelStructures_CreateGrid",
+            "SteelStructures_ProfileBrowser"
         ])
         resources = self.module.CreateGridCommand().GetResources()
         self.assertEqual(resources["Pixmap"], "grid.svg")

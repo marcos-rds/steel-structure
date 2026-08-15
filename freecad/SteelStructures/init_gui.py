@@ -101,6 +101,7 @@ class SteelStructuresWorkbench(Gui.Workbench):
         from . import commands  # noqa: F401 - registers FreeCAD commands
 
         member_commands = ["SteelStructures_CreateMember", "SteelStructures_CreateColumn", "SteelStructures_CreateGrid"]
+        catalog_commands = ["SteelStructures_ProfileBrowser"]
         self.general_tools = load_general_tools(commands)
         try:
             from draftutils import init_tools
@@ -113,6 +114,7 @@ class SteelStructuresWorkbench(Gui.Workbench):
         if self.snapbar:
             self.appendToolbar(QT_TRANSLATE_NOOP("Workbench", "Draft Snap"), self.snapbar)
         self.appendMenu("Steel Structures", member_commands)
+        self.appendMenu("Steel Structures", catalog_commands)
         if self.general_tools:
             self.appendMenu("Ferramentas Gerais", self.general_tools)
 

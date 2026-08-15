@@ -1,0 +1,543 @@
+"""Headless contracts for Profile Browser state and Qt geometry boundary."""
+
+from __future__ import annotations
+
+import unittest
+import importlib.util
+import re
+import sys
+import types
+from pathlib import Path
+
+from freecad.SteelStructures.paths import CATALOGS_DIR
+from freecad.SteelStructures.profiles import (
+    ProfileLibrary, UnsupportedSectionGeometryError, build_section_geometry,
+)
+from freecad.SteelStructures.profiles.presentation import profile_preview_dimension_rows
+ROOT = Path(__file__).resolve().parents[1]
+MODEL_PATH = ROOT / "freecad/SteelStructures/interactive/profile_browser_model.py"
+SPEC = importlib.util.spec_from_file_location("_profile_browser_model_test", MODEL_PATH)
+MODEL_MODULE = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(MODEL_MODULE)
+ProfileBrowserModel = MODEL_MODULE.ProfileBrowserModel
+
+
+class _FakeRect:
+    def __init__(self, width=20.0, height=10.0):
+        self._width, self._height = width, height
+
+    def width(self):
+        return self._width
+
+    def height(self):
+        return self._height
+
+
+class _FakeText:
+    def __init__(self, text):
+        self.text = text
+        self._font = types.SimpleNamespace(bold=False, setBold=lambda value: setattr(self._font, "bold", value))
+
+    def setDefaultTextColor(self, _color):
+        pass
+
+    def boundingRect(self):
+        visible = getattr(self, "html", self.text).replace("&nbsp;", " ")
+        visible = re.sub(r"<[^>]+>", "", visible)
+        return _FakeRect(max(len(visible) * 5.0, 20.0), 10.0)
+
+    def setPos(self, _x, _y):
+        self.position = (_x, _y)
+
+    def setFlag(self, flag, enabled):
+        self.flag = (flag, enabled)
+
+    def setHtml(self, html):
+        self.html = html
+
+    def setTransform(self, transform):
+        self.transform = transform
+
+    def font(self):
+        return self._font
+
+    def setFont(self, font):
+        self._font = font
+
+
+class _FakeScene:
+    def __init__(self):
+        self.lines = []
+        self.texts = []
+        self.text_items = []
+        self.ellipses = []
+        self.line_items = []
+
+    def addLine(self, *args):
+        self.lines.append(args)
+        item = types.SimpleNamespace(
+            args=args,
+            setPos=lambda x, y: setattr(item, "position", (x, y)),
+            setFlag=lambda flag, enabled: setattr(item, "flag", (flag, enabled)),
+        )
+        self.line_items.append(item)
+        return item
+
+    def addText(self, text):
+        if text:
+            self.texts.append(text)
+        item = _FakeText(text)
+        self.text_items.append(item)
+        return item
+
+    def addEllipse(self, *args):
+        self.ellipses.append(args)
+
+
+def _load_preview_runtime_module():
+    """Load the real renderer with the smallest Qt surface needed by cotas."""
+    root_name = "_profile_preview_runtime"
+    root = types.ModuleType(root_name)
+    root.__path__ = []
+    interactive = types.ModuleType(root_name + ".interactive")
+    interactive.__path__ = []
+    profiles = sys.modules["freecad.SteelStructures.profiles"]
+    qtgui = types.SimpleNamespace(
+        QGraphicsView=object,
+        QPen=type("QPen", (), {
+            "__init__": lambda self, color: setattr(self, "_color", color),
+            "setCosmetic": lambda self, _value: None,
+            "setWidthF": lambda self, value: setattr(self, "width", value),
+            "setStyle": lambda self, value: setattr(self, "style", value),
+            "setDashPattern": lambda self, value: setattr(self, "dash_pattern", tuple(value)),
+            "color": lambda self: self._color,
+        }),
+        QBrush=type("QBrush", (), {"__init__": lambda self, _color: None}),
+        QColor=type("QColor", (), {"__init__": lambda self, *args: setattr(self, "rgb", args)}),
+        QPalette=types.SimpleNamespace(Text=1),
+        QPainter=types.SimpleNamespace(Antialiasing=1),
+        QTransform=types.SimpleNamespace(fromTranslate=lambda x, y: (x, y)),
+    )
+    graphics_item = types.SimpleNamespace(ItemIgnoresTransformations=1)
+    qtwidgets = types.SimpleNamespace(QGraphicsView=object, QGraphicsItem=graphics_item)
+    pyside = types.ModuleType("PySide")
+    pyside.QtCore = types.SimpleNamespace(Qt=types.SimpleNamespace(DashDotLine=2))
+    pyside.QtGui = qtgui
+    pyside.QtWidgets = qtwidgets
+    injected = {
+        root_name: root,
+        root_name + ".interactive": interactive,
+        root_name + ".profiles": profiles,
+        "PySide": pyside,
+    }
+    previous = {name: sys.modules.get(name) for name in injected}
+    sys.modules.update(injected)
+    path = ROOT / "freecad/SteelStructures/interactive/profile_browser_preview.py"
+    spec = importlib.util.spec_from_file_location(root_name + ".interactive.profile_browser_preview", path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        for name, old in previous.items():
+            if old is None:
+                sys.modules.pop(name, None)
+            else:
+                sys.modules[name] = old
+    return module
+
+
+def _load_browser_runtime_module():
+    """Load the real preview state method without requiring a desktop session."""
+    root_name = "_profile_browser_runtime"
+    root = types.ModuleType(root_name)
+    root.__path__ = []
+    interactive = types.ModuleType(root_name + ".interactive")
+    interactive.__path__ = []
+    pyside = types.ModuleType("PySide")
+    pyside.QtCore = types.SimpleNamespace()
+    pyside.QtGui = types.SimpleNamespace()
+    pyside.QtWidgets = types.SimpleNamespace(QDialog=object)
+    preview_module = types.ModuleType(root_name + ".interactive.profile_browser_preview")
+    preview_module.SectionPreviewView = object
+    preview_module.DIMENSIONS_MODE = "dimensions"
+    preview_module.PROPERTIES_MODE = "properties"
+    preview_module.NEUTRAL_MODE = "neutral"
+    actual_profiles = sys.modules["freecad.SteelStructures.profiles"]
+    actual_presentation = sys.modules["freecad.SteelStructures.profiles.presentation"]
+    actual_paths = sys.modules["freecad.SteelStructures.paths"]
+    injected = {
+        root_name: root,
+        root_name + ".interactive": interactive,
+        root_name + ".profiles": actual_profiles,
+        root_name + ".profiles.presentation": actual_presentation,
+        root_name + ".paths": actual_paths,
+        root_name + ".interactive.profile_browser_model": MODEL_MODULE,
+        root_name + ".interactive.profile_browser_preview": preview_module,
+        "PySide": pyside,
+    }
+    previous = {name: sys.modules.get(name) for name in injected}
+    sys.modules.update(injected)
+    path = ROOT / "freecad/SteelStructures/interactive/profile_browser.py"
+    spec = importlib.util.spec_from_file_location(root_name + ".interactive.profile_browser", path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        for name, old in previous.items():
+            if old is None:
+                sys.modules.pop(name, None)
+            else:
+                sys.modules[name] = old
+    return module
+
+
+class ProfileBrowserModelTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.library = ProfileLibrary(CATALOGS_DIR)
+
+    def setUp(self):
+        self.model = ProfileBrowserModel(self.library)
+
+    def test_catalog_tree_source_has_one_category_seven_series_and_218_profiles(self):
+        self.assertEqual(len(self.library.list_categories()), 1)
+        self.assertEqual(len(self.library.list_series("rolled-steel")), 7)
+        self.assertEqual(len(self.model.set_filter("rolled-steel")), 218)
+
+    def test_series_filter_preserves_catalog_order(self):
+        profiles = self.model.set_filter("rolled-steel", "w")
+        self.assertEqual(len(profiles), 100)
+        self.assertEqual(profiles, self.library.list_profiles(series_id="w"))
+
+    def test_search_respects_tree_filter(self):
+        self.model.set_filter("rolled-steel", "w")
+        result = self.model.set_query("310")
+        self.assertTrue(result)
+        self.assertTrue(all(profile.series_id == "w" for profile in result))
+        self.model.set_filter("rolled-steel")
+        result = self.model.set_query("310")
+        self.assertGreater(len({profile.series_id for profile in result}), 1)
+
+    def test_alias_searches_and_selected_profile_ref(self):
+        self.model.set_filter("rolled-steel")
+        cases = ("W310x52", "W12x35", "HP310", "U6x12.2", "T1 1/4", "L50x5", "L2x1/4")
+        for query in cases:
+            with self.subTest(query=query):
+                result = self.model.set_query(query)
+                self.assertTrue(result)
+                selected = self.model.select(result[0].ref)
+                self.assertEqual(self.model.selected_ref, selected.ref)
+
+    def test_empty_state_clears_selection(self):
+        self.model.set_filter("rolled-steel", "w")
+        self.assertIsNotNone(self.model.selected_ref)
+        self.assertEqual(self.model.set_query("perfil-inexistente"), ())
+        self.assertIsNone(self.model.selected_ref)
+        self.assertIsNone(self.model.selected_profile())
+
+    def test_preview_support_matches_core_geometry_only(self):
+        w = self.library.search("W310x52")[0]
+        geometry = build_section_geometry(w)
+        self.assertEqual((geometry.bounds.width, geometry.bounds.height), (167.0, 317.0))
+        self.assertEqual(len(geometry.outer_path.segments), 12)
+        for query in ("I3x8.48", "U6x12.2", "T2x1/4", "L50x5"):
+            with self.subTest(query=query), self.assertRaises(UnsupportedSectionGeometryError):
+                build_section_geometry(self.library.search(query)[0])
+
+    def test_qt_renderer_consumes_section_geometry_not_dimensions(self):
+        source = (ROOT / "freecad/SteelStructures/interactive/profile_browser_preview.py").read_text("utf-8")
+        self.assertIn("SectionGeometry2D", source)
+        self.assertIn("geometry.outer_path.segments", source)
+        self.assertNotIn("profile.geometry", source)
+        self.assertIn("QColor(216, 219, 223)", source)
+
+    def test_real_dimension_renderer_executes_with_section_bounds_properties(self):
+        module = _load_preview_runtime_module()
+        profile = self.library.search("W150x13")[0]
+        geometry = build_section_geometry(profile)
+        dimensions = {row.label: row.value for row in profile_preview_dimension_rows(profile)}
+        scene = _FakeScene()
+        renderer = object.__new__(module.SectionPreviewView)
+        renderer.scene = lambda: scene
+        renderer._add_dimensions(geometry, dimensions)
+
+        annotations = [item.html for item in scene.text_items]
+        self.assertEqual(len(annotations), 4)
+        self.assertIn("<b>(bf)</b>&nbsp;100", annotations[0])
+        self.assertIn("<b>(d)</b>&nbsp;148", annotations[1])
+        self.assertIn("<b>(tw)</b>&nbsp;4,3", annotations[2])
+        self.assertIn("<b>(tf)</b>&nbsp;4,9", annotations[3])
+        self.assertGreaterEqual(len(scene.lines), 12)
+        self.assertTrue(all(item.flag == (1, True) for item in scene.text_items))
+        self.assertTrue(all("&nbsp;" in html for html in annotations))
+
+    def test_dimension_renderer_handles_large_w_and_wide_hp(self):
+        module = _load_preview_runtime_module()
+        cases = {
+            "W200x46.1": {"d": "203 mm", "bf": "203 mm", "tw": "7,2 mm", "tf": "11 mm"},
+            "W310x67": {"d": "306 mm", "bf": "204 mm", "tw": "8,5 mm", "tf": "14,6 mm"},
+            "W410x67": {"d": "410 mm", "bf": "179 mm", "tw": "8,8 mm", "tf": "14,4 mm"},
+            "W610x217": {"d": "628 mm", "bf": "328 mm", "tw": "16,5 mm", "tf": "27,7 mm"},
+            "HP310x132": {"d": "314 mm", "bf": "313 mm", "tw": "18,3 mm", "tf": "18,3 mm"},
+        }
+        for query, expected in cases.items():
+            with self.subTest(query=query):
+                profile = self.library.search(query)[0]
+                geometry = build_section_geometry(profile)
+                dimensions = {
+                    row.label: row.value for row in profile_preview_dimension_rows(profile)
+                }
+                self.assertEqual(dimensions, expected)
+                scene = _FakeScene()
+                renderer = object.__new__(module.SectionPreviewView)
+                renderer.scene = lambda: scene
+                renderer._add_dimensions(geometry, dimensions)
+                annotations = [item.html for item in scene.text_items]
+                self.assertEqual(len(annotations), 4)
+                self.assertEqual(
+                    [next(symbol for symbol in ("bf", "d", "tw", "tf") if f"({symbol})" in html)
+                     for html in annotations],
+                    ["bf", "d", "tw", "tf"],
+                )
+                self.assertTrue(all("mm" not in html for html in annotations))
+
+    def test_d_dimension_is_interrupted_and_tf_label_is_right_of_vertical_measure(self):
+        module = _load_preview_runtime_module()
+        profile = self.library.search("W150x13")[0]
+        geometry = build_section_geometry(profile)
+        dimensions = {row.label: row.value for row in profile_preview_dimension_rows(profile)}
+        scene = _FakeScene()
+        renderer = object.__new__(module.SectionPreviewView)
+        renderer.scene = lambda: scene
+        renderer._add_dimensions(geometry, dimensions)
+
+        gap_x = renderer._d_offset_pixels(geometry.bounds) * renderer._scene_units_per_pixel(geometry.bounds)
+        d_x = geometry.bounds.min_x - gap_x
+        d_segments = [
+            line for line in scene.lines
+            if line[0] == d_x and line[2] == d_x
+            and min(line[1], line[3]) <= 0.0 <= max(line[1], line[3])
+        ]
+        self.assertEqual(d_segments, [])
+        split_d_segments = [
+            line for line in scene.lines if line[0] == d_x and line[2] == d_x
+        ]
+        self.assertEqual(len(split_d_segments), 2)
+        self.assertEqual(scene.text_items[1].position, (d_x, 0.0))
+        d_overshoot = module.EXTENSION_OVERSHOOT_PIXELS * renderer._scene_units_per_pixel(
+            geometry.bounds
+        )
+        d_extensions = [
+            line for line in scene.lines
+            if line[1] == line[3]
+            and line[1] in (-geometry.bounds.max_y, -geometry.bounds.min_y)
+            and min(line[0], line[2]) == d_x - d_overshoot
+        ]
+        self.assertEqual(len(d_extensions), 2)
+        web_right = geometry.outer_path.segments[3].end.x
+        tw_item = scene.text_items[2]
+        self.assertEqual(tw_item.position, (web_right, 0.0))
+        self.assertEqual(tw_item.transform[0], module.TW_TEXT_OFFSET)
+        device_lines = [item for item in scene.line_items if getattr(item, "flag", None) == (1, True)]
+        tw_extension = next(
+            item for item in device_lines
+            if item.position == (web_right, 0.0)
+            and item.args[1] == item.args[3] == 0.0
+            and item.args[2] > module.TW_TEXT_OFFSET
+        )
+        self.assertGreaterEqual(
+            tw_extension.args[2],
+            module.TW_TEXT_OFFSET + tw_item.boundingRect().width()
+            + module.LINE_END_PADDING + module.EXTENSION_OVERSHOOT_PIXELS,
+        )
+        tf_item = scene.text_items[3]
+        self.assertEqual(tf_item.transform[0], module.TF_TEXT_OFFSET)
+        self.assertLess(tf_item.position[1], -geometry.bounds.min_y)
+        self.assertFalse(any(
+            line[1] == line[3] and line[1] > -geometry.bounds.min_y
+            for line in scene.lines
+        ))
+        tick_items = [
+            item for item in device_lines
+            if item.args[:4] == (
+                -module.TICK_PIXELS, module.TICK_PIXELS,
+                module.TICK_PIXELS, -module.TICK_PIXELS,
+            )
+        ]
+        self.assertEqual(len(tick_items), 8)
+        self.assertTrue(all(item.args[-1]._color.rgb == module.DIMENSION_COLOR for item in tick_items))
+        tf_overshoots = [
+            item for item in device_lines
+            if item.args[:4] == (0.0, 0.0, module.EXTENSION_OVERSHOOT_PIXELS, 0.0)
+        ]
+        self.assertEqual(len(tf_overshoots), 2)
+        scene_units = renderer._scene_units_per_pixel(geometry.bounds)
+        bf_line_y = -geometry.bounds.max_y - module.BF_OFFSET_PIXELS * scene_units
+        bf_extension_ends = [
+            min(line[1], line[3]) for line in scene.lines
+            if line[0] == line[2] and line[0] in (geometry.bounds.min_x, geometry.bounds.max_x)
+        ]
+        self.assertIn(
+            bf_line_y - module.EXTENSION_OVERSHOOT_PIXELS * scene_units,
+            bf_extension_ends,
+        )
+
+    def test_d_offset_compensates_fit_compression_for_medium_and_large_w(self):
+        module = _load_preview_runtime_module()
+        for query in ("W150x13", "W410x67", "W610x217"):
+            with self.subTest(query=query):
+                geometry = build_section_geometry(self.library.search(query)[0])
+                scene = _FakeScene()
+                renderer = object.__new__(module.SectionPreviewView)
+                renderer.scene = lambda: scene
+                dimensions = {
+                    row.label: row.value
+                    for row in profile_preview_dimension_rows(self.library.search(query)[0])
+                }
+                renderer._add_dimensions(geometry, dimensions)
+                units_per_pixel = renderer._scene_units_per_pixel(geometry.bounds)
+                d_line_x = scene.text_items[1].position[0]
+                apparent_offset = (geometry.bounds.min_x - d_line_x) / units_per_pixel
+                self.assertAlmostEqual(apparent_offset, renderer._d_offset_pixels(geometry.bounds))
+                if query == "W150x13":
+                    self.assertAlmostEqual(apparent_offset, module.D_OFFSET_PIXELS)
+                if query == "W610x217":
+                    self.assertAlmostEqual(
+                        apparent_offset,
+                        module.D_OFFSET_PIXELS + module.D_MAX_COMPENSATION_PIXELS,
+                    )
+
+    def test_properties_renderer_draws_axes_centroid_and_scale_independent_labels(self):
+        module = _load_preview_runtime_module()
+        profile = self.library.search("W310x52")[0]
+        scene = _FakeScene()
+        renderer = object.__new__(module.SectionPreviewView)
+        renderer.scene = lambda: scene
+        renderer._add_axes(build_section_geometry(profile))
+        self.assertEqual(scene.texts, ["X", "X", "Y", "Y"])
+        self.assertEqual(len(scene.ellipses), 1)
+        self.assertTrue(all(item.flag == (1, True) for item in scene.text_items))
+        self.assertEqual(scene.lines[0][-1]._color.rgb, (205, 45, 45))
+        self.assertEqual(scene.lines[1][-1]._color.rgb, (38, 145, 72))
+        self.assertEqual(scene.lines[0][-1].width, 1.05)
+        self.assertEqual(scene.lines[0][-1].dash_pattern, (9.0, 3.0, 2.0, 3.0))
+
+    def test_supported_unsupported_supported_preview_transition(self):
+        module = _load_browser_runtime_module()
+
+        class Preview:
+            def __init__(self):
+                self.rendered = []
+                self.clear_count = 0
+
+            def set_geometry(self, geometry, dimensions, mode):
+                self.rendered.append((geometry, tuple(dimensions), mode))
+
+            def clear_geometry(self):
+                self.clear_count += 1
+
+        class Stack:
+            def __init__(self):
+                self.current = None
+
+            def setCurrentWidget(self, widget):
+                self.current = widget
+
+        class Message:
+            def __init__(self):
+                self.text = ""
+
+            def setText(self, text):
+                self.text = text
+
+        class Tabs:
+            def __init__(self, index=0):
+                self.index = index
+
+            def currentIndex(self):
+                return self.index
+
+        dialog = types.SimpleNamespace(
+            preview=Preview(), preview_stack=Stack(), preview_message=Message(), tabs=Tabs()
+        )
+        dialog._current_preview_mode = types.MethodType(
+            module.ProfileBrowserDialog._current_preview_mode, dialog
+        )
+        sequence = ("W150x13", "U6x12.2", "W310x52", "T2x1/4", "HP310x132", "L50x5", "W150x13")
+        expected_supported = (True, False, True, False, True, False, True)
+        for query, supported in zip(sequence, expected_supported):
+            profile = self.library.search(query)[0]
+            module.ProfileBrowserDialog._update_preview(dialog, profile)
+            expected_widget = dialog.preview if supported else dialog.preview_message
+            self.assertIs(dialog.preview_stack.current, expected_widget)
+            if supported:
+                self.assertEqual(len(dialog.preview.rendered[-1][1]), 4)
+                self.assertEqual(dialog.preview.rendered[-1][2], "dimensions")
+            else:
+                self.assertIn("não disponível", dialog.preview_message.text)
+        self.assertEqual(dialog.preview.clear_count, 3)
+        self.assertEqual(len(dialog.preview.rendered), 4)
+
+    def test_tab_mode_changes_and_profile_changes_preserve_current_mode(self):
+        module = _load_browser_runtime_module()
+
+        class Preview:
+            def __init__(self):
+                self.modes = []
+
+            def set_geometry(self, _geometry, _dimensions, mode):
+                self.modes.append(mode)
+
+            def clear_geometry(self):
+                pass
+
+        class Stack:
+            def setCurrentWidget(self, _widget):
+                pass
+
+        class Tabs:
+            index = 0
+
+            def currentIndex(self):
+                return self.index
+
+        current = self.library.search("W150x13")[0]
+        dialog = types.SimpleNamespace(
+            preview=Preview(), preview_stack=Stack(), preview_message=types.SimpleNamespace(
+                setText=lambda _text: None
+            ), tabs=Tabs(), model=types.SimpleNamespace(selected_profile=lambda: current),
+        )
+        dialog._current_preview_mode = types.MethodType(
+            module.ProfileBrowserDialog._current_preview_mode, dialog
+        )
+        dialog._update_preview = types.MethodType(module.ProfileBrowserDialog._update_preview, dialog)
+
+        for index, expected in ((0, "dimensions"), (1, "properties"), (2, "neutral"), (0, "dimensions")):
+            dialog.tabs.index = index
+            module.ProfileBrowserDialog._tab_changed(dialog, index)
+            self.assertEqual(dialog.preview.modes[-1], expected)
+
+        dialog.tabs.index = 1
+        for query in ("W150x13", "W310x52", "HP310x132"):
+            dialog._update_preview(self.library.search(query)[0])
+            self.assertEqual(dialog.preview.modes[-1], "properties")
+
+    def test_profile_table_has_only_designation_column(self):
+        source = (ROOT / "freecad/SteelStructures/interactive/profile_browser.py").read_text("utf-8")
+        self.assertIn("QTableWidget(0, 1)", source)
+        self.assertIn('setHorizontalHeaderLabels(("Perfil",))', source)
+        self.assertNotIn('"Massa [kg/m]"', source)
+        self.assertNotIn('"Família"', source)
+        self.assertIn("setDefaultSectionSize(self.table.fontMetrics().height() + 6)", source)
+
+    def test_properties_places_axis_groups_side_by_side(self):
+        source = (ROOT / "freecad/SteelStructures/interactive/profile_browser.py").read_text("utf-8")
+        self.assertIn('"Eixo X-X": (1, 0, 1, 1)', source)
+        self.assertIn('"Eixo Y-Y": (1, 1, 1, 1)', source)
+        self.assertIn("QGridLayout(page)", source)
+
+
+if __name__ == "__main__":
+    unittest.main()

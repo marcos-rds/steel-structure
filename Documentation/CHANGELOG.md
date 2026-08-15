@@ -2,6 +2,7 @@
 
 ## Não lançado
 
+- Adicionado o Catálogo de Perfis nativo, com navegação das sete séries, busca, propriedades técnicas e pré-visualização 2D para W/HP.
 - Migração integral da identidade atual de Metal Structure para Steel Structures, incluindo pacote Python, workbench, comandos e recursos, sem alterar a versão.
 
 ## 0.4.0 — 31/07/2026
