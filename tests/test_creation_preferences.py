@@ -24,6 +24,9 @@ PROFILES = {
     "W 310 x 32,7": types.SimpleNamespace(
         category="Aço laminado", series="Perfis W", designation="W 310 x 32,7"
     ),
+    "L 50 x 5": types.SimpleNamespace(
+        category="Aço laminado", series="Cantoneiras - Métricas", designation="L 50 x 5"
+    ),
 }
 
 
@@ -50,13 +53,19 @@ def load_preferences(database):
     app = types.ModuleType("FreeCAD"); app.ParamGet = database.ParamGet
     catalog = types.ModuleType(f"{package_name}.profile_catalog")
     catalog.categories = lambda: ["Aço laminado", "Aço dobrado"]
-    catalog.series_for_category = lambda category: ["Perfis W"] if category == "Aço laminado" else []
+    catalog.series_for_category = lambda category: (
+        ["Perfis W", "Cantoneiras - Métricas"] if category == "Aço laminado" else []
+    )
     catalog.designations = lambda category=None, series=None: [
         key for key, profile in PROFILES.items()
         if (category is None or profile.category == category)
         and (series is None or profile.series == series)
     ]
     catalog.get = lambda designation: PROFILES[designation]
+    catalog.insertion_options = lambda profile: (
+        ("Centroide", "Quina externa", "Ponta superior", "Ponta direita", "Quina interna")
+        if profile.series == "Cantoneiras - Métricas" else tuple(member.INSERTION_OPTIONS)
+    )
     member = types.ModuleType(f"{package_name}.member")
     member.INSERTION_OPTIONS = [
         "Centroide", "Face esquerda", "Face direita", "Face superior", "Face inferior",
@@ -178,6 +187,16 @@ class CreationPreferencesTests(unittest.TestCase):
         group["Insertion"] = "obsolete"
         self.assertEqual(self.preferences.load_member_creation_settings().insertion,
                          "Centroide")
+
+    def test_equal_angle_insertion_round_trip_uses_stable_family_id(self):
+        settings = self.member(
+            series="Cantoneiras - Métricas", designation="L 50 x 5",
+            insertion="Quina externa",
+        )
+        self.preferences.save_member_creation_settings(settings)
+        group = self.database.groups[self.preferences.MEMBER_PREFERENCES]
+        self.assertEqual(group["Insertion"], "outer_corner")
+        self.assertEqual(self.preferences.load_member_creation_settings(), settings)
 
     def test_namespace_is_exclusively_steel_structures(self):
         self.preferences.save_member_creation_settings(self.member())

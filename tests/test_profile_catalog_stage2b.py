@@ -35,10 +35,12 @@ class Stage2BCatalogTests(unittest.TestCase):
         self.assertEqual(len({item.ref for item in self.profiles}), 218)
         self.assertEqual({sid: len(self.library.list_profiles(series_id=sid)) for sid in expected}, expected)
 
-    def test_creation_combo_bridge_round_trips_w_and_hp_profile_refs(self):
+    def test_creation_combo_bridge_round_trips_all_constructible_profile_refs(self):
         for designation, expected_series in (
             ("W 150 x 13,0", "Perfis W"),
             ("HP 310 x 132,0", "Perfis HP"),
+            ('L 1/2" x 1/8"', "Cantoneiras - Polegadas"),
+            ("L 40 x 3", "Cantoneiras - Métricas"),
         ):
             ref = profile_catalog.ref_for_designation(designation)
             category, series, restored = profile_catalog.selection_for_ref(ref)
@@ -47,9 +49,9 @@ class Stage2BCatalogTests(unittest.TestCase):
             self.assertEqual(restored, designation)
 
     def test_creation_combo_bridge_rejects_non_constructible_profile(self):
-        ref = ProfileRef(CATALOG_ID, "u-6x12.20")
-        with self.assertRaises(ValueError):
-            profile_catalog.selection_for_ref(ref)
+        for profile_id in ("i-3x8.48", "u-6x12.20", "t-2x0.25"):
+            with self.subTest(profile_id=profile_id), self.assertRaises(ValueError):
+                profile_catalog.selection_for_ref(ProfileRef(CATALOG_ID, profile_id))
 
     def test_series_geometry_types_variants_and_notes(self):
         expected = {

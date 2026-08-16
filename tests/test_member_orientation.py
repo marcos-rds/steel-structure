@@ -154,6 +154,30 @@ class MemberOrientationTests(unittest.TestCase):
         self.assertEqual(obj.Placement.Rotation.matrix, expected)
         self.assertVector(obj.Placement.Base, (7, 8, 9))
 
+    def test_equal_angle_member_uses_common_face_offsets_mass_and_rotation(self):
+        from freecad.SteelStructures import profile_catalog as real_catalog
+        angle = real_catalog.get("L 50 x 5")
+        original_get = self.member.profile_catalog.get
+        self.member.profile_catalog.get = lambda _designation: angle
+        try:
+            for insertion in (
+                "Centroide", "Quina externa", "Ponta superior", "Ponta direita", "Quina interna",
+            ):
+                for rotation in (0, 90, 180, 270):
+                    with self.subTest(insertion=insertion, rotation=rotation):
+                        obj, _ = self.create(
+                            (0, 0, 0), (10, 10, 0), rotation=rotation,
+                            insertion=insertion,
+                        )
+                        geometry = self.member._section_geometry(angle)
+                        expected = self.member._insertion_translation(angle, insertion)
+                        self.assertVector(obj.Shape.face_translation, (*expected, 0.0))
+                        self.assertAlmostEqual(obj.TotalMass, angle.mass_per_m * math.sqrt(200) / 1000.0)
+                        self.assertEqual(len(self.member._section_face(angle).wire.edges), 6)
+                        self.assertEqual(geometry.geometry_type, "equal_angle")
+        finally:
+            self.member.profile_catalog.get = original_get
+
 
 if __name__ == "__main__":
     unittest.main()

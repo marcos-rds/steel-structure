@@ -163,6 +163,33 @@ class ProfileOptionsBrowserIntegrationTests(unittest.TestCase):
         after = (widget.category.currentText(), widget.series.currentText(), widget.profile.currentData())
         self.assertEqual(after, before)
 
+    def test_insertion_combo_switches_between_w_and_equal_angle_options(self):
+        widget = object.__new__(self.module.ProfileOptionsWidget)
+        widget.profile = _Combo()
+        widget.insertion = _Combo(("Face superior",))
+        for designation in profile_catalog.designations("Aço Laminado", "Perfis W"):
+            widget.profile.addItem(designation, designation)
+        widget.profile.setCurrentIndex(widget.profile.findData("W 150 x 13,0"))
+        self.module.ProfileOptionsWidget._refresh_insertion_options(widget)
+        self.assertIn("Face superior", [item[0] for item in widget.insertion.items])
+
+        widget.profile.clear()
+        for designation in profile_catalog.designations("Aço Laminado", "Cantoneiras - Métricas"):
+            widget.profile.addItem(designation, designation)
+        widget.profile.setCurrentIndex(widget.profile.findData("L 50 x 5"))
+        self.module.ProfileOptionsWidget._refresh_insertion_options(widget)
+        self.assertEqual([item[0] for item in widget.insertion.items], [
+            "Centroide", "Quina externa", "Ponta superior", "Ponta direita", "Quina interna",
+        ])
+        self.assertEqual(widget.insertion.currentText(), "Centroide")
+
+        widget.profile.clear()
+        for designation in profile_catalog.designations("Aço Laminado", "Perfis W"):
+            widget.profile.addItem(designation, designation)
+        widget.profile.setCurrentIndex(widget.profile.findData("W 150 x 13,0"))
+        self.module.ProfileOptionsWidget._refresh_insertion_options(widget)
+        self.assertEqual(widget.insertion.currentText(), "Centroide")
+
 
 if __name__ == "__main__":
     unittest.main()

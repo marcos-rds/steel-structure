@@ -11,7 +11,9 @@ import Part
 from . import profile_catalog
 from .paths import OBJECT_ICON
 from .profiles.freecad_geometry import section_geometry_to_face
-from .profiles.geometry import build_parallel_flange_i_section
+from .profiles.geometry import build_parallel_flange_i_section, build_section_geometry
+from .profiles.insertion import insertion_translation as _geometry_insertion_translation
+from .profiles.insertion import section_insertion_references
 
 INSERTION_OPTIONS = [
     "Centroide",
@@ -83,21 +85,29 @@ def _i_section_face(profile: profile_catalog.Profile) -> Part.Face:
     return section_geometry_to_face(geometry)
 
 
+def _section_geometry(profile: profile_catalog.Profile):
+    """Resolve every constructible catalog profile through the typed core."""
+    definition = getattr(profile, "definition", None)
+    if definition is not None:
+        return build_section_geometry(definition)
+    return build_parallel_flange_i_section(
+        d=profile.d, bf=profile.bf, tw=profile.tw, tf=profile.tf
+    )
+
+
+def _section_face(profile: profile_catalog.Profile) -> Part.Face:
+    return section_geometry_to_face(_section_geometry(profile))
+
+
+def insertion_options(profile: profile_catalog.Profile):
+    options = profile_catalog.insertion_options(profile)
+    if options:
+        return options
+    return tuple(item.label for item in section_insertion_references(_section_geometry(profile)))
+
+
 def _insertion_translation(profile: profile_catalog.Profile, mode: str) -> Tuple[float, float]:
-    half_b = profile.bf / 2.0
-    half_d = profile.d / 2.0
-    translations = {
-        "Centroide": (0.0, 0.0),
-        "Face esquerda": (half_b, 0.0),
-        "Face direita": (-half_b, 0.0),
-        "Face superior": (0.0, -half_d),
-        "Face inferior": (0.0, half_d),
-        "Canto superior esquerdo": (half_b, -half_d),
-        "Canto superior direito": (-half_b, -half_d),
-        "Canto inferior esquerdo": (half_b, half_d),
-        "Canto inferior direito": (-half_b, half_d),
-    }
-    return translations.get(mode, (0.0, 0.0))
+    return _geometry_insertion_translation(_section_geometry(profile), mode)
 
 
 def _member_frame_rotation(direction: App.Vector) -> App.Rotation:
@@ -227,7 +237,7 @@ class StructuralMemberProxy:
 
         # Enumeration options are assigned only after all dependent properties
         # exist. This prevents the onChanged race reported in FreeCAD 1.1.3.
-        _set_enum(obj, "Insertion", INSERTION_OPTIONS, "Centroide" if created_insertion else None)
+        current_insertion = str(obj.Insertion) if not created_insertion else ""
         _set_enum(obj, "ElementType", ELEMENT_TYPES, "Membro" if created_type else None)
         _set_enum(obj, "Material", MATERIALS, "ASTM A572 Grau 50" if created_material else None)
 
@@ -256,6 +266,16 @@ class StructuralMemberProxy:
         available_profiles = profile_catalog.designations(selected_category, selected_series)
         profile_preference = current_profile if current_profile in available_profiles else None
         _set_enum(obj, "Profile", available_profiles, profile_preference, EMPTY_PROFILE)
+        try:
+            selected_profile = profile_catalog.get(str(obj.Profile))
+            available_insertions = insertion_options(selected_profile)
+        except KeyError:
+            available_insertions = tuple(INSERTION_OPTIONS)
+        insertion_preference = current_insertion if current_insertion in available_insertions else None
+        _set_enum(
+            obj, "Insertion", available_insertions,
+            insertion_preference or ("Centroide" if created_insertion else None),
+        )
 
         for prop in ("Manufacturer", "ProfileFamily", "MemberLength", "MassPerMeter", "TotalMass", "CatalogArea", "CatalogSource"):
             obj.setEditorMode(prop, 1)
@@ -323,6 +343,13 @@ class StructuralMemberProxy:
         series = str(obj.ProfileSeries)
         _set_enum(obj, "Profile", profile_catalog.designations(category, series), empty_text=EMPTY_PROFILE)
 
+    def _refresh_insertions(self, obj):
+        try:
+            profile = profile_catalog.get(str(obj.Profile))
+        except KeyError:
+            return
+        _set_enum(obj, "Insertion", insertion_options(profile))
+
     def _update_catalog_properties(self, obj):
         required = {"Profile", "Manufacturer", "ProfileFamily", "MassPerMeter", "CatalogArea", "CatalogSource"}
         if not required.issubset(set(obj.PropertiesList)):
@@ -374,7 +401,7 @@ class StructuralMemberProxy:
             obj.TotalMass = 0.0
             return
 
-        face = _i_section_face(profile)
+        face = _section_face(profile)
         tx, ty = _insertion_translation(profile, str(obj.Insertion))
         face.translate(App.Vector(tx + obj.OffsetX.Value, ty + obj.OffsetY.Value, 0.0))
         solid = face.extrude(App.Vector(0.0, 0.0, total_length))
@@ -431,11 +458,14 @@ class StructuralMemberProxy:
             elif prop == "ProfileCategory" and "ProfileSeries" in obj.PropertiesList:
                 self._refresh_series_and_profiles(obj)
                 self._update_catalog_properties(obj)
+                self._refresh_insertions(obj)
             elif prop == "ProfileSeries" and "Profile" in obj.PropertiesList:
                 self._refresh_profiles(obj)
                 self._update_catalog_properties(obj)
+                self._refresh_insertions(obj)
             elif prop == "Profile":
                 self._update_catalog_properties(obj)
+                self._refresh_insertions(obj)
             elif prop == "DisplayName" and "DisplayName" in obj.PropertiesList:
                 value = str(obj.DisplayName).strip()
                 if value and obj.Label != value:
@@ -548,7 +578,8 @@ def create_member(
     obj.ProfileSeries = profile.series
     obj.Profile = designation
     obj.ElementType = element_type if element_type in ELEMENT_TYPES else "Membro"
-    obj.Insertion = insertion if insertion in INSERTION_OPTIONS else "Centroide"
+    valid_insertions = insertion_options(profile)
+    obj.Insertion = insertion if insertion in valid_insertions else valid_insertions[0]
     obj.Rotation = rotation
 
     final_name = (display_name or f"{obj.ElementType} - {designation}").strip()

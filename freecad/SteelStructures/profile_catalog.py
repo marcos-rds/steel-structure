@@ -7,7 +7,10 @@ from dataclasses import dataclass
 from typing import Dict, List
 
 from .paths import CATALOGS_DIR
-from .profiles import ProfileLibrary, ProfileRef
+from .profiles import (
+    ProfileLibrary, ProfileRef, build_section_geometry,
+    section_insertion_references,
+)
 
 # Preserve the current UI, including its intentionally empty folded-steel entry.
 # The typed API exposes only categories declared by actual catalogs.
@@ -15,7 +18,9 @@ KNOWN_CATEGORIES = ["Aço Laminado", "Aço dobrado"]
 
 # Temporary application capability until geometry generators for the other
 # catalog families are integrated and validated.
-SUPPORTED_CREATION_SERIES = {"w", "hp"}
+SUPPORTED_CREATION_SERIES = {
+    "w", "hp", "equal-angle-inch", "equal-angle-metric",
+}
 
 
 @dataclass(frozen=True)
@@ -32,6 +37,7 @@ class Profile:
     tf: float
     area_cm2: float
     source: str
+    definition: object | None = None
 
 
 _LIBRARY = ProfileLibrary(CATALOGS_DIR)
@@ -55,12 +61,13 @@ def _adapt(definition, categories, series) -> Profile:
         family=definition.family,
         designation=definition.designation,
         mass_per_m=float(physical.mass_per_length_kg_m),
-        d=definition.geometry["d"],
-        bf=definition.geometry["bf"],
-        tw=definition.geometry["tw"],
-        tf=definition.geometry["tf"],
+        d=definition.geometry.get("d", 0.0),
+        bf=definition.geometry.get("bf", 0.0),
+        tw=definition.geometry.get("tw", 0.0),
+        tf=definition.geometry.get("tf", 0.0),
         area_cm2=float(physical.area_mm2) / 100.0,
         source=_legacy_source(definition),
+        definition=definition,
     )
 
 
@@ -126,6 +133,13 @@ def get(designation: str) -> Profile:
     if designation not in catalog:
         raise KeyError(f"Perfil não encontrado: {designation}")
     return catalog[designation]
+
+
+def insertion_options(profile: Profile):
+    if profile.definition is None:
+        return ()
+    geometry = build_section_geometry(profile.definition)
+    return tuple(item.label for item in section_insertion_references(geometry))
 
 
 def ref_for_designation(designation: str) -> ProfileRef:

@@ -40,6 +40,7 @@ class ProfileOptionsWidget(QtWidgets.QGroupBox):
         self.series.currentTextChanged.connect(self._series_changed)
         self.profile = QtWidgets.QComboBox()
         self.profile.currentTextChanged.connect(self.refresh_automatic_name)
+        self.profile.currentIndexChanged.connect(self._profile_changed)
         self.profile_browser_button = QtWidgets.QPushButton("Selecionar Perfil...")
         self.profile_browser_button.setToolTip("Abrir Catálogo de Perfis")
         self.profile_browser_button.clicked.connect(self._open_profile_browser)
@@ -141,7 +142,27 @@ class ProfileOptionsWidget(QtWidgets.QGroupBox):
         if index >= 0:
             self.profile.setCurrentIndex(index)
         self.profile.blockSignals(False)
+        self._refresh_insertion_options()
         self.refresh_automatic_name()
+
+    def _profile_changed(self, _index=None):
+        self._refresh_insertion_options()
+
+    def _refresh_insertion_options(self, preferred=None):
+        current = preferred or self.insertion.currentText()
+        try:
+            options = profile_catalog.insertion_options(
+                profile_catalog.get(self.profile_designation)
+            )
+        except KeyError:
+            options = tuple(INSERTION_OPTIONS)
+        self.insertion.blockSignals(True)
+        try:
+            self.insertion.clear()
+            self.insertion.addItems(options)
+            self.insertion.setCurrentText(current if current in options else options[0])
+        finally:
+            self.insertion.blockSignals(False)
 
     @property
     def profile_designation(self):
@@ -194,7 +215,7 @@ class ProfileOptionsWidget(QtWidgets.QGroupBox):
             index = self.profile.findData(settings.designation)
             if index >= 0:
                 self.profile.setCurrentIndex(index)
-            self.insertion.setCurrentText(settings.insertion)
+            self._refresh_insertion_options(settings.insertion)
             self.rotation.setValue(settings.rotation)
         finally:
             for widget, blocked in zip(widgets, previous):
@@ -233,7 +254,7 @@ class ProfileOptionsWidget(QtWidgets.QGroupBox):
         index = self.profile.findData(state["profile"])
         if index >= 0:
             self.profile.setCurrentIndex(index)
-        self.insertion.setCurrentText(state["insertion"])
+        self._refresh_insertion_options(state["insertion"])
         self.rotation.setValue(state["rotation"])
         self._color = QtGui.QColor(state["color"])
         self._update_color_button()

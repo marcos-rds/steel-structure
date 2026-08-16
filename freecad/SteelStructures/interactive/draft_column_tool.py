@@ -9,7 +9,7 @@ from draftutils import gui_utils, todo
 from draftutils.messages import _toolmsg
 
 from .. import profile_catalog
-from ..member import _i_section_face, _insertion_translation
+from ..member import _section_face, _insertion_translation
 from ..paths import COLUMN_ICON
 from ..preferences import load_column_creation_settings, save_column_creation_settings
 from .column_task_panel import ColumnTaskPanel, column_top
@@ -132,7 +132,7 @@ class StructuralColumnDraftTool(gui_lines.Line):
             rotation = float(options.rotation.value())
             shape_signature = (options.profile_designation, height, insertion)
             if shape_signature != self._preview_shape_signature:
-                face = _i_section_face(profile)
+                face = _section_face(profile)
                 tx, ty = _insertion_translation(profile, insertion)
                 face.translate(App.Vector(tx, ty, 0.0))
                 self.obj.Shape = face.extrude(App.Vector(0.0, 0.0, height))

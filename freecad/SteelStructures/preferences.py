@@ -34,6 +34,10 @@ _INSERTION_KEYS = {
     "Canto superior direito": "top_right",
     "Canto inferior esquerdo": "bottom_left",
     "Canto inferior direito": "bottom_right",
+    "Quina externa": "outer_corner",
+    "Ponta superior": "top_tip",
+    "Ponta direita": "right_tip",
+    "Quina interna": "inner_corner",
 }
 _INSERTIONS_BY_KEY = {key: label for label, key in _INSERTION_KEYS.items()}
 
@@ -80,6 +84,11 @@ def _valid_profile(category, series, designation):
     return profile
 
 
+def _profile_insertion_options(profile):
+    resolver = getattr(profile_catalog, "insertion_options", None)
+    return tuple(resolver(profile)) if resolver is not None else tuple(INSERTION_OPTIONS)
+
+
 def _finite_in_range(value, default, minimum, maximum):
     try:
         number = float(value)
@@ -105,6 +114,9 @@ def _shared_settings(group):
         group.GetString("Designation", default.designation),
     )
     insertion = _INSERTIONS_BY_KEY.get(group.GetString("Insertion", "center"), "Centroide")
+    valid_insertions = _profile_insertion_options(profile) or tuple(INSERTION_OPTIONS)
+    if insertion not in valid_insertions:
+        insertion = valid_insertions[0]
     rotation = _finite_in_range(
         group.GetFloat("RotationAngle", DEFAULT_ROTATION), DEFAULT_ROTATION,
         ROTATION_MIN, ROTATION_MAX,
@@ -151,7 +163,8 @@ def load_column_creation_settings():
 
 def _save_shared(group, settings):
     profile = _valid_profile(settings.category, settings.series, settings.designation)
-    insertion = settings.insertion if settings.insertion in INSERTION_OPTIONS else "Centroide"
+    valid_insertions = _profile_insertion_options(profile) or tuple(INSERTION_OPTIONS)
+    insertion = settings.insertion if settings.insertion in valid_insertions else valid_insertions[0]
     rotation = _finite_in_range(
         settings.rotation, DEFAULT_ROTATION, ROTATION_MIN, ROTATION_MAX
     )

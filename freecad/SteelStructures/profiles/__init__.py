@@ -15,6 +15,10 @@ from .geometry import (
     build_parallel_flange_i_section,
     build_section_geometry,
 )
+from .insertion import (
+    InsertionReference, insertion_reference, insertion_translation,
+    section_insertion_references,
+)
 from .models import (
     CatalogMetadata,
     CatalogSource,
@@ -42,5 +46,7 @@ __all__ = [
     "SeriesDefinition", "UnsupportedSectionGeometryError",
     "build_equal_angle_section", "build_parallel_flange_i_section",
     "build_section_geometry",
+    "InsertionReference", "insertion_reference", "insertion_translation",
+    "section_insertion_references",
     "convert_to_canonical", "normalize_search_text",
 ]

@@ -168,6 +168,23 @@ class FreeCADSectionAdapterTests(unittest.TestCase):
                 self.assertAlmostEqual(box.YMax, geometry.bounds.max_y)
                 self.assertEqual((box.ZMin, box.ZMax), (0.0, 0.0))
 
+    def test_all_eighty_equal_angles_create_valid_faces_and_extrusions(self):
+        angles = [
+            profile for profile in self.library.list_profiles()
+            if profile.series_id in ("equal-angle-inch", "equal-angle-metric")
+        ]
+        self.assertEqual(len(angles), 80)
+        for profile in angles:
+            geometry = build_section_geometry(profile)
+            face = self.adapter.section_geometry_to_face(geometry)
+            solid = face.extrude(Vector(0, 0, 1000))
+            b, t = profile.geometry["b"], profile.geometry["t"]
+            with self.subTest(profile=profile.designation):
+                self.assertFalse(face.isNull())
+                self.assertAlmostEqual(face.Area, 2.0 * b * t - t * t)
+                self.assertAlmostEqual(solid.Volume, face.Area * 1000.0)
+                self.assertEqual(len(face.Wires[0].Edges), 6)
+
     def test_w310_face_and_extrusion_match_expected_area_bounds_and_volume(self):
         geometry = build_section_geometry(self.profile("w-310x52.0"))
         face = self.adapter.section_geometry_to_face(geometry)
