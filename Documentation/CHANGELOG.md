@@ -2,6 +2,7 @@
 
 ## Não lançado
 
+- Adicionado suporte geométrico 2D e preview cotado e espaçado nas duas abas para as 80 cantoneiras de abas iguais, com extensões curtas e independentes do texto na cota de espessura, centroide X/Y e criação 3D ainda desabilitada.
 - Integrado o Catálogo de Perfis a Criar Membro e Criar Pilar como seletor complementar, mantendo consulta das 218 bitolas e confirmação restrita a W/HP.
 
 - Adicionado o Catálogo de Perfis nativo, com navegação das sete séries, busca, propriedades técnicas e pré-visualização 2D para W/HP.

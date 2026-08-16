@@ -23,6 +23,9 @@ LINE_END_PADDING = 8.0
 D_OFFSET_PIXELS = 38.0
 D_MAX_COMPENSATION_PIXELS = 18.0
 BF_OFFSET_PIXELS = 30.0
+ANGLE_B_OFFSET_PIXELS = 20.0
+ANGLE_VERTICAL_B_OFFSET_PIXELS = 32.0
+ANGLE_T_EXTENSION_OVERHANG_PIXELS = 4.0
 CANVAS_MARGIN_PIXELS = 12.0
 TICK_PIXELS = 4.5
 SMALL_EXTENSION_HALF_PIXELS = 7.0
@@ -40,6 +43,22 @@ class _DimensionLabel:
 
 def _clamp(value, minimum, maximum):
     return max(minimum, min(float(value), maximum))
+
+
+def _balanced_section_envelope(bounds, visual_bounds, padding):
+    """Return a section-centred rect large enough for every annotation."""
+    left, right = bounds.min_x, bounds.max_x
+    top, bottom = -bounds.max_y, -bounds.min_y
+    horizontal = max(
+        left - visual_bounds.left(), visual_bounds.right() - right, padding,
+    )
+    vertical = max(
+        top - visual_bounds.top(), visual_bounds.bottom() - bottom, padding,
+    )
+    return (
+        left - horizontal, top - vertical,
+        bounds.width + 2.0 * horizontal, bounds.height + 2.0 * vertical,
+    )
 
 
 def _ignores_transformations_flag():
@@ -90,9 +109,17 @@ class SectionPreviewView(QtWidgets.QGraphicsView):
         scene_units_per_pixel = self._scene_units_per_pixel(geometry.bounds)
         margin_x = CANVAS_MARGIN_PIXELS * scene_units_per_pixel
         margin_y = CANVAS_MARGIN_PIXELS * scene_units_per_pixel
-        self.scene().setSceneRect(
-            visual_bounds.adjusted(-margin_x, -margin_y, margin_x, margin_y)
-        )
+        if (mode == DIMENSIONS_MODE and
+                (geometry.geometry_type, geometry.geometry_variant)
+                == ("equal_angle", "equal_leg")):
+            rect = _balanced_section_envelope(
+                geometry.bounds, visual_bounds, max(margin_x, margin_y)
+            )
+            self.scene().setSceneRect(QtCore.QRectF(*rect))
+        else:
+            self.scene().setSceneRect(
+                visual_bounds.adjusted(-margin_x, -margin_y, margin_x, margin_y)
+            )
         self._fit()
 
     def _annotation_pen(self, line_style=None):
@@ -118,7 +145,15 @@ class SectionPreviewView(QtWidgets.QGraphicsView):
         return D_OFFSET_PIXELS + growth * D_MAX_COMPENSATION_PIXELS
 
     def _add_dimensions(self, geometry, dimensions, _palette=None):
-        """Add four true dimensions without rebuilding the section contour."""
+        """Dispatch annotations by section typology without rebuilding contours."""
+        key = (geometry.geometry_type, geometry.geometry_variant)
+        if key == ("i_section", "parallel_flange"):
+            self._add_i_section_dimensions(geometry, dimensions)
+        elif key == ("equal_angle", "equal_leg"):
+            self._add_equal_angle_dimensions(geometry, dimensions)
+
+    def _add_i_section_dimensions(self, geometry, dimensions):
+        """Add the four principal dimensions of a parallel-flange I section."""
         pen = self._annotation_pen()
         bounds = geometry.bounds
         left, right = bounds.min_x, bounds.max_x
@@ -150,6 +185,90 @@ class SectionPreviewView(QtWidgets.QGraphicsView):
             right, flange_top, flange_bottom, clearance, scene_units_per_pixel,
             dimensions["tf"], pen,
         )
+
+    def _add_equal_angle_dimensions(self, geometry, dimensions):
+        """Add equal-leg length and thickness dimensions to an L contour."""
+        pen = self._annotation_pen()
+        bounds = geometry.bounds
+        left, right = bounds.min_x, bounds.max_x
+        bottom = -bounds.min_y
+        scene_units_per_pixel = self._scene_units_per_pixel(bounds)
+        clearance = GEOMETRY_CLEARANCE_PIXELS * scene_units_per_pixel
+
+        self._add_b_dimension(
+            left, right, bottom, ANGLE_B_OFFSET_PIXELS * scene_units_per_pixel,
+            clearance, scene_units_per_pixel, dimensions["b"], pen,
+        )
+        self._add_angle_b_vertical_dimension(
+            left, -bounds.max_y, -bounds.min_y,
+            ANGLE_VERTICAL_B_OFFSET_PIXELS * scene_units_per_pixel,
+            clearance, scene_units_per_pixel, dimensions["b"], pen,
+        )
+
+        horizontal_leg = geometry.outer_path.segments[1]
+        leg_top = -horizontal_leg.end.y
+        leg_bottom = -horizontal_leg.start.y
+        self._add_angle_t_dimension(
+            right, leg_top, leg_bottom, clearance, scene_units_per_pixel,
+            dimensions["t"], pen,
+        )
+
+    def _add_b_dimension(self, left, right, bottom, offset, clearance,
+                         scene_units_per_pixel, value, pen):
+        line_y = bottom + offset
+        group = self._create_dimension_label(self._dimension_parts("b", value), pen.color())
+        self._position_label(
+            group, (left + right) / 2.0, line_y,
+            -group.width / 2.0, TEXT_LINE_GAP,
+        )
+        overshoot = EXTENSION_OVERSHOOT_PIXELS * scene_units_per_pixel
+        self._line(left, bottom + clearance, left, line_y + overshoot, pen)
+        self._line(right, bottom + clearance, right, line_y + overshoot, pen)
+        self._line(left, line_y, right, line_y, pen)
+        self._terminator(left, line_y, pen)
+        self._terminator(right, line_y, pen)
+
+    def _add_angle_b_vertical_dimension(self, left, top, bottom, offset,
+                                        clearance, scene_units_per_pixel,
+                                        value, pen):
+        line_x = left - offset
+        center_y = (top + bottom) / 2.0
+        group = self._create_dimension_label(self._dimension_parts("b", value), pen.color())
+        self._position_label(
+            group, line_x, center_y, -group.width / 2.0, -group.height / 2.0
+        )
+        break_half = (
+            group.height / 2.0 + MIN_LABEL_CLEARANCE
+        ) * scene_units_per_pixel
+        overshoot = EXTENSION_OVERSHOOT_PIXELS * scene_units_per_pixel
+        self._line(left - clearance, top, line_x - overshoot, top, pen)
+        self._line(left - clearance, bottom, line_x - overshoot, bottom, pen)
+        self._line(line_x, top, line_x, center_y - break_half, pen)
+        self._line(line_x, center_y + break_half, line_x, bottom, pen)
+        self._terminator(line_x, top, pen)
+        self._terminator(line_x, bottom, pen)
+
+    def _add_angle_t_dimension(self, right, leg_top, leg_bottom, clearance,
+                               scene_units_per_pixel, value, pen):
+        line_x = right + TF_LINE_OFFSET_PIXELS * scene_units_per_pixel
+        group = self._create_dimension_label(self._dimension_parts("t", value), pen.color())
+        self._position_label(
+            group, line_x, (leg_top + leg_bottom) / 2.0,
+            TF_TEXT_OFFSET, -group.height / 2.0,
+        )
+        self._line(right + clearance, leg_top, line_x, leg_top, pen)
+        self._line(right + clearance, leg_bottom, line_x, leg_bottom, pen)
+        self._device_line(
+            line_x, leg_top, 0.0, 0.0,
+            ANGLE_T_EXTENSION_OVERHANG_PIXELS, 0.0, pen,
+        )
+        self._device_line(
+            line_x, leg_bottom, 0.0, 0.0,
+            ANGLE_T_EXTENSION_OVERHANG_PIXELS, 0.0, pen,
+        )
+        self._line(line_x, leg_top, line_x, leg_bottom, pen)
+        self._terminator(line_x, leg_top, pen)
+        self._terminator(line_x, leg_bottom, pen)
 
     @staticmethod
     def _dimension_parts(symbol, value):
@@ -329,5 +448,5 @@ class SectionPreviewView(QtWidgets.QGraphicsView):
 
 __all__ = [
     "DIMENSIONS_MODE", "NEUTRAL_MODE", "PREVIEW_MODES", "PROPERTIES_MODE",
-    "SectionPreviewView",
+    "SectionPreviewView", "_balanced_section_envelope",
 ]

@@ -11,6 +11,7 @@ from .geometry import (
     SectionGeometryError,
     SectionPath2D,
     UnsupportedSectionGeometryError,
+    build_equal_angle_section,
     build_parallel_flange_i_section,
     build_section_geometry,
 )
@@ -39,6 +40,7 @@ __all__ = [
     "ProfileNotFoundError", "ProfileRef", "SectionBounds2D",
     "SectionGeometry2D", "SectionGeometryError", "SectionPath2D",
     "SeriesDefinition", "UnsupportedSectionGeometryError",
-    "build_parallel_flange_i_section", "build_section_geometry",
+    "build_equal_angle_section", "build_parallel_flange_i_section",
+    "build_section_geometry",
     "convert_to_canonical", "normalize_search_text",
 ]

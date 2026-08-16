@@ -65,11 +65,16 @@ def profile_dimension_rows(profile: ProfileDefinition) -> tuple[PresentationRow,
 
 def profile_preview_dimension_rows(profile: ProfileDefinition) -> tuple[PresentationRow, ...]:
     """Return only the principal dimensions annotated by the supported preview."""
-    if (profile.geometry_type, profile.geometry_variant) != ("i_section", "parallel_flange"):
+    key = (profile.geometry_type, profile.geometry_variant)
+    keys_by_geometry = {
+        ("i_section", "parallel_flange"): ("d", "bf", "tw", "tf"),
+        ("equal_angle", "equal_leg"): ("b", "t"),
+    }
+    if key not in keys_by_geometry:
         return ()
     return tuple(
         PresentationRow(key, format_engineering_value(profile.geometry[key], 1.0, "mm"))
-        for key in ("d", "bf", "tw", "tf") if key in profile.geometry
+        for key in keys_by_geometry[key] if key in profile.geometry
     )
 
 
@@ -114,10 +119,16 @@ def profile_property_groups(profile: ProfileDefinition) -> tuple[PresentationGro
         centroid.append(PresentationRow(
             "x do centroide", format_engineering_value(profile.centroid["x"], 0.1, "cm")
         ))
+        if (profile.geometry_type, profile.geometry_variant) == ("equal_angle", "equal_leg"):
+            centroid.append(PresentationRow(
+                "y do centroide",
+                format_engineering_value(profile.centroid["x"], 0.1, "cm"),
+                "Valor derivado pela simetria da cantoneira de abas iguais",
+            ))
     rz_rows = _property_rows(profile, ("rz_min",))
     centroid.extend(rz_rows)
     if centroid:
-        groups.append(PresentationGroup("Centroide / eixos principais", tuple(centroid)))
+        groups.append(PresentationGroup("Centroide / propriedades adicionais", tuple(centroid)))
     return tuple(group for group in groups if group.rows)
 
 

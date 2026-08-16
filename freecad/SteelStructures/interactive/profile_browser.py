@@ -24,6 +24,14 @@ def _user_role():
     return getattr(QtCore.Qt, "UserRole", QtCore.Qt.ItemDataRole.UserRole)
 
 
+def _profile_subtitle(profile, series_name):
+    parts = [series_name]
+    if (profile.geometry_type, profile.geometry_variant) == ("equal_angle", "equal_leg"):
+        parts.append("Abas iguais")
+    parts.append(profile.manufacturer.name)
+    return " — ".join(parts)
+
+
 class ProfileBrowserDialog(QtWidgets.QDialog):
     BROWSE_MODE = "browse"
     SELECT_MODE = "select"
@@ -287,7 +295,9 @@ class ProfileBrowserDialog(QtWidgets.QDialog):
 
     def _show_profile(self, profile):
         self.title.setText(profile.designation)
-        self.subtitle.setText(f"{self._series[profile.series_id].name} — {profile.manufacturer.name}")
+        self.subtitle.setText(_profile_subtitle(
+            profile, self._series[profile.series_id].name
+        ))
         current_tab = max(self.tabs.currentIndex(), 0)
         self.tabs.blockSignals(True)
         self.tabs.clear()

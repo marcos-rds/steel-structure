@@ -244,7 +244,10 @@ class ProfileBrowserModelTests(unittest.TestCase):
         geometry = build_section_geometry(w)
         self.assertEqual((geometry.bounds.width, geometry.bounds.height), (167.0, 317.0))
         self.assertEqual(len(geometry.outer_path.segments), 12)
-        for query in ("I3x8.48", "U6x12.2", "T2x1/4", "L50x5"):
+        angle = build_section_geometry(self.library.search("L50x5")[0])
+        self.assertEqual(len(angle.outer_path.segments), 6)
+        self.assertNotEqual(angle.bounds.min_x, -angle.bounds.max_x)
+        for query in ("I3x8.48", "U6x12.2", "T2x1/4"):
             with self.subTest(query=query), self.assertRaises(UnsupportedSectionGeometryError):
                 build_section_geometry(self.library.search(query)[0])
 
@@ -304,6 +307,149 @@ class ProfileBrowserModelTests(unittest.TestCase):
                     ["bf", "d", "tw", "tf"],
                 )
                 self.assertTrue(all("mm" not in html for html in annotations))
+
+    def test_equal_angle_renderer_executes_real_b_and_t_dimensions(self):
+        module = _load_preview_runtime_module()
+        for query in (
+            "L40x3", "L50x5", "L100x9",
+            "L1/2x1/8", "L2x1/4", "L4x1/2", "L6x1/2", "L8x3/4",
+        ):
+            with self.subTest(query=query):
+                profile = self.library.search(query)[0]
+                geometry = build_section_geometry(profile)
+                dimensions = {
+                    row.label: row.value for row in profile_preview_dimension_rows(profile)
+                }
+                scene = _FakeScene()
+                renderer = object.__new__(module.SectionPreviewView)
+                renderer.scene = lambda: scene
+                renderer._add_dimensions(geometry, dimensions)
+                annotations = [item.html for item in scene.text_items]
+                self.assertEqual(len(annotations), 3)
+                self.assertIn("<b>(b)</b>&nbsp;", annotations[0])
+                self.assertIn("<b>(b)</b>&nbsp;", annotations[1])
+                self.assertIn("<b>(t)</b>&nbsp;", annotations[2])
+                self.assertTrue(all("mm" not in html for html in annotations))
+                self.assertGreaterEqual(len(scene.lines), 16)
+                scene_units = renderer._scene_units_per_pixel(geometry.bounds)
+                horizontal_b_line_y = scene.text_items[0].position[1]
+                self.assertAlmostEqual(
+                    (horizontal_b_line_y + geometry.bounds.min_y) / scene_units,
+                    module.ANGLE_B_OFFSET_PIXELS,
+                )
+                self.assertLess(module.ANGLE_B_OFFSET_PIXELS, module.BF_OFFSET_PIXELS)
+                vertical_b_line_x = scene.text_items[1].position[0]
+                self.assertAlmostEqual(
+                    (geometry.bounds.min_x - vertical_b_line_x) / scene_units,
+                    module.ANGLE_VERTICAL_B_OFFSET_PIXELS,
+                )
+                self.assertGreater(
+                    module.ANGLE_VERTICAL_B_OFFSET_PIXELS,
+                    module.ANGLE_B_OFFSET_PIXELS,
+                )
+                t_item = scene.text_items[2]
+                horizontal_leg = geometry.outer_path.segments[1]
+                leg_top = -horizontal_leg.end.y
+                leg_bottom = -horizontal_leg.start.y
+                t_extensions = [
+                    item for item in scene.line_items
+                    if getattr(item, "flag", None) == (1, True)
+                    and getattr(item, "position", None)
+                    in ((t_item.position[0], leg_top), (t_item.position[0], leg_bottom))
+                    and item.args[1] == item.args[3] == 0.0
+                ]
+                self.assertEqual(len(t_extensions), 2)
+                self.assertEqual(
+                    {item.args[:4] for item in t_extensions},
+                    {(0.0, 0.0, module.ANGLE_T_EXTENSION_OVERHANG_PIXELS, 0.0)},
+                )
+                self.assertAlmostEqual(
+                    scene.text_items[1].position[1],
+                    (-geometry.bounds.max_y - geometry.bounds.min_y) / 2.0,
+                )
+
+    def test_equal_angle_t_extensions_do_not_depend_on_label_width(self):
+        module = _load_preview_runtime_module()
+
+        def render_t_layout(query):
+            profile = self.library.search(query)[0]
+            geometry = build_section_geometry(profile)
+            dimensions = {
+                row.label: row.value for row in profile_preview_dimension_rows(profile)
+            }
+            scene = _FakeScene()
+            renderer = object.__new__(module.SectionPreviewView)
+            renderer.scene = lambda: scene
+            renderer._add_dimensions(geometry, dimensions)
+            label = scene.text_items[2]
+            extensions = [
+                item.args[:4] for item in scene.line_items
+                if getattr(item, "flag", None) == (1, True)
+                and getattr(item, "position", (None,))[0] == label.position[0]
+                and item.args[:4] == (
+                    0.0, 0.0, module.ANGLE_T_EXTENSION_OVERHANG_PIXELS, 0.0,
+                )
+            ]
+            return label.boundingRect().width(), extensions
+
+        short_width, short_extensions = render_t_layout("L40x3")
+        long_width, long_extensions = render_t_layout("L8x3/4")
+        self.assertNotEqual(short_width, long_width)
+        self.assertEqual(short_extensions, long_extensions)
+        self.assertEqual(len(short_extensions), 2)
+
+    def test_equal_angle_balanced_envelope_keeps_section_as_visual_reference(self):
+        module = _load_preview_runtime_module()
+
+        class VisualBounds:
+            def __init__(self, left, right, top, bottom):
+                self._values = left, right, top, bottom
+
+            def left(self): return self._values[0]
+            def right(self): return self._values[1]
+            def top(self): return self._values[2]
+            def bottom(self): return self._values[3]
+
+        for query in ("L40x3", "L50x5", "L100x9"):
+            geometry = build_section_geometry(self.library.search(query)[0])
+            bounds = geometry.bounds
+            visual = VisualBounds(
+                bounds.min_x - 22, bounds.max_x + 35,
+                -bounds.max_y - 8, -bounds.min_y + 31,
+            )
+            x, y, width, height = module._balanced_section_envelope(bounds, visual, 12)
+            self.assertAlmostEqual(x + width / 2.0,
+                                   (bounds.min_x + bounds.max_x) / 2.0)
+            self.assertAlmostEqual(y + height / 2.0,
+                                   (-bounds.max_y - bounds.min_y) / 2.0)
+            self.assertLessEqual(x, visual.left())
+            self.assertGreaterEqual(x + width, visual.right())
+            self.assertLessEqual(y, visual.top())
+            self.assertGreaterEqual(y + height, visual.bottom())
+
+    def test_equal_angle_subtitle_identifies_equal_legs_without_renaming_series(self):
+        module = _load_browser_runtime_module()
+        angle = self.library.search("L50x5")[0]
+        w = self.library.search("W310x52")[0]
+        self.assertEqual(
+            module._profile_subtitle(angle, "Cantoneiras - Métricas"),
+            "Cantoneiras - Métricas — Abas iguais — Gerdau",
+        )
+        self.assertEqual(module._profile_subtitle(w, "Perfis W"), "Perfis W — Gerdau")
+
+    def test_equal_angle_axes_cross_catalog_centroid_not_bounding_box_center(self):
+        module = _load_preview_runtime_module()
+        geometry = build_section_geometry(self.library.search("L50x5")[0])
+        scene = _FakeScene()
+        renderer = object.__new__(module.SectionPreviewView)
+        renderer.scene = lambda: scene
+        renderer._add_axes(geometry)
+        self.assertEqual(scene.lines[0][1:4:2], (0.0, 0.0))
+        self.assertEqual((scene.lines[1][0], scene.lines[1][2]), (0.0, 0.0))
+        self.assertNotAlmostEqual(
+            (geometry.bounds.min_x + geometry.bounds.max_x) / 2.0, 0.0
+        )
+        self.assertEqual(len(scene.ellipses), 1)
 
     def test_d_dimension_is_interrupted_and_tf_label_is_right_of_vertical_measure(self):
         module = _load_preview_runtime_module()
@@ -467,20 +613,24 @@ class ProfileBrowserModelTests(unittest.TestCase):
         dialog._current_preview_mode = types.MethodType(
             module.ProfileBrowserDialog._current_preview_mode, dialog
         )
-        sequence = ("W150x13", "U6x12.2", "W310x52", "T2x1/4", "HP310x132", "L50x5", "W150x13")
-        expected_supported = (True, False, True, False, True, False, True)
+        sequence = (
+            "W150x13", "L50x5", "U6x12.2", "L2x1/4",
+            "T2x1/4", "HP310x132", "W150x13",
+        )
+        expected_supported = (True, True, False, True, False, True, True)
         for query, supported in zip(sequence, expected_supported):
             profile = self.library.search(query)[0]
             module.ProfileBrowserDialog._update_preview(dialog, profile)
             expected_widget = dialog.preview if supported else dialog.preview_message
             self.assertIs(dialog.preview_stack.current, expected_widget)
             if supported:
-                self.assertEqual(len(dialog.preview.rendered[-1][1]), 4)
+                expected_dimensions = 2 if profile.geometry_type == "equal_angle" else 4
+                self.assertEqual(len(dialog.preview.rendered[-1][1]), expected_dimensions)
                 self.assertEqual(dialog.preview.rendered[-1][2], "dimensions")
             else:
                 self.assertIn("não disponível", dialog.preview_message.text)
-        self.assertEqual(dialog.preview.clear_count, 3)
-        self.assertEqual(len(dialog.preview.rendered), 4)
+        self.assertEqual(dialog.preview.clear_count, 2)
+        self.assertEqual(len(dialog.preview.rendered), 5)
 
     def test_tab_mode_changes_and_profile_changes_preserve_current_mode(self):
         module = _load_browser_runtime_module()
@@ -522,9 +672,13 @@ class ProfileBrowserModelTests(unittest.TestCase):
             self.assertEqual(dialog.preview.modes[-1], expected)
 
         dialog.tabs.index = 1
-        for query in ("W150x13", "W310x52", "HP310x132"):
+        for query in ("W150x13", "W310x52", "HP310x132", "L50x5", "L2x1/4"):
             dialog._update_preview(self.library.search(query)[0])
             self.assertEqual(dialog.preview.modes[-1], "properties")
+
+        dialog.tabs.index = 2
+        dialog._update_preview(self.library.search("L100x9")[0])
+        self.assertEqual(dialog.preview.modes[-1], "neutral")
 
     def test_profile_table_has_only_designation_column(self):
         source = (ROOT / "freecad/SteelStructures/interactive/profile_browser.py").read_text("utf-8")

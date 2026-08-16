@@ -6,10 +6,11 @@ direction, Y is the web-height direction, and a future local Z axis is the
 member longitudinal axis.  This module deliberately has no 3D placement,
 rotation, insertion-point, FreeCAD, Part or UI concerns.
 
-The current sharp-cornered I-section contour matches the historical member
-approximation.  Published radii are unavailable, so no fictitious arcs are
-created.  ``PathSegment2D`` permits a future arc primitive to participate in a
-path without changing the path and section containers.
+The sharp-cornered I-section contour matches the historical member
+approximation, while equal-leg angles use one six-segment L contour located
+about the published centroid. Published radii are unavailable, so no
+fictitious arcs are created. ``PathSegment2D`` permits a future arc primitive
+to participate in a path without changing the path and section containers.
 """
 
 from __future__ import annotations
@@ -229,23 +230,64 @@ def build_parallel_flange_i_section(
     )
 
 
+def build_equal_angle_section(
+    *, b: float, t: float, centroid_x: float
+) -> SectionGeometry2D:
+    """Build one sharp-cornered equal-leg angle about its catalog centroid."""
+    b = _finite(b, "b")
+    t = _finite(t, "t")
+    centroid_x = _finite(centroid_x, "centroid_x")
+    if b <= 0.0 or t <= 0.0:
+        raise SectionGeometryError("b e t devem ser positivos")
+    if t >= b:
+        raise SectionGeometryError("t deve ser menor que b")
+    if centroid_x <= 0.0 or centroid_x >= b:
+        raise SectionGeometryError("centroid_x deve estar no interior das abas")
+
+    x_bar = centroid_x
+    points = (
+        Point2D(-x_bar, -x_bar),
+        Point2D(b - x_bar, -x_bar),
+        Point2D(b - x_bar, t - x_bar),
+        Point2D(t - x_bar, t - x_bar),
+        Point2D(t - x_bar, b - x_bar),
+        Point2D(-x_bar, b - x_bar),
+    )
+    return SectionGeometry2D(
+        geometry_type="equal_angle",
+        geometry_variant="equal_leg",
+        outer_path=_closed_polygon(points),
+        inner_paths=(),
+        bounds=SectionBounds2D(-x_bar, b - x_bar, -x_bar, b - x_bar),
+        origin=Point2D(0.0, 0.0),
+    )
+
+
 def build_section_geometry(profile: ProfileDefinition) -> SectionGeometry2D:
     """Dispatch a typed profile by geometry type and variant."""
     key = (profile.geometry_type, profile.geometry_variant)
-    if key != ("i_section", "parallel_flange"):
+    if key == ("i_section", "parallel_flange"):
+        names = ("d", "bf", "tw", "tf")
+        builder = build_parallel_flange_i_section
+    elif key == ("equal_angle", "equal_leg"):
+        names = ("b", "t")
+        builder = build_equal_angle_section
+    else:
         raise UnsupportedSectionGeometryError(
             f"geometria de seção ainda não suportada: {key[0]!r} / {key[1]!r}"
         )
     try:
-        dimensions = {name: profile.geometry[name] for name in ("d", "bf", "tw", "tf")}
+        dimensions = {name: profile.geometry[name] for name in names}
+        if key == ("equal_angle", "equal_leg"):
+            dimensions["centroid_x"] = profile.centroid["x"]
     except KeyError as exc:
         raise SectionGeometryError(f"dimensão ausente: {exc.args[0]}") from exc
-    return build_parallel_flange_i_section(**dimensions)
+    return builder(**dimensions)
 
 
 __all__ = [
     "LineSegment2D", "PathSegment2D", "Point2D", "SectionBounds2D",
     "SectionGeometry2D", "SectionGeometryError", "SectionPath2D",
-    "UnsupportedSectionGeometryError", "build_parallel_flange_i_section",
-    "build_section_geometry",
+    "UnsupportedSectionGeometryError", "build_equal_angle_section",
+    "build_parallel_flange_i_section", "build_section_geometry",
 ]

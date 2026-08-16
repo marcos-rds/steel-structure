@@ -15,6 +15,7 @@ from freecad.SteelStructures.profiles.geometry import (
     SectionGeometryError,
     SectionPath2D,
     UnsupportedSectionGeometryError,
+    build_equal_angle_section,
     build_parallel_flange_i_section,
     build_section_geometry,
 )
@@ -125,6 +126,53 @@ class ParallelFlangeISectionTests(unittest.TestCase):
                 build_parallel_flange_i_section(**dimensions)
 
 
+class EqualAngleSectionTests(unittest.TestCase):
+    def assert_topology(self, geometry, b, t, centroid_x):
+        self.assertEqual(geometry.geometry_type, "equal_angle")
+        self.assertEqual(geometry.geometry_variant, "equal_leg")
+        self.assertEqual(geometry.inner_paths, ())
+        self.assertEqual(len(geometry.outer_path.segments), 6)
+        self.assertTrue(geometry.outer_path.closed)
+        for index, segment in enumerate(geometry.outer_path.segments):
+            following = geometry.outer_path.segments[(index + 1) % 6]
+            self.assertEqual(segment.end, following.start)
+            self.assertGreater(segment.length, 0.0)
+        self.assertGreater(geometry.outer_path.signed_area, 0.0)
+        self.assertEqual(geometry.origin, Point2D(0, 0))
+        self.assertAlmostEqual(geometry.bounds.min_x, -centroid_x)
+        self.assertAlmostEqual(geometry.bounds.max_x, b - centroid_x)
+        self.assertAlmostEqual(geometry.bounds.min_y, -centroid_x)
+        self.assertAlmostEqual(geometry.bounds.max_y, b - centroid_x)
+        self.assertNotAlmostEqual(geometry.bounds.min_x, -geometry.bounds.max_x)
+        self.assertAlmostEqual(geometry.area, 2 * b * t - t * t)
+
+    def test_equal_leg_contour_is_one_ccw_six_segment_polygon(self):
+        geometry = build_equal_angle_section(b=50, t=5, centroid_x=14.2)
+        starts = tuple(
+            (segment.start.x, segment.start.y)
+            for segment in geometry.outer_path.segments
+        )
+        self.assertEqual(starts, (
+            (-14.2, -14.2), (35.8, -14.2), (35.8, -9.2),
+            (-9.2, -9.2), (-9.2, 35.8), (-14.2, 35.8),
+        ))
+        self.assert_topology(geometry, 50, 5, 14.2)
+
+    def test_builder_rejects_invalid_dimensions_and_centroid(self):
+        cases = (
+            {"b": 0, "t": 5, "centroid_x": 14},
+            {"b": 50, "t": 0, "centroid_x": 14},
+            {"b": 50, "t": 50, "centroid_x": 14},
+            {"b": 50, "t": 5, "centroid_x": 0},
+            {"b": 50, "t": 5, "centroid_x": 50},
+            {"b": math.inf, "t": 5, "centroid_x": 14},
+            {"b": 50, "t": math.nan, "centroid_x": 14},
+        )
+        for dimensions in cases:
+            with self.subTest(dimensions=dimensions), self.assertRaises(SectionGeometryError):
+                build_equal_angle_section(**dimensions)
+
+
 class CatalogGeometryDispatchTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -164,14 +212,58 @@ class CatalogGeometryDispatchTests(unittest.TestCase):
         self.assertEqual(len(geometries), 108)
         self.assertTrue(all(len(item.outer_path.segments) == 12 for item in geometries))
 
-    def test_real_i_u_t_and_angles_are_explicitly_unsupported(self):
-        profile_ids = (
-            "i-3x8.48", "u-3x6.10", "t-2x0.25",
-            "equal-angle-inch-2x0.25", "equal-angle-metric-50x5",
-        )
+    def test_real_i_u_and_t_remain_explicitly_unsupported(self):
+        profile_ids = ("i-3x8.48", "u-3x6.10", "t-2x0.25")
         for profile_id in profile_ids:
             with self.subTest(profile=profile_id), self.assertRaises(UnsupportedSectionGeometryError):
                 build_section_geometry(self.get(profile_id))
+
+    def test_required_real_equal_angles_use_catalog_centroid_and_dimensions(self):
+        profile_ids = (
+            "equal-angle-inch-0.5x0.125", "equal-angle-inch-2x0.25",
+            "equal-angle-metric-40x4", "equal-angle-metric-50x5",
+            "equal-angle-metric-100x9",
+        )
+        for profile_id in profile_ids:
+            profile = self.get(profile_id)
+            before = (dict(profile.geometry), dict(profile.centroid))
+            geometry = build_section_geometry(profile)
+            with self.subTest(profile=profile_id):
+                self.assertEqual(geometry, build_section_geometry(profile))
+                self.assertEqual(hash(geometry), hash(build_section_geometry(profile)))
+                self.assertEqual(before, (dict(profile.geometry), dict(profile.centroid)))
+                self.assertAlmostEqual(geometry.bounds.width, profile.geometry["b"])
+                self.assertAlmostEqual(geometry.bounds.height, profile.geometry["b"])
+                self.assertAlmostEqual(geometry.bounds.min_x, -profile.centroid["x"])
+                self.assertAlmostEqual(geometry.bounds.min_y, -profile.centroid["x"])
+                self.assertAlmostEqual(
+                    geometry.area,
+                    2 * profile.geometry["b"] * profile.geometry["t"]
+                    - profile.geometry["t"] ** 2,
+                )
+                self.assertNotAlmostEqual(
+                    geometry.area, profile.physical_properties.area_mm2
+                )
+
+    def test_all_80_equal_angles_and_all_188_supported_profiles_build(self):
+        angles = (
+            self.library.list_profiles(series_id="equal-angle-inch")
+            + self.library.list_profiles(series_id="equal-angle-metric")
+        )
+        self.assertEqual(len(angles), 80)
+        geometries = tuple(build_section_geometry(profile) for profile in angles)
+        self.assertTrue(all(len(item.outer_path.segments) == 6 for item in geometries))
+        supported = (
+            self.library.list_profiles(series_id="w")
+            + self.library.list_profiles(series_id="hp") + angles
+        )
+        self.assertEqual(len(supported), 188)
+        self.assertEqual(len(tuple(build_section_geometry(profile) for profile in supported)), 188)
+
+    def test_equal_angle_requires_catalog_centroid(self):
+        profile = self.get("equal-angle-metric-50x5")
+        with self.assertRaisesRegex(SectionGeometryError, "x"):
+            build_section_geometry(replace(profile, centroid={}))
 
     def test_tapered_i_is_not_silently_approximated_as_parallel(self):
         profile = self.get("w-150x13.0")

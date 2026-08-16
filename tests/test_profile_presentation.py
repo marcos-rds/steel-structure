@@ -69,9 +69,21 @@ class ProfilePresentationTests(unittest.TestCase):
                 self.assertEqual(rows, expected)
 
     def test_unsupported_families_have_no_preview_dimensions(self):
-        for query in ("I3x8.48", "U6x12.2", "T2x1/4", "L50x5"):
+        for query in ("I3x8.48", "U6x12.2", "T2x1/4"):
             with self.subTest(query=query):
                 self.assertEqual(profile_preview_dimension_rows(self.get(query)), ())
+
+    def test_equal_angle_preview_dimensions_are_b_and_t(self):
+        cases = {
+            "L2x1/4": {"b": "50,8 mm", "t": "6,35 mm"},
+            "L50x5": {"b": "50 mm", "t": "5 mm"},
+            "L100x9": {"b": "100 mm", "t": "9 mm"},
+        }
+        for query, expected in cases.items():
+            with self.subTest(query=query):
+                self.assertEqual(
+                    self.row_map(profile_preview_dimension_rows(self.get(query))), expected
+                )
 
     def test_hp_markers_availability_and_equivalent(self):
         profile = self.get("HP310x132")
@@ -87,9 +99,21 @@ class ProfilePresentationTests(unittest.TestCase):
         self.assertEqual(set(self.row_map(profile_dimension_rows(u))), {"d", "bf", "tw", "tf"})
         self.assertEqual(set(self.row_map(profile_dimension_rows(t))), {"d", "bf", "tw", "tf"})
         self.assertEqual(set(self.row_map(profile_dimension_rows(angle))), {"b", "t"})
+        self.assertEqual([row.label for row in profile_dimension_rows(angle)].count("b"), 1)
         angle_groups = self.group_map(angle)
-        self.assertEqual(angle_groups["Centroide / eixos principais"]["x do centroide"], "1,42 cm")
-        self.assertEqual(angle_groups["Centroide / eixos principais"]["rz mín."], "0,97 cm")
+        extra = angle_groups["Centroide / propriedades adicionais"]
+        self.assertEqual(extra["x do centroide"], "1,42 cm")
+        self.assertEqual(extra["y do centroide"], "1,42 cm")
+        self.assertEqual(extra["rz mín."], "0,97 cm")
+
+    def test_centroid_y_is_derived_only_for_equal_leg_angles(self):
+        for query in ("L40x3", "L50x5", "L100x9", "L2x1/4"):
+            rows = self.group_map(self.get(query))["Centroide / propriedades adicionais"]
+            self.assertEqual(rows["x do centroide"], rows["y do centroide"])
+        for query in ("U6x12.2", "T2x1/4"):
+            groups = self.group_map(self.get(query))
+            rows = groups.get("Centroide / propriedades adicionais", {})
+            self.assertNotIn("y do centroide", rows)
 
     def test_source_standards_are_only_exposed_for_supported_w_hp_geometry(self):
         w_source = self.row_map(profile_source_rows(self.get("W310x52")))
