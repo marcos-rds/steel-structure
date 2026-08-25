@@ -38,6 +38,8 @@ def _load_options_runtime_module():
     controller.next_default_label = lambda *_args: "Membro"
     orientation = types.ModuleType(root_name + ".interactive.section_orientation_preview")
     orientation.SectionOrientationPreview = object
+    quick_color = types.ModuleType(root_name + ".interactive.quick_color_menu")
+    quick_color.QuickColorMenu = object
     injected = {
         root_name: root,
         root_name + ".interactive": interactive,
@@ -46,6 +48,7 @@ def _load_options_runtime_module():
         root_name + ".member": member,
         root_name + ".preferences": preferences,
         root_name + ".interactive.member_controller": controller,
+        root_name + ".interactive.quick_color_menu": quick_color,
         root_name + ".interactive.section_orientation_preview": orientation,
         "PySide": pyside,
     }
@@ -421,6 +424,41 @@ class ProfileOptionsBrowserIntegrationTests(unittest.TestCase):
         self.assertIn("background-color: #f4d03f", style)
         self.assertIn("border: 1px solid #737373", style)
         self.assertNotIn("color:", style.replace("background-color:", ""))
+
+    def test_quick_and_full_color_paths_update_one_state_and_emit_one_signal(self):
+        class Color:
+            def __init__(self, *value):
+                if len(value) == 1 and isinstance(value[0], Color):
+                    self.value = value[0].value
+                else:
+                    self.value = tuple(value)
+            def isValid(self): return True
+            def __eq__(self, other): return isinstance(other, Color) and self.value == other.value
+
+        class Signal:
+            def __init__(self): self.count = 0
+            def emit(self): self.count += 1
+
+        previous = getattr(self.module.QtGui, "QColor", None)
+        self.module.QtGui.QColor = Color
+        try:
+            widget = object.__new__(self.module.ProfileOptionsWidget)
+            widget._color = Color(1, 2, 3)
+            widget.colorChanged = Signal()
+            widget.updates = 0
+            widget._update_color_button = lambda: setattr(
+                widget, "updates", widget.updates + 1
+            )
+            self.module.ProfileOptionsWidget._apply_color(widget, (55, 111, 166))
+            self.assertEqual(widget._color, Color(55, 111, 166))
+            self.assertEqual((widget.updates, widget.colorChanged.count), (1, 1))
+            self.module.ProfileOptionsWidget._apply_color(widget, Color(55, 111, 166))
+            self.assertEqual((widget.updates, widget.colorChanged.count), (1, 1))
+        finally:
+            if previous is None:
+                delattr(self.module.QtGui, "QColor")
+            else:
+                self.module.QtGui.QColor = previous
 
 
 if __name__ == "__main__":

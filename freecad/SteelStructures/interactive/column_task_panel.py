@@ -45,7 +45,7 @@ class ColumnTaskPanel(QtWidgets.QGroupBox):
             self.profile_options.profile.currentIndexChanged.connect(on_preview_changed)
             self.profile_options.insertion.currentIndexChanged.connect(on_preview_changed)
             self.profile_options.rotation.valueChanged.connect(on_preview_changed)
-            self.profile_options.color_button.clicked.connect(on_preview_changed)
+            self.profile_options.colorChanged.connect(on_preview_changed)
 
     @property
     def height_value(self):

@@ -8,6 +8,7 @@ from ..member import ELEMENT_TYPES, INSERTION_OPTIONS
 from ..preferences import MemberCreationSettings
 from ..profiles import build_section_geometry
 from .member_controller import MemberCreationOptions, compact_profile_designation, next_default_label
+from .quick_color_menu import QuickColorMenu
 from .section_orientation_preview import SectionOrientationPreview
 
 
@@ -192,6 +193,8 @@ class _OrientationPanel(QtWidgets.QGroupBox):
 class ProfileOptionsWidget(QtWidgets.QGroupBox):
     """Profile-only controls; all point input remains owned by Draft."""
 
+    colorChanged = QtCore.Signal()
+
     def __init__(self, document, parent=None, element_types=None):
         super().__init__("Opções do perfil", parent)
         self.document = document
@@ -252,7 +255,10 @@ class ProfileOptionsWidget(QtWidgets.QGroupBox):
         self.color_button.setFixedSize(
             max(self.fontMetrics().lineSpacing() * 4, swatch_height), swatch_height
         )
-        self.color_button.clicked.connect(self._choose_color)
+        self.quick_color_menu = QuickColorMenu(self)
+        self.quick_color_menu.colorSelected.connect(self._apply_color)
+        self.quick_color_menu.moreColorsRequested.connect(self._choose_color)
+        self.color_button.clicked.connect(self._show_quick_color_menu)
         self._update_color_button()
         identity_form.addRow("Nome:", self.name_edit)
         identity_form.addRow("Tipo do elemento:", self.element_type)
@@ -422,8 +428,25 @@ class ProfileOptionsWidget(QtWidgets.QGroupBox):
     def _choose_color(self):
         selected = QtWidgets.QColorDialog.getColor(self._color, self, "Cor do elemento")
         if selected.isValid():
-            self._color = selected
-            self._update_color_button()
+            self._apply_color(selected)
+
+    def _show_quick_color_menu(self):
+        self.quick_color_menu.set_current_color(self._color)
+        position = self.color_button.mapToGlobal(
+            QtCore.QPoint(0, self.color_button.height())
+        )
+        self.quick_color_menu.popup(position)
+
+    def _apply_color(self, value):
+        if isinstance(value, tuple):
+            selected = QtGui.QColor(*value)
+        else:
+            selected = QtGui.QColor(value)
+        if not selected.isValid() or selected == self._color:
+            return
+        self._color = selected
+        self._update_color_button()
+        self.colorChanged.emit()
 
     def _update_color_button(self):
         border = self.palette().color(QtGui.QPalette.Mid).name()

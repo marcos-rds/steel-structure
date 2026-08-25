@@ -75,11 +75,14 @@ class DraftNativeArchitectureTests(unittest.TestCase):
         self.assertIn("initial_profile_ref=self._current_profile_ref()", self.options)
         self.assertEqual(self.options.count("def _open_profile_browser"), 1)
 
-    def test_profile_color_control_remains_conventional_and_accessible(self):
+    def test_profile_color_control_is_a_textless_accessible_swatch(self):
         self.assertIn('self.color_button = QtWidgets.QPushButton("")', self.options)
         self.assertIn('self.color_button.setToolTip("Escolher cor")', self.options)
         self.assertIn('self.color_button.setAccessibleName("Escolher cor")', self.options)
-        self.assertIn("self.color_button.clicked.connect(self._choose_color)", self.options)
+        self.assertNotIn('QPushButton("Escolher cor")', self.options)
+        self.assertIn("self.color_button.clicked.connect(self._show_quick_color_menu)", self.options)
+        self.assertIn("self.quick_color_menu.colorSelected.connect(self._apply_color)", self.options)
+        self.assertIn("self.quick_color_menu.moreColorsRequested.connect(self._choose_color)", self.options)
 
     def test_browser_selection_updates_combos_atomically_and_notifies_profile_once(self):
         method = self.options.split("    def set_profile_ref", 1)[1].split(

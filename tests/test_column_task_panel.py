@@ -77,7 +77,7 @@ class ColumnGeometryTests(unittest.TestCase):
         for signal in (
             "height.valueChanged", "profile.currentIndexChanged",
             "insertion.currentIndexChanged", "rotation.valueChanged",
-            "color_button.clicked",
+            "colorChanged",
         ):
             self.assertIn(signal, self.source)
 
