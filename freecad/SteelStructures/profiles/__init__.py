@@ -29,11 +29,23 @@ from .effective_properties import (
     GeometricSectionProperties, resolve_effective_section_properties,
     section_geometric_properties,
 )
+from .cold_formed import (
+    ColdFormedPath2D, PhysicalSectionProperties2D, SegmentIntersections2D,
+    angle_on_arc, arc_arc_intersections, path_self_intersections,
+    physical_section_properties, section_geometry_from_cold_formed,
+    segment_arc_intersections, segment_segment_intersections,
+)
+from .ue_section import (
+    UeDerivedDimensions, UeNormativeProperties, build_ue_mean_path,
+    build_ue_section, nbr_6355_expected_internal_radius,
+    ue_derived_dimensions, ue_normative_properties,
+)
 from .models import (
     CatalogMetadata,
     CatalogSource,
     CategoryDefinition,
     ManufacturerDefinition,
+    IssuerDefinition,
     PhysicalProperties,
     ProfileDefinition,
     ProfileRef,
@@ -50,7 +62,7 @@ from .validation import (
 __all__ = [
     "CatalogError", "CatalogMetadata", "CatalogSource",
     "CatalogValidationError", "CategoryDefinition", "ArcSegment2D", "LineSegment2D",
-    "ManufacturerDefinition", "PathSegment2D", "Point2D",
+    "ManufacturerDefinition", "IssuerDefinition", "PathSegment2D", "Point2D",
     "GeometryTemporarilyUnavailableError", "geometry_is_released",
     "PhysicalProperties", "ProfileDefinition", "ProfileLibrary",
     "ProfileNotFoundError", "ProfileRef", "SectionBounds2D",
@@ -67,4 +79,12 @@ __all__ = [
     "canonicalize_designation", "convert_to_canonical", "normalize_search_text",
     "GeometricSectionProperties", "resolve_effective_section_properties",
     "section_geometric_properties",
+    "ColdFormedPath2D", "PhysicalSectionProperties2D",
+    "SegmentIntersections2D", "angle_on_arc", "arc_arc_intersections",
+    "path_self_intersections", "segment_arc_intersections",
+    "segment_segment_intersections",
+    "physical_section_properties", "section_geometry_from_cold_formed",
+    "UeDerivedDimensions", "UeNormativeProperties", "build_ue_mean_path",
+    "build_ue_section", "nbr_6355_expected_internal_radius",
+    "ue_derived_dimensions", "ue_normative_properties",
 ]

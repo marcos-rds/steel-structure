@@ -600,6 +600,10 @@ def build_section_geometry(profile: ProfileDefinition) -> SectionGeometry2D:
     elif key == ("channel_section", "tapered_flange"):
         names = ("d", "bf", "tw", "tf", "flange_angle", "r1", "r2")
         builder = build_tapered_flange_channel_section
+    elif key == ("cold_formed_channel", "stiffened_u"):
+        from .ue_section import build_ue_section
+        names = ("bw", "bf", "D", "t", "ri")
+        builder = build_ue_section
     else:
         raise UnsupportedSectionGeometryError(
             f"geometria de seção ainda não suportada: {key[0]!r} / {key[1]!r}"

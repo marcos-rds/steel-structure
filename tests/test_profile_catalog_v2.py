@@ -294,19 +294,22 @@ class MultiCatalogAndReloadTests(unittest.TestCase):
 
 
 class LegacyFacadeTests(unittest.TestCase):
-    def test_legacy_hierarchy_and_empty_category_are_preserved(self):
-        self.assertEqual(profile_catalog.categories(), ["Aço Laminado", "Aço dobrado"])
+    def test_legacy_hierarchy_and_real_folded_category_are_preserved(self):
+        self.assertEqual(profile_catalog.categories(), ["Aço Laminado", "Aço Dobrado"])
         self.assertEqual(
             profile_catalog.series_for_category("Aço Laminado"),
             ["Perfis W", "Perfis HP", "Perfis I", "Perfis U", "Perfis T", "Cantoneiras - Polegadas", "Cantoneiras - Métricas"],
         )
-        self.assertEqual(profile_catalog.series_for_category("Aço dobrado"), [])
+        self.assertEqual(
+            profile_catalog.series_for_category("Aço Dobrado"),
+            ["U Enrijecido (Ue) — NBR 6355"],
+        )
         self.assertEqual(len(profile_catalog.designations("Aço Laminado", "Perfis W")), 100)
         self.assertEqual(len(profile_catalog.designations("Aço Laminado", "Perfis HP")), 8)
         self.assertEqual(len(profile_catalog.designations("Aço Laminado", "Perfis I")), 8)
         self.assertEqual(len(profile_catalog.designations("Aço Laminado", "Perfis U")), 9)
         self.assertEqual(len(profile_catalog.designations("Aço Laminado", "Perfis T")), 10)
-        self.assertEqual(len(profile_catalog.profiles()), 215)
+        self.assertEqual(len(profile_catalog.profiles()), 300)
         self.assertEqual(len(profile_catalog.designations("Aço Laminado", "Cantoneiras - Polegadas")), 50)
         self.assertEqual(len(profile_catalog.designations("Aço Laminado", "Cantoneiras - Métricas")), 30)
         self.assertEqual(profile_catalog.get('U 3" x 6,10').family, "u")

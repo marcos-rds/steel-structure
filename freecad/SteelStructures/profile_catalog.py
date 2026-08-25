@@ -13,14 +13,14 @@ from .profiles import (
     section_insertion_references,
 )
 
-# Preserve the current UI, including its intentionally empty folded-steel entry.
-# The typed API exposes only categories declared by actual catalogs.
-KNOWN_CATEGORIES = ["Aço Laminado", "Aço dobrado"]
+# The folded-steel category is now supplied by its real normative catalog.
+KNOWN_CATEGORIES = ["Aço Laminado"]
 
 # Temporary application capability until geometry generators for the other
 # catalog families are integrated and validated.
 SUPPORTED_CREATION_SERIES = {
     "w", "hp", "i", "u", "t", "equal-angle-inch", "equal-angle-metric",
+    "ue-nbr-6355",
 }
 
 
@@ -55,7 +55,8 @@ def is_creation_profile(definition) -> bool:
 
 def _legacy_source(definition) -> str:
     source = definition.catalog.source
-    value = f"{definition.manufacturer.name} - {source.source_name}"
+    owner = definition.manufacturer or definition.catalog.issuer
+    value = f"{owner.name} - {source.source_name}" if owner else source.source_name
     if source.source_revision:
         value += f", revisão {source.source_revision}"
     return value
@@ -66,7 +67,7 @@ def _adapt(definition, categories, series) -> Profile:
     return Profile(
         category=categories[(definition.ref.catalog_id, definition.category_id)],
         series=series[(definition.ref.catalog_id, definition.series_id)],
-        manufacturer=definition.manufacturer.name,
+        manufacturer=definition.manufacturer.name if definition.manufacturer else "",
         family=definition.family,
         designation=definition.designation,
         mass_per_m=float(physical.mass_per_length_kg_m),

@@ -29,7 +29,10 @@ def _profile_subtitle(profile, series_name):
     parts = [series_name]
     if (profile.geometry_type, profile.geometry_variant) == ("equal_angle", "equal_leg"):
         parts.append("Abas iguais")
-    parts.append(profile.manufacturer.name)
+    if profile.manufacturer is not None:
+        parts.append(profile.manufacturer.name)
+    elif profile.catalog.issuer is not None:
+        parts.append(profile.catalog.issuer.name)
     return " — ".join(parts)
 
 

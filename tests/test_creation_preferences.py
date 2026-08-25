@@ -30,6 +30,10 @@ PROFILES = {
     'U 6" x 12,20': types.SimpleNamespace(
         category="Aço laminado", series="Perfis U", designation='U 6" x 12,20'
     ),
+    "Ue 150 × 60 × 20 × 3,00": types.SimpleNamespace(
+        category="Aço Dobrado", series="U Enrijecido (Ue) — NBR 6355",
+        designation="Ue 150 × 60 × 20 × 3,00",
+    ),
 }
 
 
@@ -55,10 +59,10 @@ def load_preferences(database):
     package = types.ModuleType(package_name); package.__path__ = [str(PREFERENCES.parent)]
     app = types.ModuleType("FreeCAD"); app.ParamGet = database.ParamGet
     catalog = types.ModuleType(f"{package_name}.profile_catalog")
-    catalog.categories = lambda: ["Aço laminado", "Aço dobrado"]
+    catalog.categories = lambda: ["Aço laminado", "Aço Dobrado"]
     catalog.series_for_category = lambda category: (
         ["Perfis W", "Perfis U", "Cantoneiras - Métricas"]
-        if category == "Aço laminado" else []
+        if category == "Aço laminado" else ["U Enrijecido (Ue) — NBR 6355"]
     )
     catalog.designations = lambda category=None, series=None: [
         key for key, profile in PROFILES.items()
@@ -72,7 +76,16 @@ def load_preferences(database):
             "Centroide", "Centro da alma", "Face externa da alma",
             "Canto superior traseiro", "Canto inferior traseiro",
             "Ponta superior da mesa", "Ponta inferior da mesa",
-        ) if profile.series == "Perfis U" else tuple(member.INSERTION_OPTIONS)
+        ) if profile.series == "Perfis U" else (
+            "Centroide", "Centro da alma", "Face externa da alma",
+            "Canto externo superior", "Canto externo inferior",
+            "Ponta do enrijecedor superior", "Ponta do enrijecedor inferior",
+            "Centro externo superior", "Centro externo inferior",
+            "Canto externo do enrijecedor superior",
+            "Canto externo do enrijecedor inferior",
+        ) if profile.series == "U Enrijecido (Ue) — NBR 6355" else tuple(
+            member.INSERTION_OPTIONS
+        )
     )
     member = types.ModuleType(f"{package_name}.member")
     member.INSERTION_OPTIONS = [
@@ -226,6 +239,115 @@ class CreationPreferencesTests(unittest.TestCase):
                 self.assertEqual(
                     self.preferences.load_member_creation_settings().insertion, label
                 )
+
+    def test_ue_member_insertion_round_trip_uses_stable_family_ids(self):
+        expected = {
+            "Canto externo superior": "outer_top_corner",
+            "Canto externo inferior": "outer_bottom_corner",
+            "Ponta do enrijecedor superior": "lip_top_tip",
+            "Ponta do enrijecedor inferior": "lip_bottom_tip",
+        }
+        for label, identifier in expected.items():
+            settings = self.member(
+                category="Aço Dobrado",
+                series="U Enrijecido (Ue) — NBR 6355",
+                designation="Ue 150 × 60 × 20 × 3,00",
+                insertion=label,
+            )
+            with self.subTest(label=label):
+                self.assertTrue(
+                    self.preferences.save_member_creation_settings(settings)
+                )
+                stored = self.database.groups[self.preferences.MEMBER_PREFERENCES]
+                self.assertEqual(stored["Insertion"], identifier)
+                self.assertEqual(
+                    self.preferences.load_member_creation_settings().insertion,
+                    label,
+                )
+
+    def test_ue_column_insertion_round_trip_uses_stable_family_ids(self):
+        expected = {
+            "Canto externo superior": "outer_top_corner",
+            "Canto externo inferior": "outer_bottom_corner",
+            "Ponta do enrijecedor superior": "lip_top_tip",
+            "Ponta do enrijecedor inferior": "lip_bottom_tip",
+        }
+        for label, identifier in expected.items():
+            settings = self.column(
+                category="Aço Dobrado",
+                series="U Enrijecido (Ue) — NBR 6355",
+                designation="Ue 150 × 60 × 20 × 3,00",
+                insertion=label,
+            )
+            with self.subTest(label=label):
+                self.assertTrue(
+                    self.preferences.save_column_creation_settings(settings)
+                )
+                stored = self.database.groups[self.preferences.COLUMN_PREFERENCES]
+                self.assertEqual(stored["Insertion"], identifier)
+                self.assertEqual(
+                    self.preferences.load_column_creation_settings().insertion,
+                    label,
+                )
+
+    def test_new_ue_member_insertion_round_trip_uses_approved_ids(self):
+        expected = {
+            "Centro externo superior": "outer_top_mid",
+            "Centro externo inferior": "outer_bottom_mid",
+            "Canto externo do enrijecedor superior": "outer_lip_top_corner",
+            "Canto externo do enrijecedor inferior": "outer_lip_bottom_corner",
+        }
+        for label, identifier in expected.items():
+            settings = self.member(
+                category="Aço Dobrado",
+                series="U Enrijecido (Ue) — NBR 6355",
+                designation="Ue 150 × 60 × 20 × 3,00",
+                insertion=label,
+            )
+            with self.subTest(label=label):
+                self.assertTrue(self.preferences.save_member_creation_settings(settings))
+                stored = self.database.groups[self.preferences.MEMBER_PREFERENCES]
+                self.assertEqual(stored["Insertion"], identifier)
+                self.assertEqual(
+                    self.preferences.load_member_creation_settings().insertion, label
+                )
+
+    def test_new_ue_column_insertion_round_trip_uses_approved_ids(self):
+        expected = {
+            "Centro externo superior": "outer_top_mid",
+            "Centro externo inferior": "outer_bottom_mid",
+            "Canto externo do enrijecedor superior": "outer_lip_top_corner",
+            "Canto externo do enrijecedor inferior": "outer_lip_bottom_corner",
+        }
+        for label, identifier in expected.items():
+            settings = self.column(
+                category="Aço Dobrado",
+                series="U Enrijecido (Ue) — NBR 6355",
+                designation="Ue 150 × 60 × 20 × 3,00",
+                insertion=label,
+            )
+            with self.subTest(label=label):
+                self.assertTrue(self.preferences.save_column_creation_settings(settings))
+                stored = self.database.groups[self.preferences.COLUMN_PREFERENCES]
+                self.assertEqual(stored["Insertion"], identifier)
+                self.assertEqual(
+                    self.preferences.load_column_creation_settings().insertion, label
+                )
+
+    def test_unknown_column_insertion_key_falls_back_without_exception(self):
+        settings = self.column(
+            category="Aço Dobrado",
+            series="U Enrijecido (Ue) — NBR 6355",
+            designation="Ue 150 × 60 × 20 × 3,00",
+            insertion="Canto externo inferior",
+        )
+        self.assertTrue(self.preferences.save_column_creation_settings(settings))
+        group = self.database.groups[self.preferences.COLUMN_PREFERENCES]
+        group["Insertion"] = "unknown_ue_reference"
+        self.assertEqual(
+            self.preferences.load_column_creation_settings().insertion,
+            "Centroide",
+        )
 
     def test_namespace_is_exclusively_steel_structures(self):
         self.preferences.save_member_creation_settings(self.member())

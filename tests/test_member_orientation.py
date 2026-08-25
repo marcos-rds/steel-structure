@@ -226,6 +226,141 @@ class MemberOrientationTests(unittest.TestCase):
         finally:
             self.member.profile_catalog.get = original_get
 
+    def test_ue_member_and_column_use_generic_pipeline_for_three_sizes(self):
+        from freecad.SteelStructures import profile_catalog as real_catalog
+        real_catalog.reload()
+        profiles = [
+            next(profile for profile in real_catalog.profiles().values()
+                 if token in profile.designation)
+            for token in ("50 × 25 × 10 × 1,20", "150 × 60 × 20 × 3,00",
+                          "300 × 100 × 25 × 4,75")
+        ]
+        original_get = self.member.profile_catalog.get
+        try:
+            for profile in profiles:
+                self.member.profile_catalog.get = lambda _designation, value=profile: value
+                geometry = self.member._section_geometry(profile)
+                insertions = tuple(
+                    item.label for item in self.member.section_insertion_references(geometry)
+                )
+                self.assertEqual(len(insertions), 11)
+                self.assertEqual(len(self.member._section_face(profile).wire.edges), 20)
+                for element_type, end in (
+                    ("Membro", (3000, 0, 0)), ("Membro", (0, 3000, 0)),
+                    ("Membro", (0, 0, 3000)), ("Membro", (1800, 1200, 2400)),
+                    ("Pilar", (0, 0, 4200)),
+                ):
+                    for rotation in (0, 90):
+                        obj, proxy = self.create(
+                            (0, 0, 0), end, rotation=rotation,
+                            insertion=insertions[-1], element_type=element_type,
+                        )
+                        expected = self.member._insertion_translation(profile, insertions[-1])
+                        self.assertVector(obj.Shape.face_translation, (*expected, 0.0))
+                        obj.OffsetX, obj.OffsetY = Quantity(7), Quantity(-11)
+                        proxy.execute(obj)
+                        self.assertAlmostEqual(
+                            obj.TotalMass,
+                            profile.mass_per_m * math.sqrt(sum(v * v for v in end)) / 1000.0,
+                        )
+        finally:
+            self.member.profile_catalog.get = original_get
+
+    def test_ue_new_insertions_use_generic_member_and_column_pipeline(self):
+        from freecad.SteelStructures import profile_catalog as real_catalog
+        real_catalog.reload()
+        profiles = [
+            next(profile for profile in real_catalog.profiles().values()
+                 if token in profile.designation)
+            for token in ("50 × 25 × 10 × 1,20", "150 × 60 × 20 × 3,00",
+                          "300 × 85 × 25 × 2,25")
+        ]
+        labels = (
+            "Centro externo superior", "Centro externo inferior",
+            "Canto externo do enrijecedor superior",
+            "Canto externo do enrijecedor inferior",
+        )
+        original_get = self.member.profile_catalog.get
+        try:
+            for index, label in enumerate(labels):
+                profile = profiles[index % len(profiles)]
+                self.member.profile_catalog.get = lambda _designation, value=profile: value
+                for element_type in ("Membro", "Pilar"):
+                    with self.subTest(label=label, element_type=element_type,
+                                      profile=profile.designation):
+                        rotation = 37 if index == 0 else 0
+                        obj, proxy = self.create(
+                            (0, 0, 0), (1800, 1200, 2400), rotation=rotation,
+                            insertion=label, element_type=element_type,
+                        )
+                        expected = self.member._insertion_translation(profile, label)
+                        self.assertVector(obj.Shape.face_translation, (*expected, 0.0))
+                        if index == 1 and element_type == "Membro":
+                            obj.OffsetX, obj.OffsetY = Quantity(7), Quantity(-11)
+                            proxy.execute(obj)
+                            self.assertVector(
+                                obj.Shape.face_translation,
+                                (expected[0] + 7, expected[1] - 11, 0.0),
+                            )
+                        self.assertEqual(obj.Rotation.Value, rotation)
+                        self.assertGreater(obj.MemberLength, 0.0)
+                        self.assertGreater(obj.TotalMass, 0.0)
+        finally:
+            self.member.profile_catalog.get = original_get
+
+    def test_existing_member_switches_between_ue_sizes_and_rolled_profile(self):
+        from freecad.SteelStructures import profile_catalog as real_catalog
+        real_catalog.reload()
+        ue_profiles = [
+            next(profile for profile in real_catalog.profiles().values()
+                 if token in profile.designation)
+            for token in ("50 × 25 × 10 × 1,20", "150 × 60 × 20 × 3,00",
+                          "300 × 100 × 25 × 4,75")
+        ]
+        rolled = real_catalog.get("W 310 x 52,0")
+        lookup = {profile.designation: profile for profile in (*ue_profiles, rolled)}
+        original_get = self.member.profile_catalog.get
+        original_insertion_options = getattr(
+            self.member.profile_catalog, "insertion_options", None
+        )
+        self.member.profile_catalog.get = lambda designation: lookup.get(designation, ue_profiles[0])
+        self.member.profile_catalog.insertion_options = real_catalog.insertion_options
+        try:
+            obj, proxy = self.create(
+                (100, 200, 300), (1900, 1400, 2700), rotation=37,
+                insertion="Centro externo superior",
+            )
+            obj.PropertiesList.append("Insertion")
+            expected_placement = obj.Placement.Rotation.matrix
+            expected_length = obj.MemberLength
+            expected_insertions = (
+                "Centro externo superior", "Centro externo superior",
+                "Centro externo superior", "Centroide", "Centroide",
+            )
+            translations = []
+            for profile, expected_insertion in zip(
+                    (*ue_profiles, rolled, ue_profiles[1]), expected_insertions):
+                obj.Profile = profile.designation
+                proxy.onChanged(obj, "Profile")
+                proxy.execute(obj)
+                self.assertEqual(obj.Placement.Rotation.matrix, expected_placement)
+                self.assertAlmostEqual(obj.MemberLength, expected_length)
+                self.assertEqual(obj.Insertion, expected_insertion)
+                translations.append((obj.Shape.face_translation.x,
+                                     obj.Shape.face_translation.y))
+                self.assertEqual(obj.Rotation.Value, 37.0)
+                self.assertAlmostEqual(
+                    obj.TotalMass, profile.mass_per_m * expected_length / 1000.0
+                )
+            self.assertNotEqual(translations[0], translations[1])
+            self.assertNotEqual(translations[1], translations[2])
+        finally:
+            self.member.profile_catalog.get = original_get
+            if original_insertion_options is None:
+                del self.member.profile_catalog.insertion_options
+            else:
+                self.member.profile_catalog.insertion_options = original_insertion_options
+
     def test_tapered_i_member_and_column_use_generic_orientation_insertion_and_mass(self):
         from freecad.SteelStructures import profile_catalog as real_catalog
         tapered_i = real_catalog.get('I 5" x 14,88')

@@ -44,6 +44,14 @@ _INSERTION_KEYS = {
     "Canto inferior traseiro": "rear_bottom",
     "Ponta superior da mesa": "flange_top_tip",
     "Ponta inferior da mesa": "flange_bottom_tip",
+    "Canto externo superior": "outer_top_corner",
+    "Canto externo inferior": "outer_bottom_corner",
+    "Ponta do enrijecedor superior": "lip_top_tip",
+    "Ponta do enrijecedor inferior": "lip_bottom_tip",
+    "Centro externo superior": "outer_top_mid",
+    "Centro externo inferior": "outer_bottom_mid",
+    "Canto externo do enrijecedor superior": "outer_lip_top_corner",
+    "Canto externo do enrijecedor inferior": "outer_lip_bottom_corner",
 }
 _INSERTIONS_BY_KEY = {key: label for label, key in _INSERTION_KEYS.items()}
 

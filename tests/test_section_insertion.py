@@ -142,5 +142,114 @@ class SectionInsertionTests(unittest.TestCase):
                     self.assertAlmostEqual(reference.point.x + tx, 0.0)
                     self.assertAlmostEqual(reference.point.y + ty, 0.0)
 
+    def test_ue_outer_references_use_nominal_faces_and_tangent_midpoint(self):
+        expected_new = (
+            ("outer_top_mid", "Centro externo superior"),
+            ("outer_bottom_mid", "Centro externo inferior"),
+            ("outer_lip_top_corner", "Canto externo do enrijecedor superior"),
+            ("outer_lip_bottom_corner", "Canto externo do enrijecedor inferior"),
+        )
+        for designation in (
+                "Ue 50x25x10x1.20",
+                "Ue 150x60x20x3.00",
+                "Ue 300x85x25x2.25"):
+            geometry = self.geometry(designation)
+            stations = dict(geometry.dimension_stations)
+            references = section_insertion_references(geometry)
+            points = {item.id: item.point for item in references}
+            outer_flange_mid_x = (
+                stations["flange_web_tangent_x"]
+                + stations["flange_lip_tangent_x"]
+            ) / 2.0
+            top_straight = next(
+                segment for segment in geometry.outer_path.segments
+                if segment.start.y == segment.end.y == stations["nominal_top_y"]
+                and {segment.start.x, segment.end.x} == {
+                    stations["flange_web_tangent_x"],
+                    stations["flange_lip_tangent_x"],
+                }
+            )
+            bottom_straight = next(
+                segment for segment in geometry.outer_path.segments
+                if segment.start.y == segment.end.y == stations["nominal_bottom_y"]
+                and {segment.start.x, segment.end.x} == {
+                    stations["flange_web_tangent_x"],
+                    stations["flange_lip_tangent_x"],
+                }
+            )
+            with self.subTest(designation=designation):
+                self.assertEqual(
+                    tuple((item.id, item.label) for item in references[-4:]),
+                    expected_new,
+                )
+                self.assertEqual(
+                    points["outer_top_mid"],
+                    type(geometry.origin)(
+                        outer_flange_mid_x, stations["nominal_top_y"]
+                    ),
+                )
+                self.assertEqual(
+                    points["outer_bottom_mid"],
+                    type(geometry.origin)(
+                        outer_flange_mid_x, stations["nominal_bottom_y"]
+                    ),
+                )
+                self.assertEqual(
+                    points["outer_lip_top_corner"],
+                    type(geometry.origin)(
+                        stations["nominal_flange_tip_x"],
+                        stations["nominal_top_y"],
+                    ),
+                )
+                self.assertEqual(
+                    points["outer_lip_bottom_corner"],
+                    type(geometry.origin)(
+                        stations["nominal_flange_tip_x"],
+                        stations["nominal_bottom_y"],
+                    ),
+                )
+                self.assertEqual(points["outer_top_mid"].x,
+                                 points["outer_bottom_mid"].x)
+                self.assertLess(stations["flange_web_tangent_x"],
+                                points["outer_top_mid"].x)
+                self.assertLess(points["outer_top_mid"].x,
+                                stations["flange_lip_tangent_x"])
+                self.assertEqual(
+                    points["outer_top_mid"].x,
+                    (top_straight.start.x + top_straight.end.x) / 2.0,
+                )
+                self.assertEqual(
+                    points["outer_bottom_mid"].x,
+                    (bottom_straight.start.x + bottom_straight.end.x) / 2.0,
+                )
+                self.assertEqual(points["outer_lip_top_corner"].x,
+                                 points["outer_lip_bottom_corner"].x)
+                self.assertEqual(points["rear_top"].y,
+                                 points["outer_lip_top_corner"].y)
+                self.assertEqual(points["rear_bottom"].y,
+                                 points["outer_lip_bottom_corner"].y)
+                self.assertEqual(points["rear_top"].x,
+                                 stations["external_web_x"])
+                for identifier, label in expected_new:
+                    for value in (identifier, label):
+                        tx, ty = insertion_translation(geometry, value)
+                        self.assertAlmostEqual(points[identifier].x + tx, 0.0)
+                        self.assertAlmostEqual(points[identifier].y + ty, 0.0)
+
+    def test_ue_rejected_mean_line_extension_ids_are_absent(self):
+        geometry = self.geometry("Ue 150x60x20x3.00")
+        references = section_insertion_references(geometry)
+        identifiers = {item.id for item in references}
+        labels = {item.label for item in references}
+        self.assertEqual(len(references), 11)
+        self.assertTrue({
+            "flange_top_mid", "flange_bottom_mid", "lip_top_root", "lip_bottom_root",
+        }.isdisjoint(identifiers))
+        self.assertTrue({
+            "Meio da mesa superior", "Meio da mesa inferior",
+            "Raiz do enrijecedor superior", "Raiz do enrijecedor inferior",
+        }.isdisjoint(labels))
+
+
 if __name__ == "__main__":
     unittest.main()

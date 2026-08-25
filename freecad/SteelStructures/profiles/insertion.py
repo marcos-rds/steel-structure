@@ -74,6 +74,47 @@ def section_insertion_references(geometry: SectionGeometry2D):
             ("flange_top_tip", "Ponta superior da mesa", upper_tip),
             ("flange_bottom_tip", "Ponta inferior da mesa", lower_tip),
         )
+    elif key == ("cold_formed_channel", "stiffened_u"):
+        stations = dict(geometry.dimension_stations)
+        upper_cap = geometry.outer_path.segments[-1]
+        lower_cap = geometry.outer_path.segments[9]
+        upper_tip = Point2D(
+            (upper_cap.start.x + upper_cap.end.x) / 2.0,
+            (upper_cap.start.y + upper_cap.end.y) / 2.0,
+        )
+        lower_tip = Point2D(
+            (lower_cap.start.x + lower_cap.end.x) / 2.0,
+            (lower_cap.start.y + lower_cap.end.y) / 2.0,
+        )
+        outer_flange_mid_x = (
+            stations["flange_web_tangent_x"]
+            + stations["flange_lip_tangent_x"]
+        ) / 2.0
+        values = (
+            ("centroid", "Centroide", geometry.origin),
+            ("web_center", "Centro da alma", Point2D(stations["web_mean_x"], 0.0)),
+            ("web_back", "Face externa da alma", Point2D(stations["external_web_x"], 0.0)),
+            ("rear_top", "Canto externo superior", Point2D(
+                stations["external_web_x"], stations["nominal_top_y"],
+            )),
+            ("rear_bottom", "Canto externo inferior", Point2D(
+                stations["external_web_x"], stations["nominal_bottom_y"],
+            )),
+            ("lip_top_tip", "Ponta do enrijecedor superior", upper_tip),
+            ("lip_bottom_tip", "Ponta do enrijecedor inferior", lower_tip),
+            ("outer_top_mid", "Centro externo superior", Point2D(
+                outer_flange_mid_x, stations["nominal_top_y"],
+            )),
+            ("outer_bottom_mid", "Centro externo inferior", Point2D(
+                outer_flange_mid_x, stations["nominal_bottom_y"],
+            )),
+            ("outer_lip_top_corner", "Canto externo do enrijecedor superior", Point2D(
+                stations["nominal_flange_tip_x"], stations["nominal_top_y"],
+            )),
+            ("outer_lip_bottom_corner", "Canto externo do enrijecedor inferior", Point2D(
+                stations["nominal_flange_tip_x"], stations["nominal_bottom_y"],
+            )),
+        )
     elif key == ("tee_section", "standard_tee"):
         values = (
             ("centroid", "Centroide", geometry.origin),

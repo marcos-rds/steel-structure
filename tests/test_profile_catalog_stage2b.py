@@ -35,7 +35,7 @@ class Stage2BCatalogTests(unittest.TestCase):
     def test_exact_global_and_series_counts_and_unique_refs(self):
         expected = {"w": 100, "hp": 8, "i": 8, "u": 12, "t": 10,
                     "equal-angle-inch": 50, "equal-angle-metric": 30}
-        self.assertEqual(len(self.library.list_catalogs()), 1)
+        self.assertEqual(len(self.library.list_catalogs()), 2)
         self.assertEqual(len(tuple(item for item in self.library.list_categories()
                                    if item.catalog_id == CATALOG_ID)), 1)
         self.assertEqual(len(tuple(item for item in self.library.list_series()

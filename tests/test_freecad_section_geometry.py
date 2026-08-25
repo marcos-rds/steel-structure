@@ -239,6 +239,20 @@ class FreeCADSectionAdapterTests(unittest.TestCase):
                 self.assertAlmostEqual(face.BoundBox.YLength, profile.geometry["d"])
                 self.assertAlmostEqual(solid.Volume, geometry.area * 1000.0)
 
+    def test_representative_ue_creates_closed_face_and_extrusion(self):
+        profile = self.library.get(ProfileRef(
+            "abnt-nbr-6355-2012-a3", "ue-150x60x20x3.00"
+        ))
+        geometry = build_section_geometry(profile)
+        wire = self.adapter.section_path_to_wire(geometry.outer_path)
+        face = self.adapter.section_geometry_to_face(geometry)
+        solid = face.extrude(Vector(0, 0, 1000))
+        self.assertTrue(wire.isClosed())
+        self.assertFalse(face.isNull())
+        self.assertFalse(solid.isNull())
+        self.assertEqual(len(wire.Edges), 20)
+        self.assertAlmostEqual(solid.Volume, face.Area * 1000.0)
+
     def test_w310_face_and_extrusion_match_expected_area_bounds_and_volume(self):
         geometry = build_section_geometry(self.profile("w-310x52.0"))
         face = self.adapter.section_geometry_to_face(geometry)

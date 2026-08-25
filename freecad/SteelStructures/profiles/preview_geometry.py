@@ -202,6 +202,39 @@ _U_POINTS = {
     "rear_bottom": (-0.65, -1.0), "flange_top_tip": (0.62, 0.98),
     "flange_bottom_tip": (0.62, -0.98),
 }
+_UE_PATH = (
+    SchematicLine2D(_point(0.72, 0.52), _point(0.72, 0.78)),
+    SchematicCubic2D(_point(0.72, 0.78), _point(0.72, 0.85), _point(0.67, 0.90), _point(0.60, 0.90)),
+    SchematicLine2D(_point(0.60, 0.90), _point(-0.48, 0.90)),
+    SchematicCubic2D(_point(-0.48, 0.90), _point(-0.56, 0.90), _point(-0.62, 0.84), _point(-0.62, 0.76)),
+    SchematicLine2D(_point(-0.62, 0.76), _point(-0.62, -0.76)),
+    SchematicCubic2D(_point(-0.62, -0.76), _point(-0.62, -0.84), _point(-0.56, -0.90), _point(-0.48, -0.90)),
+    SchematicLine2D(_point(-0.48, -0.90), _point(0.60, -0.90)),
+    SchematicCubic2D(_point(0.60, -0.90), _point(0.67, -0.90), _point(0.72, -0.85), _point(0.72, -0.78)),
+    SchematicLine2D(_point(0.72, -0.78), _point(0.72, -0.52)),
+    SchematicLine2D(_point(0.72, -0.52), _point(0.54, -0.52)),
+    SchematicLine2D(_point(0.54, -0.52), _point(0.54, -0.70)),
+    SchematicCubic2D(_point(0.54, -0.70), _point(0.54, -0.74), _point(0.50, -0.76), _point(0.46, -0.76)),
+    SchematicLine2D(_point(0.46, -0.76), _point(-0.40, -0.76)),
+    SchematicCubic2D(_point(-0.40, -0.76), _point(-0.42, -0.76), _point(-0.44, -0.74), _point(-0.44, -0.72)),
+    SchematicLine2D(_point(-0.44, -0.72), _point(-0.44, 0.72)),
+    SchematicCubic2D(_point(-0.44, 0.72), _point(-0.44, 0.74), _point(-0.42, 0.76), _point(-0.40, 0.76)),
+    SchematicLine2D(_point(-0.40, 0.76), _point(0.46, 0.76)),
+    SchematicCubic2D(_point(0.46, 0.76), _point(0.50, 0.76), _point(0.54, 0.74), _point(0.54, 0.70)),
+    SchematicLine2D(_point(0.54, 0.70), _point(0.54, 0.52)),
+    SchematicLine2D(_point(0.54, 0.52), _point(0.72, 0.52)),
+)
+_UE_OUTLINE = _schematic_outline(_UE_PATH)
+_UE_POINTS = {
+    "centroid": (-0.20, 0.0), "web_center": (-0.53, 0.0),
+    "web_back": (-0.62, 0.0), "rear_top": (-0.62, 0.90),
+    "rear_bottom": (-0.62, -0.90), "lip_top_tip": (0.63, 0.52),
+    "lip_bottom_tip": (0.63, -0.52),
+    "outer_top_mid": (0.06, 0.90),
+    "outer_bottom_mid": (0.06, -0.90),
+    "outer_lip_top_corner": (0.72, 0.90),
+    "outer_lip_bottom_corner": (0.72, -0.90),
+}
 _L_OUTLINE = tuple(Point2D(*point) for point in (
     (-0.90, -0.90), (0.90, -0.90), (0.90, -0.56),
     (-0.56, -0.56), (-0.56, 0.90), (-0.90, 0.90),
@@ -229,6 +262,7 @@ _SCHEMATICS = {
         _TAPERED_I_OUTLINE, _I_POINTS, _TAPERED_I_PATH,
     ),
     ("channel_section", "tapered_flange"): (_U_OUTLINE, _U_POINTS, _U_PATH),
+    ("cold_formed_channel", "stiffened_u"): (_UE_OUTLINE, _UE_POINTS, _UE_PATH),
     ("equal_angle", "equal_leg"): (_L_OUTLINE, _L_POINTS, _line_segments(_L_OUTLINE)),
     ("tee_section", "standard_tee"): (_T_OUTLINE, _T_POINTS, _line_segments(_T_OUTLINE)),
 }

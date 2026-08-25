@@ -13,6 +13,7 @@ from .models import (
     CatalogSource,
     CategoryDefinition,
     ManufacturerDefinition,
+    IssuerDefinition,
     PhysicalProperties,
     ProfileDefinition,
     ProfileRef,
@@ -156,13 +157,26 @@ def validate_catalog_payload(payload, path: Path):
 
     raw_catalog = _mapping(payload.get("catalog"), path, "unknown", "catalog")
     catalog_id = _id(raw_catalog.get("id"), path, "unknown", "catalog.id")
-    manufacturer_raw = _mapping(
-        raw_catalog.get("manufacturer"), path, catalog_id, "catalog.manufacturer"
-    )
-    manufacturer = ManufacturerDefinition(
-        id=_id(manufacturer_raw.get("id"), path, catalog_id, "manufacturer.id"),
-        name=_string(manufacturer_raw.get("name"), path, catalog_id, "manufacturer.name"),
-    )
+    manufacturer_raw = raw_catalog.get("manufacturer")
+    manufacturer = None
+    if manufacturer_raw is not None:
+        manufacturer_raw = _mapping(
+            manufacturer_raw, path, catalog_id, "catalog.manufacturer"
+        )
+        manufacturer = ManufacturerDefinition(
+            id=_id(manufacturer_raw.get("id"), path, catalog_id, "manufacturer.id"),
+            name=_string(manufacturer_raw.get("name"), path, catalog_id, "manufacturer.name"),
+        )
+    issuer_raw = raw_catalog.get("issuer")
+    issuer = None
+    if issuer_raw is not None:
+        issuer_raw = _mapping(issuer_raw, path, catalog_id, "catalog.issuer")
+        issuer = IssuerDefinition(
+            id=_id(issuer_raw.get("id"), path, catalog_id, "issuer.id"),
+            name=_string(issuer_raw.get("name"), path, catalog_id, "issuer.name"),
+        )
+    if manufacturer is None and issuer is None:
+        raise _error(path, catalog_id, "catálogo requer manufacturer ou issuer")
     source_raw = _mapping(raw_catalog.get("source"), path, catalog_id, "catalog.source")
     source = CatalogSource(
         source_name=_string(source_raw.get("source_name"), path, catalog_id, "source.source_name"),
@@ -184,6 +198,7 @@ def validate_catalog_payload(payload, path: Path):
             for value in _list(raw_catalog.get("standard_references", []), path, catalog_id, "catalog.standard_references")
         ),
         material_notes=_string(raw_catalog.get("material_notes"), path, catalog_id, "catalog.material_notes", True),
+        issuer=issuer,
     )
 
     categories = []
@@ -284,6 +299,37 @@ def validate_catalog_payload(payload, path: Path):
                     raise _error(path, catalog_id, f"perfil {profile_id}: flange_angle deve estar entre 0 e 45 graus")
                 if geometry["tl"] >= (geometry["bf"] - geometry["tw"]) / 2.0:
                     raise _error(path, catalog_id, f"perfil {profile_id}: TL deve ficar antes da alma")
+        elif geometry_type == "cold_formed_channel":
+            if series_definition.geometry_variant != "stiffened_u":
+                raise _error(path, catalog_id, "variante cold-formed ainda não suportada")
+            for parameter in ("bw", "bf", "D", "tn", "t", "ri"):
+                geometry[parameter] = convert_to_canonical(
+                    _number(geometry_raw.get(parameter), path, catalog_id,
+                            f"profiles[{index}].geometry.{parameter}", True),
+                    "length", units["length"],
+                )
+            from .ue_section import nbr_6355_expected_internal_radius, ue_derived_dimensions
+            try:
+                ue_derived_dimensions(**{
+                    key: geometry[key] for key in ("bw", "bf", "D", "t", "ri")
+                })
+            except ValueError as exc:
+                raise _error(path, catalog_id, f"perfil {profile_id}: {exc}") from exc
+            is_nbr_6355_a3_uncoated = (
+                catalog_id == "abnt-nbr-6355-2012-a3"
+                and series_id == "ue-nbr-6355"
+            )
+            if (is_nbr_6355_a3_uncoated
+                    and not math.isclose(geometry["t"], geometry["tn"],
+                                         rel_tol=1.0e-12, abs_tol=1.0e-9)):
+                raise _error(
+                    path, catalog_id,
+                    f"perfil {profile_id}: Tabela A.3, aço sem revestimento, exige t = tn",
+                )
+            expected_ri = nbr_6355_expected_internal_radius(geometry["tn"])
+            if not math.isclose(geometry["ri"], expected_ri, abs_tol=1.0e-9):
+                raise _error(path, catalog_id,
+                             f"perfil {profile_id}: ri diverge da regra da Tabela A.3")
         elif geometry_type == "equal_angle":
             for parameter in ("b", "t"):
                 geometry[parameter] = convert_to_canonical(

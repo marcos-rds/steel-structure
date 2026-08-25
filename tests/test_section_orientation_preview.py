@@ -34,6 +34,7 @@ class SectionOrientationPreviewGeometryTests(unittest.TestCase):
             ("HP310x79", "HP310x132", "i_section"),
             ('I3x8.48', 'I6x22.00', "i_section"),
             ("U3x6.10", "U12x37.00", "channel_section"),
+            ("Ue 50x25x10x1.20", "Ue 300x85x25x2.25", "cold_formed_channel"),
             ("L40x3", "L100x9", "equal_angle"),
             ("L2x1/4", "L8x3/4", "equal_angle"),
             ("T5/8x1/8", "T2x1/4", "tee_section"),
@@ -54,6 +55,11 @@ class SectionOrientationPreviewGeometryTests(unittest.TestCase):
                           "top_left", "top_right", "bottom_left", "bottom_right"},
             "U6x12.2": {"centroid", "web_center", "web_back", "rear_top",
                          "rear_bottom", "flange_top_tip", "flange_bottom_tip"},
+            "Ue 150x60x20x3.00": {
+                "centroid", "web_center", "web_back", "rear_top", "rear_bottom",
+                "lip_top_tip", "lip_bottom_tip", "outer_top_mid",
+                "outer_bottom_mid", "outer_lip_top_corner", "outer_lip_bottom_corner",
+            },
             "L50x5": {"centroid", "outer_corner", "top_tip", "right_tip",
                        "inner_corner"},
             "T2x1/4": {"centroid", "top", "bottom", "top_left", "top_right"},
@@ -279,6 +285,48 @@ class SectionOrientationPreviewGeometryTests(unittest.TestCase):
             x + 2, y - 1, 10,
         )
         self.assertEqual(found.id, wanted.id)
+
+    def test_ue_new_hotspots_share_rotation_scale_and_hit_testing(self):
+        schematic = self.schematic("Ue 150x60x20x3.00")
+        radius = profile_presentation_radius(schematic.outline, schematic.center)
+        new_ids = (
+            "outer_top_mid", "outer_bottom_mid",
+            "outer_lip_top_corner", "outer_lip_bottom_corner",
+        )
+        references = {item.id: item for item in schematic.references}
+        self.assertEqual(len(schematic.segments), 20)
+        self.assertEqual(len(references), 11)
+        for identifier in new_ids:
+            reference = references[identifier]
+            with self.subTest(identifier=identifier):
+                x, y = preview_screen_point(
+                    reference.point, schematic.center, 37, 120, 90, 48
+                )
+                selected = nearest_reference(
+                    schematic.references, schematic.center, 37,
+                    120, 90, 48, x + 1, y - 1, 9,
+                )
+                self.assertEqual(selected.id, identifier)
+                relative = transform_preview_point(
+                    reference.point, schematic.center, 0
+                )
+                rotated = transform_preview_point(
+                    reference.point, schematic.center, 90
+                )
+                self.assertAlmostEqual(rotated.x, -relative.y)
+                self.assertAlmostEqual(rotated.y, relative.x)
+                self.assertEqual(
+                    profile_presentation_radius(schematic.outline, schematic.center),
+                    radius,
+                )
+        self.assertGreater(references["outer_lip_top_corner"].point.x,
+                           references["outer_top_mid"].point.x)
+        self.assertAlmostEqual(references["outer_top_mid"].point.y,
+                               -references["outer_bottom_mid"].point.y)
+        self.assertEqual(references["outer_top_mid"].point,
+                         type(schematic.center)(0.06, 0.90))
+        self.assertEqual(references["outer_lip_bottom_corner"].point,
+                         type(schematic.center)(0.72, -0.90))
 
     def test_pending_u_never_produces_schematic_or_structural_geometry(self):
         pending = self.library.search("U3x7.44")[0]

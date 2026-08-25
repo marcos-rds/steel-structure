@@ -24,6 +24,7 @@ class PresentationGroup:
 _DIMENSION_LABELS = {
     "d": "d", "bf": "bf", "tw": "tw", "tf": "tf",
     "h": "h", "d_prime": "d'", "b": "b", "t": "t",
+    "bw": "bw", "D": "D", "tn": "tn", "ri": "ri",
     "r1": "r1", "r2": "r2", "flange_angle": "Ângulo da mesa",
     "tl": "TL",
 }
@@ -81,6 +82,7 @@ def profile_preview_dimension_rows(profile: ProfileDefinition) -> tuple[Presenta
         ("equal_angle", "equal_leg"): ("b", "t"),
         ("channel_section", "tapered_flange"): ("d", "bf", "tw", "tf"),
         ("tee_section", "standard_tee"): ("d", "bf", "tw", "tf"),
+        ("cold_formed_channel", "stiffened_u"): ("bw", "bf", "D", "t", "ri"),
     }
     if key not in keys_by_geometry:
         return ()
@@ -104,17 +106,20 @@ def _property_rows(profile, keys):
 
 def profile_property_groups(profile: ProfileDefinition) -> tuple[PresentationGroup, ...]:
     physical = profile.physical_properties
+    is_ue = (profile.geometry_type, profile.geometry_variant) == (
+        "cold_formed_channel", "stiffened_u"
+    )
     physical_rows = []
     if physical.mass_per_length_kg_m is not None:
         physical_rows.append(PresentationRow(
             "Massa linear", format_engineering_value(
-                physical.mass_per_length_kg_m, 1.0, "kg/m", 1
+                physical.mass_per_length_kg_m, 1.0, "kg/m", 2 if is_ue else 1
             )
         ))
     if physical.area_mm2 is not None:
         physical_rows.append(PresentationRow(
             "Área", format_engineering_value(
-                physical.area_mm2, 0.01, "cm²", 1
+                physical.area_mm2, 0.01, "cm²", 2 if is_ue else 1
             )
         ))
     if physical.surface_area_per_length_m2_m is not None:
@@ -139,8 +144,9 @@ def profile_property_groups(profile: ProfileDefinition) -> tuple[PresentationGro
         ))
     elif "x" in profile.centroid:
         centroid.append(PresentationRow(
-            "x do centroide",
+            "Xg" if is_ue else "x do centroide",
             format_engineering_value(profile.centroid["x"], 0.1, "cm"),
+            "Distância do centroide à face externa da alma" if is_ue else None,
         ))
         if (profile.geometry_type, profile.geometry_variant) == ("equal_angle", "equal_leg"):
             centroid.append(PresentationRow(
@@ -157,7 +163,7 @@ def profile_property_groups(profile: ProfileDefinition) -> tuple[PresentationGro
 
 def _compact_catalog_name(profile: ProfileDefinition) -> str:
     name = profile.catalog.source.source_name
-    prefix = f"{profile.manufacturer.name} - "
+    prefix = f"{profile.manufacturer.name} - " if profile.manufacturer else ""
     if name.startswith(prefix):
         name = name[len(prefix):]
     return name.replace(" - ", " — ")
@@ -180,7 +186,27 @@ def profile_source_groups(profile: ProfileDefinition) -> tuple[PresentationGroup
         source.notes,
     ) if value)
     key = (profile.geometry_type, profile.geometry_variant)
-    source_rows = [PresentationRow("Fabricante", profile.manufacturer.name)]
+    if key == ("cold_formed_channel", "stiffened_u"):
+        return (
+            PresentationGroup("Fonte", (
+                PresentationRow("Organismo", "ABNT", source_tooltip),
+                PresentationRow("Norma", "ABNT NBR 6355"),
+                PresentationRow("Edição", "2012"),
+                PresentationRow("Anexo", "A — informativo"),
+                PresentationRow("Figura", "A.3"),
+                PresentationRow("Tabela", "A.3"),
+                PresentationRow("Condição", "Aço sem revestimento"),
+            )),
+            PresentationGroup("Geometria", (
+                PresentationRow("Definição", "Perfil U enrijecido formado a frio", profile.geometry_notes),
+                PresentationRow("Propriedades", "Seção bruta — método linear normativo"),
+            )),
+        )
+    source_rows = []
+    if profile.manufacturer is not None:
+        source_rows.append(PresentationRow("Fabricante", profile.manufacturer.name))
+    if profile.catalog.issuer is not None:
+        source_rows.append(PresentationRow("Organismo", profile.catalog.issuer.name))
     source_rows.append(PresentationRow("Catálogo", _compact_catalog_name(profile), source_tooltip))
     if source.source_revision:
         source_rows.append(PresentationRow("Revisão", source.source_revision))
@@ -296,10 +322,12 @@ def profile_source_rows(profile: ProfileDefinition) -> tuple[PresentationRow, ..
 
 
 def profile_basic_rows(profile: ProfileDefinition, series_name: str) -> tuple[PresentationRow, ...]:
-    return (
-        PresentationRow("Série", series_name),
-        PresentationRow("Fabricante", profile.manufacturer.name),
-    )
+    rows = [PresentationRow("Série", series_name)]
+    if profile.manufacturer is not None:
+        rows.append(PresentationRow("Fabricante", profile.manufacturer.name))
+    elif profile.catalog.issuer is not None:
+        rows.append(PresentationRow("Organismo", profile.catalog.issuer.name))
+    return tuple(rows)
 
 
 __all__ = [

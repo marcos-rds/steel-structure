@@ -37,6 +37,10 @@ TF_LINE_OFFSET_PIXELS = 14.0
 TEE_TW_OFFSET_PIXELS = 18.0
 TF_WITNESS_RADIUS_PIXELS = 1.8
 EXTENSION_OVERSHOOT_PIXELS = 4.0
+UE_D_OFFSET_PIXELS = 18.0
+UE_D_TEXT_OFFSET_PIXELS = 8.0
+UE_T_LEADER_X_PIXELS = 22.0
+UE_T_LEADER_Y_PIXELS = 20.0
 DIMENSION_COLOR = (128, 32, 48)
 INSERTION_MARKER_COLOR = (0, 112, 132)
 INSERTION_MARKER_RADIUS_PIXELS = 5.0
@@ -69,6 +73,17 @@ def _balanced_section_envelope(bounds, visual_bounds, padding):
         left - horizontal, top - vertical,
         bounds.width + 2.0 * horizontal, bounds.height + 2.0 * vertical,
     )
+
+
+def _ue_section_envelope(bounds, visual_bounds, padding):
+    """Keep the Ue section horizontally centred without wasting vertical room."""
+    left, right = bounds.min_x, bounds.max_x
+    horizontal = max(
+        left - visual_bounds.left(), visual_bounds.right() - right, padding,
+    )
+    top = min(-bounds.max_y, visual_bounds.top()) - padding
+    bottom = max(-bounds.min_y, visual_bounds.bottom()) + padding
+    return left - horizontal, top, bounds.width + 2.0 * horizontal, bottom - top
 
 
 def _channel_tf_measurement(geometry):
@@ -154,8 +169,10 @@ class SectionPreviewView(QtWidgets.QGraphicsView):
         elif mode == PROPERTIES_MODE:
             self._add_axes(geometry)
         if (insertion and
-                (geometry.geometry_type, geometry.geometry_variant) ==
-                ("channel_section", "tapered_flange")):
+                (geometry.geometry_type, geometry.geometry_variant) in (
+                    ("channel_section", "tapered_flange"),
+                    ("cold_formed_channel", "stiffened_u"),
+                )):
             self._add_insertion_marker(geometry, insertion)
 
         visual_bounds = self.scene().itemsBoundingRect()
@@ -165,6 +182,12 @@ class SectionPreviewView(QtWidgets.QGraphicsView):
         dimension_key = (geometry.geometry_type, geometry.geometry_variant)
         if mode == DIMENSIONS_MODE and dimension_key == ("equal_angle", "equal_leg"):
             rect = _balanced_section_envelope(
+                geometry.bounds, visual_bounds, max(margin_x, margin_y)
+            )
+            self.scene().setSceneRect(QtCore.QRectF(*rect))
+        elif mode == DIMENSIONS_MODE and dimension_key == (
+                "cold_formed_channel", "stiffened_u"):
+            rect = _ue_section_envelope(
                 geometry.bounds, visual_bounds, max(margin_x, margin_y)
             )
             self.scene().setSceneRect(QtCore.QRectF(*rect))
@@ -209,6 +232,93 @@ class SectionPreviewView(QtWidgets.QGraphicsView):
             self._add_equal_angle_dimensions(geometry, dimensions)
         elif key == ("tee_section", "standard_tee"):
             self._add_tee_dimensions(geometry, dimensions)
+        elif key == ("cold_formed_channel", "stiffened_u"):
+            self._add_ue_dimensions(geometry, dimensions)
+
+    def _add_ue_dimensions(self, geometry, dimensions):
+        """Annotate the real Ue contour from its geometric stations."""
+        pen = self._annotation_pen()
+        bounds = geometry.bounds
+        stations = dict(geometry.dimension_stations)
+        left, right = bounds.min_x, stations["nominal_flange_tip_x"]
+        top, bottom = -stations["nominal_top_y"], -stations["nominal_bottom_y"]
+        units = self._scene_units_per_pixel(bounds)
+        clearance = GEOMETRY_CLEARANCE_PIXELS * units
+        self._add_bf_dimension(
+            left, right, top, BF_OFFSET_PIXELS * units, clearance, units,
+            dimensions["bf"], pen,
+        )
+        self._add_vertical_dimension(
+            "bw", left, top, bottom, self._d_offset_pixels(bounds) * units,
+            clearance, units, dimensions["bw"], pen,
+        )
+        self._add_ue_lip_dimension(
+            right, bottom, -stations["lower_lip_tip_y"], units,
+            dimensions["D"], pen,
+        )
+        self._add_ue_thickness_note(geometry, dimensions["t"], pen, units)
+
+    def _add_ue_lip_dimension(self, lip_x, nominal_bottom, lip_tip_y,
+                              units, value, pen):
+        """Dimension the nominal lower lip beside the physical stiffener."""
+        line_x = lip_x + UE_D_OFFSET_PIXELS * units
+        center_y = (nominal_bottom + lip_tip_y) / 2.0
+        label = self._create_dimension_label(self._dimension_parts("D", value), pen.color())
+        self._position_label(
+            label, line_x, center_y, UE_D_TEXT_OFFSET_PIXELS,
+            -label.height / 2.0,
+        )
+        clearance = GEOMETRY_CLEARANCE_PIXELS * units
+        overshoot = EXTENSION_OVERSHOOT_PIXELS * units
+        self._line(lip_x + clearance, lip_tip_y, line_x + overshoot, lip_tip_y, pen)
+        self._line(
+            lip_x + clearance, nominal_bottom,
+            line_x + overshoot, nominal_bottom, pen,
+        )
+        self._line(line_x, lip_tip_y, line_x, nominal_bottom, pen)
+        self._terminator(line_x, lip_tip_y, pen)
+        self._terminator(line_x, nominal_bottom, pen)
+
+    def _add_ue_thickness_note(self, geometry, value, pen, units):
+        """Point to the straight inner face of the upper flange."""
+        inner_flange = geometry.outer_path.segments[2]
+        fraction = 0.62
+        target_x = inner_flange.start.x + fraction * (
+            inner_flange.end.x - inner_flange.start.x
+        )
+        target_y = -(inner_flange.start.y + fraction * (
+            inner_flange.end.y - inner_flange.start.y
+        ))
+        anchor_x = target_x + UE_T_LEADER_X_PIXELS * units
+        anchor_y = target_y + UE_T_LEADER_Y_PIXELS * units
+        label = self._create_dimension_label(self._dimension_parts("t", value), pen.color())
+        self._position_label(
+            label, anchor_x, anchor_y, UE_D_TEXT_OFFSET_PIXELS,
+            -label.height / 2.0,
+        )
+        self._line(target_x, target_y, anchor_x, anchor_y, pen)
+        self._device_ellipse(
+            target_x, target_y, TF_WITNESS_RADIUS_PIXELS, pen,
+            QtGui.QBrush(QtGui.QColor(*DIMENSION_COLOR)),
+        )
+
+    def _add_vertical_dimension(self, symbol, edge_x, top, bottom, offset,
+                                clearance, units, value, pen, right_side=False):
+        line_x = edge_x + offset if right_side else edge_x - offset
+        center_y = (top + bottom) / 2.0
+        group = self._create_dimension_label(self._dimension_parts(symbol, value), pen.color())
+        self._position_label(group, line_x, center_y, -group.width / 2.0, -group.height / 2.0)
+        direction = 1.0 if right_side else -1.0
+        overshoot = EXTENSION_OVERSHOOT_PIXELS * units
+        start_x = edge_x + direction * clearance
+        end_x = line_x + direction * overshoot
+        self._line(start_x, top, end_x, top, pen)
+        self._line(start_x, bottom, end_x, bottom, pen)
+        break_half = (group.height / 2.0 + MIN_LABEL_CLEARANCE) * units
+        self._line(line_x, top, line_x, center_y - break_half, pen)
+        self._line(line_x, center_y + break_half, line_x, bottom, pen)
+        self._terminator(line_x, top, pen)
+        self._terminator(line_x, bottom, pen)
 
     def _add_tee_dimensions(self, geometry, dimensions):
         """Dimension the real centroidal nominal T contour."""
@@ -676,5 +786,5 @@ class SectionPreviewView(QtWidgets.QGraphicsView):
 __all__ = [
     "DIMENSIONS_MODE", "NEUTRAL_MODE", "PREVIEW_MODES", "PROPERTIES_MODE",
     "SectionPreviewView", "_balanced_section_envelope", "_channel_tf_measurement",
-    "_tapered_i_tf_measurement", "_tee_dimension_stations",
+    "_tapered_i_tf_measurement", "_tee_dimension_stations", "_ue_section_envelope",
 ]

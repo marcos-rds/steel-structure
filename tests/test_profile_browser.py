@@ -217,8 +217,8 @@ class ProfileBrowserModelTests(unittest.TestCase):
     def setUp(self):
         self.model = ProfileBrowserModel(self.library)
 
-    def test_catalog_tree_source_has_rolled_category_and_218_profiles(self):
-        self.assertEqual(len(self.library.list_categories()), 1)
+    def test_catalog_tree_source_has_two_categories_and_rolled_steel_is_unchanged(self):
+        self.assertEqual(len(self.library.list_categories()), 2)
         self.assertEqual(len(self.library.list_series("rolled-steel")), 7)
         self.assertEqual(len(self.model.set_filter("rolled-steel")), 218)
 
@@ -733,6 +733,82 @@ class ProfileBrowserModelTests(unittest.TestCase):
             bf_line_y - module.EXTENSION_OVERSHOOT_PIXELS * scene_units,
             bf_extension_ends,
         )
+
+    def test_ue_renderer_draws_only_four_dimensions_at_approved_stations(self):
+        module = _load_preview_runtime_module()
+        profile = self.library.search("Ue 150x60x20x3.00")[0]
+        geometry = build_section_geometry(profile)
+        dimensions = {row.label: row.value for row in profile_preview_dimension_rows(profile)}
+        scene = _FakeScene()
+        renderer = object.__new__(module.SectionPreviewView)
+        renderer.scene = lambda: scene
+        renderer._add_dimensions(geometry, dimensions)
+        self.assertEqual(set(dimensions), {"bw", "bf", "D", "t", "ri"})
+        rendered = {item.html for item in scene.text_items}
+        for symbol in ("bw", "bf", "D", "t"):
+            self.assertTrue(any(f"<b>({symbol})</b>" in html for html in rendered))
+        self.assertFalse(any("<b>(ri)</b>" in html for html in rendered))
+        self.assertEqual(len(scene.text_items), 4)
+
+        stations = dict(geometry.dimension_stations)
+        nominal_bottom = -stations["nominal_bottom_y"]
+        lower_lip_tip = -stations["lower_lip_tip_y"]
+        vertical_lines = [line for line in scene.lines if line[0] == line[2]]
+        self.assertTrue(any(
+            {line[1], line[3]} == {lower_lip_tip, nominal_bottom}
+            for line in vertical_lines
+        ))
+
+        inner_flange = geometry.outer_path.segments[2]
+        expected_x = inner_flange.start.x + 0.62 * (
+            inner_flange.end.x - inner_flange.start.x
+        )
+        expected_y = -(inner_flange.start.y + 0.62 * (
+            inner_flange.end.y - inner_flange.start.y
+        ))
+        self.assertTrue(any(
+            abs(line[0] - expected_x) < 1e-9 and abs(line[1] - expected_y) < 1e-9
+            for line in scene.lines
+        ))
+        self.assertGreater(len(scene.lines), 10)
+
+    def test_ue_layout_uses_constant_apparent_offsets_across_reference_sizes(self):
+        module = _load_preview_runtime_module()
+        for query in (
+                "Ue 50x25x10x1.20",
+                "Ue 150x60x20x3.00",
+                "Ue 300x85x25x2.25"):
+            with self.subTest(query=query):
+                profile = self.library.search(query)[0]
+                geometry = build_section_geometry(profile)
+                dimensions = {
+                    row.label: row.value
+                    for row in profile_preview_dimension_rows(profile)
+                }
+                scene = _FakeScene()
+                renderer = object.__new__(module.SectionPreviewView)
+                renderer.scene = lambda: scene
+                renderer._add_dimensions(geometry, dimensions)
+                units = renderer._scene_units_per_pixel(geometry.bounds)
+                stations = dict(geometry.dimension_stations)
+
+                d_label = scene.text_items[2]
+                expected_d_x = (
+                    stations["nominal_flange_tip_x"]
+                    + module.UE_D_OFFSET_PIXELS * units
+                )
+                self.assertAlmostEqual(d_label.position[0], expected_d_x)
+                self.assertEqual(d_label.transform[0], module.UE_D_TEXT_OFFSET_PIXELS)
+
+                t_leader = scene.lines[-1]
+                leader_pixels = (
+                    (t_leader[2] - t_leader[0]) ** 2
+                    + (t_leader[3] - t_leader[1]) ** 2
+                ) ** 0.5 / units
+                self.assertGreaterEqual(leader_pixels, 18.0)
+                self.assertLessEqual(leader_pixels, 35.0)
+                self.assertEqual(scene.text_items[3].transform[0],
+                                 module.UE_D_TEXT_OFFSET_PIXELS)
 
     def test_d_offset_compensates_fit_compression_for_medium_and_large_w(self):
         module = _load_preview_runtime_module()

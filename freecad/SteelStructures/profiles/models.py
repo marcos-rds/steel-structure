@@ -35,15 +35,24 @@ class ManufacturerDefinition:
 
 
 @dataclass(frozen=True)
+class IssuerDefinition:
+    """Organization responsible for a normative catalog source."""
+
+    id: str
+    name: str
+
+
+@dataclass(frozen=True)
 class CatalogMetadata:
     id: str
     name: str
     catalog_version: str
-    manufacturer: ManufacturerDefinition
+    manufacturer: ManufacturerDefinition | None
     source: CatalogSource
     units: Mapping[str, str]
     standard_references: tuple[str, ...] = ()
     material_notes: str | None = None
+    issuer: IssuerDefinition | None = None
 
 
 @dataclass(frozen=True)
@@ -92,7 +101,7 @@ class ProfileDefinition:
     geometry_status: str
     series_id: str
     category_id: str
-    manufacturer: ManufacturerDefinition
+    manufacturer: ManufacturerDefinition | None
     family: str
     geometry_type: str
     geometry_variant: str | None
