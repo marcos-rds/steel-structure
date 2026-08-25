@@ -6,9 +6,9 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-TOOL = ROOT / "freecad/BancadaFCSteel/interactive/draft_member_tool.py"
-OPTIONS = ROOT / "freecad/BancadaFCSteel/interactive/profile_options_widget.py"
-COMMANDS = ROOT / "freecad/BancadaFCSteel/commands.py"
+TOOL = ROOT / "freecad/SteelStructures/interactive/draft_member_tool.py"
+OPTIONS = ROOT / "freecad/SteelStructures/interactive/profile_options_widget.py"
+COMMANDS = ROOT / "freecad/SteelStructures/commands.py"
 
 
 class DraftNativeArchitectureTests(unittest.TestCase):
@@ -65,6 +65,35 @@ class DraftNativeArchitectureTests(unittest.TestCase):
         self.assertIn("compact_profile_designation(designation), designation", self.options)
         self.assertIn("self.profile.currentData()", self.options)
 
+    def test_profile_widget_integrates_the_shared_browser_once(self):
+        self.assertIn("profile_browser_button = QtWidgets.QToolButton()", self.options)
+        self.assertIn('profile_browser_button.setText("...")', self.options)
+        self.assertIn("QtCore.Qt.ToolButtonTextOnly", self.options)
+        self.assertIn('setToolTip("Abrir Catálogo de Perfis")', self.options)
+        self.assertIn('setAccessibleName("Abrir Catálogo de Perfis")', self.options)
+        self.assertIn("ProfileBrowserDialog.SELECT_MODE", self.options)
+        self.assertIn("initial_profile_ref=self._current_profile_ref()", self.options)
+        self.assertEqual(self.options.count("def _open_profile_browser"), 1)
+
+    def test_profile_color_control_is_a_textless_accessible_swatch(self):
+        self.assertIn('self.color_button = QtWidgets.QPushButton("")', self.options)
+        self.assertIn('self.color_button.setToolTip("Escolher cor")', self.options)
+        self.assertIn('self.color_button.setAccessibleName("Escolher cor")', self.options)
+        self.assertNotIn('QPushButton("Escolher cor")', self.options)
+        self.assertIn("self.color_button.clicked.connect(self._show_quick_color_menu)", self.options)
+        self.assertIn("self.quick_color_menu.colorSelected.connect(self._apply_color)", self.options)
+        self.assertIn("self.quick_color_menu.moreColorsRequested.connect(self._choose_color)", self.options)
+
+    def test_browser_selection_updates_combos_atomically_and_notifies_profile_once(self):
+        method = self.options.split("    def set_profile_ref", 1)[1].split(
+            "    def _mark_custom_name", 1
+        )[0]
+        self.assertIn("widgets = (self.category, self.series, self.profile)", method)
+        self.assertIn("widget.blockSignals(True)", method)
+        self.assertEqual(method.count("currentIndexChanged.emit"), 1)
+        for unrelated in ("insertion", "rotation", "_color", "element_type"):
+            self.assertNotIn(f"self.{unrelated}", method)
+
     def test_command_uses_official_draft_initialization_without_legacy_panel(self):
         self.assertIn("import DraftTools", self.commands)
         self.assertIn("Não foi possível iniciar a ferramenta nativa", self.commands)
@@ -85,8 +114,8 @@ class DraftNativeArchitectureTests(unittest.TestCase):
 
     def test_registered_line_key_is_separate_from_preview_name(self):
         self.assertIn('Creator.Activated(self, "Line")', self.source)
-        self.assertIn('addObject("Part::Feature", "MetalStructureDraftPreview")', self.source)
-        self.assertNotIn('Creator.Activated(self, "MetalStructureDraftPreview")', self.source)
+        self.assertIn('addObject("Part::Feature", "SteelStructuresDraftPreview")', self.source)
+        self.assertNotIn('Creator.Activated(self, "SteelStructuresDraftPreview")', self.source)
 
     def test_native_line_ui_is_initialized_once_per_activation(self):
         activated = self.source.split("    def Activated", 1)[1].split(
@@ -121,12 +150,13 @@ class DraftNativeArchitectureTests(unittest.TestCase):
 
     def test_profile_widget_has_no_internal_stage_label_or_empty_wrapper(self):
         self.assertIn("class ProfileOptionsWidget(QtWidgets.QGroupBox):", self.options)
-        self.assertNotIn("QtWidgets.QLabel", self.options)
         self.assertNotIn("set_stage_text", self.options)
         self.assertNotIn("set_point_stage", self.options)
         self.assertNotIn("_stage_label", self.options)
         self.assertNotIn("stage_font", self.options)
-        self.assertIn("form = QtWidgets.QFormLayout(self)", self.options)
+        self.assertIn('QtWidgets.QGroupBox("Identificação")', self.options)
+        self.assertIn('QtWidgets.QGroupBox("Seleção do perfil")', self.options)
+        self.assertIn("_OrientationPanel(", self.options)
 
     def test_continue_restores_first_point_status_without_rebuilding_widget(self):
         reset = self.source.split("    def _reset_segment_for_continue", 1)[1].split(

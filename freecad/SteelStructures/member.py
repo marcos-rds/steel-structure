@@ -10,6 +10,10 @@ import Part
 
 from . import profile_catalog
 from .paths import OBJECT_ICON
+from .profiles.freecad_geometry import section_geometry_to_face
+from .profiles.geometry import build_parallel_flange_i_section, build_section_geometry
+from .profiles.insertion import insertion_translation as _geometry_insertion_translation
+from .profiles.insertion import section_insertion_references
 
 INSERTION_OPTIONS = [
     "Centroide",
@@ -26,6 +30,7 @@ INSERTION_OPTIONS = [
 ELEMENT_TYPES = ["Membro", "Pilar", "Viga", "Contraventamento"]
 MATERIALS = ["ASTM A572 Grau 50", "ASTM A36", "Personalizado"]
 LENGTH_TOLERANCE = 1e-7
+FRAME_TOLERANCE = 1e-7
 
 
 def _quantity_value(value) -> float:
@@ -70,51 +75,67 @@ def _set_enum(obj, name: str, options, preferred: str | None = None, empty_text:
 
 
 def _i_section_face(profile: profile_catalog.Profile) -> Part.Face:
-    """Create a sharp-cornered I section centered at its centroid."""
-    half_b = profile.bf / 2.0
-    half_d = profile.d / 2.0
-    half_tw = profile.tw / 2.0
-    tf = profile.tf
+    """Create the legacy W/HP Face through the common section geometry core."""
+    # The compatibility facade intentionally exposes only constructible W/HP
+    # profiles.  Their typed geometry contract is parallel-flange I-section;
+    # avoid manufacturing a partial ProfileDefinition solely for this bridge.
+    geometry = build_parallel_flange_i_section(
+        d=profile.d, bf=profile.bf, tw=profile.tw, tf=profile.tf
+    )
+    return section_geometry_to_face(geometry)
 
-    coordinates = [
-        (-half_b, -half_d),
-        (half_b, -half_d),
-        (half_b, -half_d + tf),
-        (half_tw, -half_d + tf),
-        (half_tw, half_d - tf),
-        (half_b, half_d - tf),
-        (half_b, half_d),
-        (-half_b, half_d),
-        (-half_b, half_d - tf),
-        (-half_tw, half_d - tf),
-        (-half_tw, -half_d + tf),
-        (-half_b, -half_d + tf),
-    ]
-    points = [App.Vector(x, y, 0.0) for x, y in coordinates]
-    points.append(points[0])
-    return Part.Face(Part.makePolygon(points))
+
+def _section_geometry(profile: profile_catalog.Profile):
+    """Resolve every constructible catalog profile through the typed core."""
+    definition = getattr(profile, "definition", None)
+    if definition is not None:
+        return build_section_geometry(definition)
+    return build_parallel_flange_i_section(
+        d=profile.d, bf=profile.bf, tw=profile.tw, tf=profile.tf
+    )
+
+
+def _section_face(profile: profile_catalog.Profile) -> Part.Face:
+    return section_geometry_to_face(_section_geometry(profile))
+
+
+def insertion_options(profile: profile_catalog.Profile):
+    options = profile_catalog.insertion_options(profile)
+    if options:
+        return options
+    return tuple(item.label for item in section_insertion_references(_section_geometry(profile)))
 
 
 def _insertion_translation(profile: profile_catalog.Profile, mode: str) -> Tuple[float, float]:
-    half_b = profile.bf / 2.0
-    half_d = profile.d / 2.0
-    translations = {
-        "Centroide": (0.0, 0.0),
-        "Face esquerda": (half_b, 0.0),
-        "Face direita": (-half_b, 0.0),
-        "Face superior": (0.0, -half_d),
-        "Face inferior": (0.0, half_d),
-        "Canto superior esquerdo": (half_b, -half_d),
-        "Canto superior direito": (-half_b, -half_d),
-        "Canto inferior esquerdo": (half_b, half_d),
-        "Canto inferior direito": (-half_b, half_d),
-    }
-    return translations.get(mode, (0.0, 0.0))
+    return _geometry_insertion_translation(_section_geometry(profile), mode)
 
 
-def _axis_rotation(direction: App.Vector) -> App.Rotation:
-    """Map the local +Z extrusion axis onto the global member direction."""
-    return App.Rotation(App.Vector(0.0, 0.0, 1.0), direction)
+def _member_frame_rotation(direction: App.Vector) -> App.Rotation:
+    """Map the local section frame onto a deterministic structural frame.
+
+    The section width, height and extrusion axes are local +X, +Y and +Z.
+    Away from global Z, local +Y follows the projection of global Z onto the
+    section plane.  Nearly vertical members retain the historical shortest-arc
+    alignment, including the approved identity orientation for +Z columns.
+    """
+    longitudinal = App.Vector(direction)
+    longitudinal.normalize()
+    global_up = App.Vector(0.0, 0.0, 1.0)
+    section_vertical = global_up.sub(longitudinal * global_up.dot(longitudinal))
+    if section_vertical.Length <= FRAME_TOLERANCE:
+        return App.Rotation(global_up, longitudinal)
+
+    section_vertical.normalize()
+    section_transverse = section_vertical.cross(longitudinal)
+    section_transverse.normalize()
+    return App.Rotation(
+        section_transverse, section_vertical, longitudinal, "ZXY"
+    )
+
+
+def _copy_placement(placement):
+    """Return a detached Placement value for change-delta tracking."""
+    return App.Placement(placement)
 
 
 class StructuralMemberProxy:
@@ -123,10 +144,61 @@ class StructuralMemberProxy:
     def __init__(self, obj):
         self._updating = True
         self._syncing_length = False
+        self._syncing_placement = False
+        self._placement_from_points_pending = True
+        self._last_placement = None
+        self._last_section_rotation = 0.0
         self._last_valid_length = None
         obj.Proxy = self
         self._setup_properties(obj)
+        self._last_section_rotation = _quantity_value(obj.Rotation)
         self._updating = False
+
+    def _remember_placement(self, obj):
+        self._last_placement = _copy_placement(obj.Placement)
+
+    def _set_placement(self, obj, placement):
+        self._syncing_placement = True
+        try:
+            obj.Placement = placement
+            self._remember_placement(obj)
+        finally:
+            self._syncing_placement = False
+
+    def _sync_points_from_placement(self, obj):
+        """Apply a user's rigid Placement delta to the global axis points."""
+        current = _copy_placement(obj.Placement)
+        previous = self._last_placement
+        if previous is None:
+            self._last_placement = current
+            return False
+        delta = current.multiply(previous.inverse())
+        self._syncing_placement = True
+        self._syncing_length = True
+        try:
+            obj.StartPoint = delta.multVec(App.Vector(obj.StartPoint))
+            obj.EndPoint = delta.multVec(App.Vector(obj.EndPoint))
+            self._sync_length_from_points(obj)
+            self._last_placement = current
+            self._placement_from_points_pending = False
+        finally:
+            self._syncing_length = False
+            self._syncing_placement = False
+        return True
+
+    def _apply_section_rotation_change(self, obj):
+        """Rotate the section around the member's existing local Z axis."""
+        current = _quantity_value(obj.Rotation)
+        delta_angle = current - self._last_section_rotation
+        if self._placement_from_points_pending or abs(delta_angle) <= 1e-12:
+            self._last_section_rotation = current
+            return
+        delta_roll = App.Placement(
+            App.Vector(0.0, 0.0, 0.0),
+            App.Rotation(App.Vector(0.0, 0.0, 1.0), delta_angle),
+        )
+        self._set_placement(obj, obj.Placement.multiply(delta_roll))
+        self._last_section_rotation = current
 
     def _setup_properties(self, obj):
         """Create missing properties and migrate objects from v0.1.0."""
@@ -165,7 +237,7 @@ class StructuralMemberProxy:
 
         # Enumeration options are assigned only after all dependent properties
         # exist. This prevents the onChanged race reported in FreeCAD 1.1.3.
-        _set_enum(obj, "Insertion", INSERTION_OPTIONS, "Centroide" if created_insertion else None)
+        current_insertion = str(obj.Insertion) if not created_insertion else ""
         _set_enum(obj, "ElementType", ELEMENT_TYPES, "Membro" if created_type else None)
         _set_enum(obj, "Material", MATERIALS, "ASTM A572 Grau 50" if created_material else None)
 
@@ -173,6 +245,7 @@ class StructuralMemberProxy:
         if current_profile:
             try:
                 current_data = profile_catalog.get(current_profile)
+                current_profile = profile_catalog.property_designation(current_data.designation)
                 preferred_category = current_data.category
                 preferred_series = current_data.series
             except KeyError:
@@ -191,9 +264,19 @@ class StructuralMemberProxy:
         _set_enum(obj, "ProfileSeries", available_series, series_preference, EMPTY_SERIES)
         selected_series = str(obj.ProfileSeries)
 
-        available_profiles = profile_catalog.designations(selected_category, selected_series)
+        available_profiles = profile_catalog.property_designations(selected_category, selected_series)
         profile_preference = current_profile if current_profile in available_profiles else None
         _set_enum(obj, "Profile", available_profiles, profile_preference, EMPTY_PROFILE)
+        try:
+            selected_profile = profile_catalog.get(str(obj.Profile))
+            available_insertions = insertion_options(selected_profile)
+        except KeyError:
+            available_insertions = tuple(INSERTION_OPTIONS)
+        insertion_preference = current_insertion if current_insertion in available_insertions else None
+        _set_enum(
+            obj, "Insertion", available_insertions,
+            insertion_preference or ("Centroide" if created_insertion else None),
+        )
 
         for prop in ("Manufacturer", "ProfileFamily", "MemberLength", "MassPerMeter", "TotalMass", "CatalogArea", "CatalogSource"):
             obj.setEditorMode(prop, 1)
@@ -241,7 +324,7 @@ class StructuralMemberProxy:
         if requested <= LENGTH_TOLERANCE or axis.Length <= LENGTH_TOLERANCE:
             if self._last_valid_length and self._last_valid_length > LENGTH_TOLERANCE:
                 obj.Length = self._last_valid_length
-            App.Console.PrintWarning("Metal Structure: comprimento ou direção inválida.\n")
+            App.Console.PrintWarning("Steel Structures: comprimento ou direção inválida.\n")
             return False
         direction = App.Vector(axis)
         direction.normalize()
@@ -254,12 +337,25 @@ class StructuralMemberProxy:
         category = str(obj.ProfileCategory)
         _set_enum(obj, "ProfileSeries", profile_catalog.series_for_category(category), empty_text=EMPTY_SERIES)
         series = str(obj.ProfileSeries)
-        _set_enum(obj, "Profile", profile_catalog.designations(category, series), empty_text=EMPTY_PROFILE)
+        _set_enum(
+            obj, "Profile", profile_catalog.property_designations(category, series),
+            empty_text=EMPTY_PROFILE,
+        )
 
     def _refresh_profiles(self, obj):
         category = str(obj.ProfileCategory)
         series = str(obj.ProfileSeries)
-        _set_enum(obj, "Profile", profile_catalog.designations(category, series), empty_text=EMPTY_PROFILE)
+        _set_enum(
+            obj, "Profile", profile_catalog.property_designations(category, series),
+            empty_text=EMPTY_PROFILE,
+        )
+
+    def _refresh_insertions(self, obj):
+        try:
+            profile = profile_catalog.get(str(obj.Profile))
+        except KeyError:
+            return
+        _set_enum(obj, "Insertion", insertion_options(profile))
 
     def _update_catalog_properties(self, obj):
         required = {"Profile", "Manufacturer", "ProfileFamily", "MassPerMeter", "CatalogArea", "CatalogSource"}
@@ -312,7 +408,7 @@ class StructuralMemberProxy:
             obj.TotalMass = 0.0
             return
 
-        face = _i_section_face(profile)
+        face = _section_face(profile)
         tx, ty = _insertion_translation(profile, str(obj.Insertion))
         face.translate(App.Vector(tx + obj.OffsetX.Value, ty + obj.OffsetY.Value, 0.0))
         solid = face.extrude(App.Vector(0.0, 0.0, total_length))
@@ -320,19 +416,34 @@ class StructuralMemberProxy:
         # Keep the shape local and drive position/orientation through the
         # Part::Feature Placement. This fixes members remaining vertical when
         # the end point is in X/Y and makes the custom section rotation work.
-        alignment = _axis_rotation(direction)
+        alignment = _member_frame_rotation(direction)
         roll = App.Rotation(App.Vector(0.0, 0.0, 1.0), float(obj.Rotation.Value))
         combined_rotation = alignment.multiply(roll)
         base = start.sub(direction * start_extension)
 
         obj.Shape = solid
-        obj.Placement = App.Placement(base, combined_rotation)
+        if self._placement_from_points_pending or self._last_placement is None:
+            self._set_placement(obj, App.Placement(base, combined_rotation))
+            self._placement_from_points_pending = False
+        else:
+            # Preserve the full user rotation. Only the base follows the global
+            # start point and extension; profile changes cannot reset Placement.
+            preserved = _copy_placement(obj.Placement)
+            preserved.Base = base
+            self._set_placement(obj, preserved)
         obj.MemberLength = base_length
         obj.TotalMass = profile.mass_per_m * total_length / 1000.0
         self._update_catalog_properties(obj)
 
     def onChanged(self, obj, prop):
-        if getattr(self, "_updating", False) or getattr(self, "_syncing_length", False):
+        if (getattr(self, "_updating", False) or getattr(self, "_syncing_length", False)
+                or getattr(self, "_syncing_placement", False)):
+            return
+        if prop == "Placement":
+            try:
+                self._sync_points_from_placement(obj)
+            except (AttributeError, RuntimeError, TypeError, ValueError):
+                pass
             return
         if prop in ("Length", "StartPoint", "EndPoint"):
             self._syncing_length = True
@@ -341,6 +452,7 @@ class StructuralMemberProxy:
                     self._sync_endpoint_from_length(obj)
                 else:
                     self._sync_length_from_points(obj)
+                self._placement_from_points_pending = True
             except (AttributeError, RuntimeError, TypeError, ValueError):
                 pass
             finally:
@@ -348,14 +460,19 @@ class StructuralMemberProxy:
             return
         self._updating = True
         try:
-            if prop == "ProfileCategory" and "ProfileSeries" in obj.PropertiesList:
+            if prop == "Rotation":
+                self._apply_section_rotation_change(obj)
+            elif prop == "ProfileCategory" and "ProfileSeries" in obj.PropertiesList:
                 self._refresh_series_and_profiles(obj)
                 self._update_catalog_properties(obj)
+                self._refresh_insertions(obj)
             elif prop == "ProfileSeries" and "Profile" in obj.PropertiesList:
                 self._refresh_profiles(obj)
                 self._update_catalog_properties(obj)
+                self._refresh_insertions(obj)
             elif prop == "Profile":
                 self._update_catalog_properties(obj)
+                self._refresh_insertions(obj)
             elif prop == "DisplayName" and "DisplayName" in obj.PropertiesList:
                 value = str(obj.DisplayName).strip()
                 if value and obj.Label != value:
@@ -379,6 +496,9 @@ class StructuralMemberProxy:
                 self._sync_length_from_points(obj)
             finally:
                 self._syncing_length = False
+            self._placement_from_points_pending = False
+            self._last_section_rotation = _quantity_value(obj.Rotation)
+            self._remember_placement(obj)
         finally:
             self._updating = False
 
@@ -394,6 +514,10 @@ class StructuralMemberProxy:
     def __setstate__(self, state):
         self._updating = False
         self._syncing_length = False
+        self._syncing_placement = False
+        self._placement_from_points_pending = False
+        self._last_placement = None
+        self._last_section_rotation = 0.0
         self._last_valid_length = None
 
 
@@ -459,9 +583,10 @@ def create_member(
     obj.EndPoint = end
     obj.ProfileCategory = profile.category
     obj.ProfileSeries = profile.series
-    obj.Profile = designation
+    obj.Profile = profile_catalog.property_designation(profile.designation)
     obj.ElementType = element_type if element_type in ELEMENT_TYPES else "Membro"
-    obj.Insertion = insertion if insertion in INSERTION_OPTIONS else "Centroide"
+    valid_insertions = insertion_options(profile)
+    obj.Insertion = insertion if insertion in valid_insertions else valid_insertions[0]
     obj.Rotation = rotation
 
     final_name = (display_name or f"{obj.ElementType} - {designation}").strip()

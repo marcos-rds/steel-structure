@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.5.0 — 2026-08-25
+
+### Adicionado
+
+- Grid Estrutural paramétrico com painel visual, preview e propriedades persistentes.
+- Ferramenta Criar Pilar com posicionamento interativo, preview do perfil e orientação no eixo global Z.
+- Catálogo de Perfis nativo com busca, propriedades técnicas, fontes e preview 2D das 218 bitolas do catálogo Gerdau.
+- Suporte paramétrico aos perfis W, HP, I laminado, U laminado, T, cantoneiras de abas iguais e U Enrijecido (Ue) conforme ABNT NBR 6355:2012.
+- Mini-preview interativo para orientação da seção e seleção visual dos pontos de inserção.
+- Pontos de inserção específicos para as novas famílias de perfis.
+- Paleta rápida de cores estruturais nos fluxos de criação.
+
+### Melhorado
+
+- Geometria, propriedades técnicas e apresentação das famílias de perfis suportadas.
+- Fluxos de Criar Membro e Criar Pilar, com preferências persistentes e integração ao Catálogo de Perfis.
+- Previews técnicos com cotas, centroide, fontes dos dados e indicação da referência de inserção.
+- Preservação do `Placement` e das propriedades paramétricas durante recomputes e atualizações geométricas.
+- Identidade da bancada consolidada como Steel Structures em pacote, comandos e recursos.
+
+### Corrigido
+
+- Persistência e restauração dos pontos de inserção selecionados nas ferramentas de criação.
+- Robustez das transformações e do `Placement` para membros e grids.
+- Inconsistências de geometria, cotas e apresentação nas famílias de perfis suportadas.
+
 ## 0.4.0 — 31/07/2026
 
 - Nova ferramenta `StructuralMemberDraftTool`, baseada diretamente na Linha nativa do Draft, para criação gráfica ou numérica por dois pontos.

@@ -11,6 +11,7 @@ from draftutils.messages import _toolmsg
 from .member_controller import MemberController
 from .profile_options_widget import ProfileOptionsWidget
 from ..paths import MEMBER_ICON
+from ..preferences import load_member_creation_settings, save_member_creation_settings
 
 
 TOOL_NEW = "NEW"
@@ -55,6 +56,7 @@ class StructuralMemberDraftTool(gui_lines.Line):
         self.controller = MemberController(self.doc)
         self.controller.start()
         self.profile_options = ProfileOptionsWidget(self.doc)
+        self.profile_options.apply_creation_settings(load_member_creation_settings())
         self.ui.lineUi(title="Criar elemento estrutural", icon="Draft_Draft",
                        extra=self.profile_options)
         self._task_icon = icon or MEMBER_ICON
@@ -65,7 +67,7 @@ class StructuralMemberDraftTool(gui_lines.Line):
         self._schedule_stage_update()
         self.ui.continueMode = True
         self.ui.continueCmd.setChecked(self.ui.continueMode)
-        self.obj = self.doc.addObject("Part::Feature", "MetalStructureDraftPreview")
+        self.obj = self.doc.addObject("Part::Feature", "SteelStructuresDraftPreview")
         gui_utils.format_object(self.obj)
         self.obj.ViewObject.ShowInTree = False
         self.call = self.view.addEventCallback("SoEvent", self.action)
@@ -141,12 +143,12 @@ class StructuralMemberDraftTool(gui_lines.Line):
         created = False
         if len(points) == 2 and self.profile_options is not None:
             try:
-                result = self.controller.create(
-                    self.profile_options.creation_options(points[0], points[1])
-                )
+                options = self.profile_options.creation_options(points[0], points[1])
+                result = self.controller.create(options)
             except Exception as exc:
-                App.Console.PrintError(f"Metal Structure: erro ao criar elemento: {exc}\n")
+                App.Console.PrintError(f"Steel Structures: erro ao criar elemento: {exc}\n")
             else:
+                save_member_creation_settings(self.profile_options.creation_settings())
                 self.profile_options.creation_succeeded(result.next_default_name)
                 created = True
         if created and continue_requested:

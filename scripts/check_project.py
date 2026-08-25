@@ -1,4 +1,4 @@
-"""Static integrity checks for the Metal Structure workbench."""
+"""Static integrity checks for the Steel Structures workbench."""
 
 from __future__ import annotations
 
@@ -11,48 +11,52 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 PACKAGE_XML = PROJECT_ROOT / "package.xml"
-PACKAGE_INIT = PROJECT_ROOT / "freecad" / "BancadaFCSteel" / "__init__.py"
+PACKAGE_INIT = PROJECT_ROOT / "freecad" / "SteelStructures" / "__init__.py"
 CATALOG = (
     PROJECT_ROOT
     / "freecad"
-    / "BancadaFCSteel"
+    / "SteelStructures"
     / "catalogs"
-    / "gerdau_w_initial.json"
+    / "gerdau_construcao_metalica_2023_01.json"
 )
 
 ESSENTIAL_FILES = (
     "package.xml",
     "README.md",
     "LICENSE",
-    "freecad/BancadaFCSteel/__init__.py",
-    "freecad/BancadaFCSteel/init_gui.py",
-    "freecad/BancadaFCSteel/commands.py",
-    "freecad/BancadaFCSteel/interactive/__init__.py",
-    "freecad/BancadaFCSteel/interactive/member_controller.py",
-    "freecad/BancadaFCSteel/interactive/draft_member_tool.py",
-    "freecad/BancadaFCSteel/interactive/profile_options_widget.py",
-    "freecad/BancadaFCSteel/member.py",
-    "freecad/BancadaFCSteel/profile_catalog.py",
-    "freecad/BancadaFCSteel/paths.py",
-    "freecad/BancadaFCSteel/catalogs/gerdau_w_initial.json",
-    "Resources/Icons/BancadaFCSteel.svg",
+    "freecad/SteelStructures/__init__.py",
+    "freecad/SteelStructures/init_gui.py",
+    "freecad/SteelStructures/commands.py",
+    "freecad/SteelStructures/interactive/__init__.py",
+    "freecad/SteelStructures/interactive/member_controller.py",
+    "freecad/SteelStructures/interactive/draft_member_tool.py",
+    "freecad/SteelStructures/interactive/profile_options_widget.py",
+    "freecad/SteelStructures/member.py",
+    "freecad/SteelStructures/profile_catalog.py",
+    "freecad/SteelStructures/paths.py",
+    "freecad/SteelStructures/profiles/__init__.py",
+    "freecad/SteelStructures/profiles/models.py",
+    "freecad/SteelStructures/profiles/catalog.py",
+    "freecad/SteelStructures/profiles/validation.py",
+    "freecad/SteelStructures/catalogs/gerdau_construcao_metalica_2023_01.json",
+    "Resources/Icons/SteelStructures.svg",
     "Resources/Icons/CreateMember.svg",
     "Resources/Icons/StructuralMember.svg",
 )
 
 REQUIRED_PROFILE_FIELDS = {
-    "manufacturer",
-    "family",
+    "id",
+    "series_id",
     "designation",
-    "mass_per_m",
-    "d",
-    "bf",
-    "tw",
-    "tf",
-    "area_cm2",
-    "source",
+    "equivalent_designation",
+    "aliases",
+    "catalog_markers",
+    "availability_status",
+    "geometry_type",
+    "geometry",
+    "physical_properties",
+    "section_properties",
 }
-POSITIVE_PROFILE_FIELDS = ("mass_per_m", "d", "bf", "tw", "tf", "area_cm2")
 
 
 def package_version() -> str:
@@ -76,8 +80,15 @@ def python_package_version() -> str:
     raise ValueError("__version__ não foi encontrada em __init__.py")
 
 
-def catalog_profiles() -> list[dict]:
+def catalog_payload() -> dict:
     payload = json.loads(CATALOG.read_text(encoding="utf-8"))
+    if payload.get("schema_version") != 2:
+        raise ValueError("o catálogo não usa schema_version 2")
+    return payload
+
+
+def catalog_profiles() -> list[dict]:
+    payload = catalog_payload()
     profiles = payload.get("profiles")
     if not isinstance(profiles, list):
         raise ValueError("o catálogo não contém uma lista 'profiles'")
@@ -108,14 +119,25 @@ def run_checks() -> list[str]:
             f"versões divergentes: package.xml={manifest_version}, __version__={internal_version}"
         )
 
+    payload = {}
     try:
-        profiles = catalog_profiles()
+        payload = catalog_payload()
+        profiles = payload.get("profiles")
+        if not isinstance(profiles, list):
+            raise ValueError("o catálogo não contém uma lista 'profiles'")
     except (json.JSONDecodeError, OSError, ValueError) as exc:
         errors.append(f"catálogo JSON inválido: {exc}")
         profiles = []
 
-    if len(profiles) != 22:
-        errors.append(f"quantidade de perfis incorreta: esperado 22, encontrado {len(profiles)}")
+    if len(profiles) != 218:
+        errors.append(f"quantidade de perfis incorreta: esperado 218, encontrado {len(profiles)}")
+    expected_counts = {"w": 100, "hp": 8, "i": 8, "u": 12, "t": 10,
+                       "equal-angle-inch": 50, "equal-angle-metric": 30}
+    counts = {series: sum(profile.get("series_id") == series for profile in profiles) for series in expected_counts}
+    if counts != expected_counts:
+        errors.append(f"quantidade por série incorreta: {counts!r}")
+    if len(payload.get("series", [])) != 7:
+        errors.append(f"quantidade de séries incorreta: esperado 7, encontrado {len(payload.get('series', []))}")
 
     designations: list[str] = []
     for index, profile in enumerate(profiles, start=1):
@@ -128,8 +150,12 @@ def run_checks() -> list[str]:
         designation = profile.get("designation")
         if isinstance(designation, str):
             designations.append(designation)
-        for field in POSITIVE_PROFILE_FIELDS:
-            value = profile.get(field)
+        numeric_values = {}
+        for group in ("geometry", "physical_properties", "section_properties", "centroid"):
+            values = profile.get(group, {})
+            if isinstance(values, dict):
+                numeric_values.update(values)
+        for field, value in numeric_values.items():
             if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
                 errors.append(
                     f"perfil {index} possui valor não positivo ou não numérico em {field}: {value!r}"
@@ -160,7 +186,7 @@ def main() -> int:
         return 1
     print("OK: package.xml é XML válido.")
     print("OK: package.xml e __version__ indicam a mesma versão.")
-    print("OK: catálogo inicial é JSON válido e contém exatamente 22 perfis.")
+    print("OK: catálogo Gerdau 01/23 é JSON válido e contém 218 perfis em 7 séries.")
     print("OK: designações são únicas e todos os perfis possuem campos e valores válidos.")
     print("OK: todos os arquivos Python compilam sintaticamente.")
     print("OK: todos os arquivos essenciais existem.")

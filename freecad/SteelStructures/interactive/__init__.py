@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
-"""Interactive creation infrastructure for Metal Structure."""
+"""Interactive creation infrastructure for Steel Structures."""
 
 from .member_controller import (
     ControllerState,
@@ -14,6 +14,11 @@ except ImportError:
     StructuralMemberDraftTool = None
     draft_native_available = lambda: False
 
+try:
+    from .draft_column_tool import StructuralColumnDraftTool
+except ImportError:
+    StructuralColumnDraftTool = None
+
 __all__ = [
     "ControllerState",
     "MemberController",
@@ -21,5 +26,6 @@ __all__ = [
     "compact_profile_designation",
     "next_default_label",
     "StructuralMemberDraftTool",
+    "StructuralColumnDraftTool",
     "draft_native_available",
 ]
