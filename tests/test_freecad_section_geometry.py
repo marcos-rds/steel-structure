@@ -33,6 +33,14 @@ class Edge:
         self.start, self.end = start, end
 
 
+class Arc:
+    def __init__(self, start, mid, end):
+        self.start, self.mid, self.end = start, mid, end
+
+    def toShape(self):
+        return Edge(self.start, self.end)
+
+
 class Wire:
     def __init__(self, edges):
         self.Edges = list(edges)
@@ -84,7 +92,8 @@ def load_adapter():
     app = types.ModuleType("FreeCAD")
     app.Vector = Vector
     part = types.ModuleType("Part")
-    part.makeLine, part.Wire, part.Face = lambda start, end: Edge(start, end), Wire, Face
+    part.makeLine, part.Arc = lambda start, end: Edge(start, end), Arc
+    part.Wire, part.Face = Wire, Face
     injected = {"FreeCAD": app, "Part": part}
     previous = {name: sys.modules.get(name) for name in injected}
     sys.modules.update(injected)
@@ -184,6 +193,51 @@ class FreeCADSectionAdapterTests(unittest.TestCase):
                 self.assertAlmostEqual(face.Area, 2.0 * b * t - t * t)
                 self.assertAlmostEqual(solid.Volume, face.Area * 1000.0)
                 self.assertEqual(len(face.Wires[0].Edges), 6)
+
+    def test_all_nine_released_u_profiles_create_faces_and_extrusions_with_four_arcs(self):
+        channels = tuple(profile for profile in self.library.list_profiles(series_id="u")
+                         if profile.geometry_status == "released")
+        self.assertEqual(len(channels), 9)
+        for profile in channels:
+            geometry = build_section_geometry(profile)
+            face = self.adapter.section_geometry_to_face(geometry)
+            solid = face.extrude(Vector(0, 0, 1000))
+            with self.subTest(profile=profile.designation):
+                self.assertFalse(face.isNull())
+                self.assertFalse(solid.isNull())
+                self.assertEqual(len(face.Wires[0].Edges), 12)
+                self.assertAlmostEqual(face.BoundBox.XLength, profile.geometry["bf"])
+                self.assertAlmostEqual(face.BoundBox.YLength, profile.geometry["d"])
+
+    def test_all_eight_tapered_i_profiles_create_faces_and_extrusions_with_eight_arcs(self):
+        profiles = self.library.list_profiles(series_id="i")
+        self.assertEqual(len(profiles), 8)
+        for profile in profiles:
+            geometry = build_section_geometry(profile)
+            face = self.adapter.section_geometry_to_face(geometry)
+            solid = face.extrude(Vector(0, 0, 1000))
+            with self.subTest(profile=profile.designation):
+                self.assertFalse(face.isNull())
+                self.assertFalse(solid.isNull())
+                self.assertEqual(len(face.Wires[0].Edges), 20)
+                self.assertAlmostEqual(face.BoundBox.XLength, profile.geometry["bf"])
+                self.assertAlmostEqual(face.BoundBox.YLength, profile.geometry["d"])
+
+    def test_all_ten_standard_tees_create_eight_edge_faces_and_extrusions(self):
+        profiles = self.library.list_profiles(series_id="t")
+        self.assertEqual(len(profiles), 10)
+        for profile in profiles:
+            geometry = build_section_geometry(profile)
+            face = self.adapter.section_geometry_to_face(geometry)
+            solid = face.extrude(Vector(0, 0, 1000))
+            with self.subTest(profile=profile.designation):
+                self.assertFalse(face.isNull())
+                self.assertFalse(solid.isNull())
+                self.assertEqual(len(face.Wires[0].Edges), 8)
+                self.assertAlmostEqual(face.Area, geometry.area)
+                self.assertAlmostEqual(face.BoundBox.XLength, profile.geometry["bf"])
+                self.assertAlmostEqual(face.BoundBox.YLength, profile.geometry["d"])
+                self.assertAlmostEqual(solid.Volume, geometry.area * 1000.0)
 
     def test_w310_face_and_extrusion_match_expected_area_bounds_and_volume(self):
         geometry = build_section_geometry(self.profile("w-310x52.0"))

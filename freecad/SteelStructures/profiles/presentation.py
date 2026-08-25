@@ -24,6 +24,8 @@ class PresentationGroup:
 _DIMENSION_LABELS = {
     "d": "d", "bf": "bf", "tw": "tw", "tf": "tf",
     "h": "h", "d_prime": "d'", "b": "b", "t": "t",
+    "r1": "r1", "r2": "r2", "flange_angle": "Ângulo da mesa",
+    "tl": "TL",
 }
 _PROPERTY_SPECS = {
     "ix": ("Ix", 1e-4, "cm⁴", "Momento de inércia em torno do eixo X-X"),
@@ -37,6 +39,8 @@ _PROPERTY_SPECS = {
     "rt": ("rt", 0.1, "cm", "Raio efetivo para flambagem lateral com torção"),
     "it": ("It", 1e-4, "cm⁴", "Constante de torção"),
     "cw": ("Cw", 1e-6, "cm⁶", "Constante de empenamento"),
+    "x0": ("x0", 0.1, "cm", "Distância do centro de torção ao centroide, na direção X"),
+    "r0": ("r0", 0.1, "cm", "Raio polar em relação ao centro de torção"),
     "rz_min": ("rz mín.", 0.1, "cm", "Raio de giração mínimo"),
     "slenderness_flange": ("bf / 2tf", 1.0, "", None),
     "slenderness_web": ("d' / tw", 1.0, "", None),
@@ -57,10 +61,15 @@ def format_engineering_value(value: float, scale: float, unit: str, decimals=Non
 
 
 def profile_dimension_rows(profile: ProfileDefinition) -> tuple[PresentationRow, ...]:
-    return tuple(
-        PresentationRow(_DIMENSION_LABELS[key], format_engineering_value(value, 1.0, "mm"))
-        for key, value in profile.geometry.items() if key in _DIMENSION_LABELS
-    )
+    rows = []
+    for key, value in profile.geometry.items():
+        if key not in _DIMENSION_LABELS:
+            continue
+        unit = "°" if key == "flange_angle" else "mm"
+        rows.append(PresentationRow(
+            _DIMENSION_LABELS[key], format_engineering_value(value, 1.0, unit)
+        ))
+    return tuple(rows)
 
 
 def profile_preview_dimension_rows(profile: ProfileDefinition) -> tuple[PresentationRow, ...]:
@@ -68,7 +77,10 @@ def profile_preview_dimension_rows(profile: ProfileDefinition) -> tuple[Presenta
     key = (profile.geometry_type, profile.geometry_variant)
     keys_by_geometry = {
         ("i_section", "parallel_flange"): ("d", "bf", "tw", "tf"),
+        ("i_section", "tapered_flange"): ("d", "bf", "tw", "tf"),
         ("equal_angle", "equal_leg"): ("b", "t"),
+        ("channel_section", "tapered_flange"): ("d", "bf", "tw", "tf"),
+        ("tee_section", "standard_tee"): ("d", "bf", "tw", "tf"),
     }
     if key not in keys_by_geometry:
         return ()
@@ -95,11 +107,15 @@ def profile_property_groups(profile: ProfileDefinition) -> tuple[PresentationGro
     physical_rows = []
     if physical.mass_per_length_kg_m is not None:
         physical_rows.append(PresentationRow(
-            "Massa linear", format_engineering_value(physical.mass_per_length_kg_m, 1.0, "kg/m", 1)
+            "Massa linear", format_engineering_value(
+                physical.mass_per_length_kg_m, 1.0, "kg/m", 1
+            )
         ))
     if physical.area_mm2 is not None:
         physical_rows.append(PresentationRow(
-            "Área", format_engineering_value(physical.area_mm2, 0.01, "cm²", 1)
+            "Área", format_engineering_value(
+                physical.area_mm2, 0.01, "cm²", 1
+            )
         ))
     if physical.surface_area_per_length_m2_m is not None:
         physical_rows.append(PresentationRow(
@@ -109,15 +125,22 @@ def profile_property_groups(profile: ProfileDefinition) -> tuple[PresentationGro
     for title, keys in (
         ("Eixo X-X", ("ix", "wx", "zx", "rx")),
         ("Eixo Y-Y", ("iy", "wy", "zy", "ry")),
-        ("Torção / estabilidade", ("rt", "it", "cw", "slenderness_flange", "slenderness_web")),
+        ("Torção / estabilidade", ("rt", "it", "cw", "x0", "r0", "slenderness_flange", "slenderness_web")),
     ):
         rows = _property_rows(profile, keys)
         if rows:
             groups.append(PresentationGroup(title, rows))
     centroid = []
-    if "x" in profile.centroid:
+    if profile.centroid_from_top_flange_face is not None:
         centroid.append(PresentationRow(
-            "x do centroide", format_engineering_value(profile.centroid["x"], 0.1, "cm")
+            "Distância da face superior ao centroide",
+            format_engineering_value(profile.centroid_from_top_flange_face, 0.1, "cm"),
+            "Distância vertical oficial Gerdau medida desde a face externa da mesa",
+        ))
+    elif "x" in profile.centroid:
+        centroid.append(PresentationRow(
+            "x do centroide",
+            format_engineering_value(profile.centroid["x"], 0.1, "cm"),
         ))
         if (profile.geometry_type, profile.geometry_variant) == ("equal_angle", "equal_leg"):
             centroid.append(PresentationRow(
@@ -132,40 +155,155 @@ def profile_property_groups(profile: ProfileDefinition) -> tuple[PresentationGro
     return tuple(group for group in groups if group.rows)
 
 
-def profile_source_rows(profile: ProfileDefinition) -> tuple[PresentationRow, ...]:
+def _compact_catalog_name(profile: ProfileDefinition) -> str:
+    name = profile.catalog.source.source_name
+    prefix = f"{profile.manufacturer.name} - "
+    if name.startswith(prefix):
+        name = name[len(prefix):]
+    return name.replace(" - ", " — ")
+
+
+def _source_property_triplet(values) -> str:
+    rendered = []
+    for key in ("iy", "wy", "ry"):
+        label, scale, unit, _tooltip = _PROPERTY_SPECS[key]
+        rendered.append(f"{label} {format_engineering_value(values[key], scale, unit)}")
+    return " · ".join(rendered)
+
+
+def profile_source_groups(profile: ProfileDefinition) -> tuple[PresentationGroup, ...]:
+    """Build compact operational source summaries from complete catalog data."""
     source = profile.catalog.source
-    rows = [
-        PresentationRow("Fabricante", profile.manufacturer.name),
-        PresentationRow("Catálogo", source.source_name),
-    ]
+    source_tooltip = "\n".join(value for value in (
+        source.source_name,
+        f"URL: {source.source_url}" if source.source_url else None,
+        source.notes,
+    ) if value)
+    key = (profile.geometry_type, profile.geometry_variant)
+    source_rows = [PresentationRow("Fabricante", profile.manufacturer.name)]
+    source_rows.append(PresentationRow("Catálogo", _compact_catalog_name(profile), source_tooltip))
     if source.source_revision:
-        rows.append(PresentationRow("Revisão", source.source_revision))
+        source_rows.append(PresentationRow("Revisão", source.source_revision))
     if profile.equivalent_designation:
-        rows.append(PresentationRow("Designação imperial", profile.equivalent_designation))
+        source_rows.append(PresentationRow("Designação imperial", profile.equivalent_designation))
     if profile.catalog_markers:
-        rows.append(PresentationRow("Marcadores do catálogo", ", ".join(profile.catalog_markers)))
+        source_rows.append(PresentationRow(
+            "Marcadores do catálogo", ", ".join(profile.catalog_markers)
+        ))
     if profile.availability_status == "made_to_order":
-        rows.append(PresentationRow("Disponibilidade", "Sob encomenda"))
+        source_rows.append(PresentationRow("Disponibilidade", "Sob encomenda"))
     if profile.geometry_type == "i_section" and profile.geometry_variant == "parallel_flange":
         if profile.catalog.standard_references:
-            rows.append(PresentationRow("Normas", "; ".join(profile.catalog.standard_references)))
+            source_rows.append(PresentationRow(
+                "Normas", "; ".join(profile.catalog.standard_references)
+            ))
         if profile.catalog.material_notes:
-            rows.append(PresentationRow("Material", profile.catalog.material_notes))
-    if source.notes:
-        rows.append(PresentationRow("Notas", source.notes))
-    return tuple(rows)
+            source_rows.append(PresentationRow(
+                "Material", "ASTM A572 Grau 50", profile.catalog.material_notes
+            ))
+
+    geometry_rows = []
+    notes = profile.geometry_notes
+    if key == ("i_section", "parallel_flange"):
+        geometry_rows.append(PresentationRow(
+            "Definição", "Contorno nominal sem raio R", notes
+        ))
+    elif key == ("i_section", "tapered_flange"):
+        dimensions = profile.geometry
+        geometry_rows.extend((
+            PresentationRow("Origem", "BIM oficial Gerdau — Revit", notes),
+            PresentationRow(
+                "Definição",
+                f"SA {format_number(dimensions['flange_angle'])}° · "
+                f"r1 {format_number(dimensions['r1'])} mm · "
+                f"r2 {format_number(dimensions['r2'])} mm · TL por tipo",
+                notes,
+            ),
+            PresentationRow(
+                "Referência CAD", "DWG não utilizado na geometria estrutural", notes
+            ),
+        ))
+    elif key == ("channel_section", "tapered_flange"):
+        dimensions = profile.geometry
+        geometry_rows.extend((
+            PresentationRow("Origem", "BIM oficial Gerdau — Revit", notes),
+            PresentationRow(
+                "Definição",
+                f"SA {format_number(dimensions['flange_angle'])}° · "
+                f"r1 {format_number(dimensions['r1'])} mm · "
+                f"r2 {format_number(dimensions['r2'])} mm",
+                notes,
+            ),
+        ))
+    elif key == ("equal_angle", "equal_leg"):
+        geometry_rows.append(PresentationRow(
+            "Definição", "Contorno nominal sem raios", notes
+        ))
+    elif key == ("tee_section", "standard_tee"):
+        geometry_rows.extend((
+            PresentationRow("Definição", "Seção nominal retangular", notes),
+            PresentationRow("Concordância", "Não parametrizada na fonte", notes),
+        ))
+
+    technical_rows = []
+    if profile.geometry_status == "pending_technical_review":
+        technical_rows.extend((
+            PresentationRow("Status", "Geometria em revisão técnica", notes),
+            PresentationRow("Motivo", "Inconsistência entre fontes Gerdau", notes),
+        ))
+    override = profile.section_property_override
+    if override is not None:
+        technical_rows.extend((
+            PresentationRow("Usado", _source_property_triplet(profile.section_properties)),
+            PresentationRow(
+                "Publicado", _source_property_triplet(profile.reported_section_properties)
+            ),
+            PresentationRow(
+                "Status", "Propriedades efetivas calculadas da geometria nominal Revit",
+                override.note,
+            ),
+            PresentationRow(
+                "Confirmação", "Aguardando eventual esclarecimento da Gerdau",
+                override.note,
+            ),
+        ))
+    if profile.ref.profile_id == "t-0.875x0.125":
+        technical_rows.extend((
+            PresentationRow("Iy publicado", "0,33 cm⁴"),
+            PresentationRow("Iy geométrico nominal", "aprox. 0,296 cm⁴"),
+            PresentationRow(
+                "Status", "Incompatibilidade conhecida; aguardando esclarecimento oficial",
+                notes,
+            ),
+        ))
+
+    groups = [PresentationGroup("Fonte", tuple(source_rows))]
+    if geometry_rows:
+        groups.append(PresentationGroup("Geometria", tuple(geometry_rows)))
+    if technical_rows:
+        title = (
+            "Observação técnica — eixo Y-Y"
+            if override is not None or profile.ref.profile_id == "t-0.875x0.125"
+            else "Observação técnica"
+        )
+        groups.append(PresentationGroup(title, tuple(technical_rows)))
+    return tuple(groups)
+
+
+def profile_source_rows(profile: ProfileDefinition) -> tuple[PresentationRow, ...]:
+    """Compatibility flattening for non-widget consumers."""
+    return tuple(row for group in profile_source_groups(profile) for row in group.rows)
 
 
 def profile_basic_rows(profile: ProfileDefinition, series_name: str) -> tuple[PresentationRow, ...]:
-    rows = [
+    return (
         PresentationRow("Série", series_name),
         PresentationRow("Fabricante", profile.manufacturer.name),
-    ]
-    return tuple(rows)
+    )
 
 
 __all__ = [
     "PresentationGroup", "PresentationRow", "format_engineering_value", "format_number",
     "profile_basic_rows", "profile_dimension_rows", "profile_preview_dimension_rows",
-    "profile_property_groups", "profile_source_rows",
+    "profile_property_groups", "profile_source_groups", "profile_source_rows",
 ]

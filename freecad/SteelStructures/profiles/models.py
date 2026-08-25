@@ -73,6 +73,15 @@ class PhysicalProperties:
 
 
 @dataclass(frozen=True)
+class SectionPropertyOverride:
+    """Catalog-backed decision to replace selected reported properties."""
+
+    basis: str
+    properties: tuple[str, ...]
+    note: str
+
+
+@dataclass(frozen=True)
 class ProfileDefinition:
     ref: ProfileRef
     designation: str
@@ -80,15 +89,22 @@ class ProfileDefinition:
     aliases: tuple[str, ...]
     catalog_markers: tuple[str, ...]
     availability_status: str
+    geometry_status: str
     series_id: str
     category_id: str
     manufacturer: ManufacturerDefinition
     family: str
     geometry_type: str
     geometry_variant: str | None
+    geometry_notes: str | None
     geometry: Mapping[str, float]
     physical_properties: PhysicalProperties
     section_properties: Mapping[str, float]
+    reported_section_properties: Mapping[str, float]
+    section_property_override: SectionPropertyOverride | None
+    # T sections publish a vertical distance from the external top flange face,
+    # not a horizontal centroid coordinate.
+    centroid_from_top_flange_face: float | None
     # Section coordinate in the publication's geometric convention; it is not
     # a StructuralMember placement offset or a bounding-box center.
     centroid: Mapping[str, float]

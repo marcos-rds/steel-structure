@@ -38,6 +38,12 @@ _INSERTION_KEYS = {
     "Ponta superior": "top_tip",
     "Ponta direita": "right_tip",
     "Quina interna": "inner_corner",
+    "Centro da alma": "web_center",
+    "Face externa da alma": "web_back",
+    "Canto superior traseiro": "rear_top",
+    "Canto inferior traseiro": "rear_bottom",
+    "Ponta superior da mesa": "flange_top_tip",
+    "Ponta inferior da mesa": "flange_bottom_tip",
 }
 _INSERTIONS_BY_KEY = {key: label for label, key in _INSERTION_KEYS.items()}
 

@@ -7,13 +7,19 @@ import json
 from collections import defaultdict
 from pathlib import Path
 
+from .effective_properties import resolve_effective_section_properties
 from .models import ProfileRef
 from .validation import CatalogValidationError, ProfileNotFoundError, validate_catalog_payload
 
 
+def canonicalize_designation(value: str) -> str:
+    """Normalize equivalent inch marks to the catalog's stable spelling."""
+    return str(value).replace("″", '"')
+
+
 def normalize_search_text(value: str) -> str:
     """Normalize commercial designations for tolerant substring matching."""
-    return "".join(str(value).casefold().replace(",", ".").split())
+    return "".join(canonicalize_designation(value).casefold().replace(",", ".").split())
 
 
 class ProfileLibrary:
@@ -51,6 +57,14 @@ class ProfileLibrary:
             except (OSError, json.JSONDecodeError) as exc:
                 raise CatalogValidationError(f"{path.name}: não foi possível ler o catálogo: {exc}") from exc
             metadata, categories, series, profiles = validate_catalog_payload(payload, path)
+            try:
+                profiles = tuple(
+                    resolve_effective_section_properties(profile) for profile in profiles
+                )
+            except (TypeError, ValueError) as exc:
+                raise CatalogValidationError(
+                    f"{path.name} [{metadata.id}]: propriedade efetiva inválida: {exc}"
+                ) from exc
             duplicate_ref = next(
                 (profile.ref for profile in profiles if profile.ref in self._profiles_by_ref),
                 None,

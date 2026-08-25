@@ -42,7 +42,8 @@ def section_insertion_references(geometry: SectionGeometry2D):
             ("right_tip", "Ponta direita", Point2D(bounds.max_x, bounds.min_y)),
             ("inner_corner", "Quina interna", inner),
         )
-    elif key == ("i_section", "parallel_flange"):
+    elif key in (("i_section", "parallel_flange"),
+                 ("i_section", "tapered_flange")):
         x0, y0 = geometry.origin.x, geometry.origin.y
         points = {
             "centroid": Point2D(x0, y0),
@@ -56,6 +57,31 @@ def section_insertion_references(geometry: SectionGeometry2D):
             "bottom_right": Point2D(bounds.max_x, bounds.min_y),
         }
         values = tuple((identifier, label, points[identifier]) for identifier, label in _I_LABELS)
+    elif key == ("channel_section", "tapered_flange"):
+        # Semantic U references come from its canonical right-opening contour.
+        rear_bottom = geometry.outer_path.segments[0].start
+        lower_tip = geometry.outer_path.segments[0].end
+        inner_web_bottom = geometry.outer_path.segments[5].start
+        upper_tip = geometry.outer_path.segments[10].start
+        rear_top = geometry.outer_path.segments[10].end
+        web_mid_x = (rear_bottom.x + inner_web_bottom.x) / 2.0
+        values = (
+            ("centroid", "Centroide", geometry.origin),
+            ("web_center", "Centro da alma", Point2D(web_mid_x, 0.0)),
+            ("web_back", "Face externa da alma", Point2D(rear_bottom.x, 0.0)),
+            ("rear_top", "Canto superior traseiro", rear_top),
+            ("rear_bottom", "Canto inferior traseiro", rear_bottom),
+            ("flange_top_tip", "Ponta superior da mesa", upper_tip),
+            ("flange_bottom_tip", "Ponta inferior da mesa", lower_tip),
+        )
+    elif key == ("tee_section", "standard_tee"):
+        values = (
+            ("centroid", "Centroide", geometry.origin),
+            ("top", "Face superior", Point2D(geometry.origin.x, bounds.max_y)),
+            ("bottom", "Ponta inferior da alma", Point2D(geometry.origin.x, bounds.min_y)),
+            ("top_left", "Canto superior esquerdo", Point2D(bounds.min_x, bounds.max_y)),
+            ("top_right", "Canto superior direito", Point2D(bounds.max_x, bounds.max_y)),
+        )
     else:
         values = (("centroid", "Centroide", geometry.origin),)
     return tuple(InsertionReference(*value) for value in values)

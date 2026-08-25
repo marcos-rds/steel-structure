@@ -12,6 +12,7 @@ from pathlib import Path
 from freecad.SteelStructures.paths import CATALOGS_DIR
 from freecad.SteelStructures.profiles import (
     ProfileLibrary, UnsupportedSectionGeometryError, build_section_geometry,
+    insertion_reference,
 )
 from freecad.SteelStructures.profiles.presentation import profile_preview_dimension_rows
 ROOT = Path(__file__).resolve().parents[1]
@@ -71,6 +72,7 @@ class _FakeScene:
         self.texts = []
         self.text_items = []
         self.ellipses = []
+        self.ellipse_items = []
         self.line_items = []
 
     def addLine(self, *args):
@@ -92,6 +94,13 @@ class _FakeScene:
 
     def addEllipse(self, *args):
         self.ellipses.append(args)
+        item = types.SimpleNamespace(
+            args=args,
+            setPos=lambda x, y: setattr(item, "position", (x, y)),
+            setFlag=lambda flag, enabled: setattr(item, "flag", (flag, enabled)),
+        )
+        self.ellipse_items.append(item)
+        return item
 
 
 def _load_preview_runtime_module():
@@ -102,6 +111,10 @@ def _load_preview_runtime_module():
     interactive = types.ModuleType(root_name + ".interactive")
     interactive.__path__ = []
     profiles = sys.modules["freecad.SteelStructures.profiles"]
+    preview_geometry = __import__(
+        "freecad.SteelStructures.profiles.preview_geometry",
+        fromlist=["section_outline_points"],
+    )
     qtgui = types.SimpleNamespace(
         QGraphicsView=object,
         QPen=type("QPen", (), {
@@ -128,6 +141,7 @@ def _load_preview_runtime_module():
         root_name: root,
         root_name + ".interactive": interactive,
         root_name + ".profiles": profiles,
+        root_name + ".profiles.preview_geometry": preview_geometry,
         "PySide": pyside,
     }
     previous = {name: sys.modules.get(name) for name in injected}
@@ -203,7 +217,7 @@ class ProfileBrowserModelTests(unittest.TestCase):
     def setUp(self):
         self.model = ProfileBrowserModel(self.library)
 
-    def test_catalog_tree_source_has_one_category_seven_series_and_218_profiles(self):
+    def test_catalog_tree_source_has_rolled_category_and_218_profiles(self):
         self.assertEqual(len(self.library.list_categories()), 1)
         self.assertEqual(len(self.library.list_series("rolled-steel")), 7)
         self.assertEqual(len(self.model.set_filter("rolled-steel")), 218)
@@ -247,9 +261,17 @@ class ProfileBrowserModelTests(unittest.TestCase):
         angle = build_section_geometry(self.library.search("L50x5")[0])
         self.assertEqual(len(angle.outer_path.segments), 6)
         self.assertNotEqual(angle.bounds.min_x, -angle.bounds.max_x)
-        for query in ("I3x8.48", "U6x12.2", "T2x1/4"):
-            with self.subTest(query=query), self.assertRaises(UnsupportedSectionGeometryError):
-                build_section_geometry(self.library.search(query)[0])
+        channel = build_section_geometry(self.library.search("U6x12.2")[0])
+        self.assertEqual((channel.bounds.width, channel.bounds.height), (48.77, 152.4))
+        self.assertEqual(channel.geometry_type, "channel_section")
+        tapered_i = build_section_geometry(self.library.search("I3x8.48")[0])
+        self.assertEqual((tapered_i.geometry_type, tapered_i.geometry_variant),
+                         ("i_section", "tapered_flange"))
+        self.assertEqual(len(tapered_i.outer_path.segments), 20)
+        tee = build_section_geometry(self.library.search("T2x1/4")[0])
+        self.assertEqual((tee.geometry_type, tee.geometry_variant),
+                         ("tee_section", "standard_tee"))
+        self.assertEqual(len(tee.outer_path.segments), 8)
 
     def test_qt_renderer_consumes_section_geometry_not_dimensions(self):
         source = (ROOT / "freecad/SteelStructures/interactive/profile_browser_preview.py").read_text("utf-8")
@@ -277,6 +299,131 @@ class ProfileBrowserModelTests(unittest.TestCase):
         self.assertGreaterEqual(len(scene.lines), 12)
         self.assertTrue(all(item.flag == (1, True) for item in scene.text_items))
         self.assertTrue(all("&nbsp;" in html for html in annotations))
+
+    def test_tee_renderer_uses_real_centroidal_geometry_and_four_dimensions(self):
+        module = _load_preview_runtime_module()
+        for query in ("T5/8x1/8", "T1 1/2x1/8", "T2x3/16", "T2x1/4"):
+            profile = self.library.search(query)[0]
+            geometry = build_section_geometry(profile)
+            dimensions = {row.label: row.value for row in profile_preview_dimension_rows(profile)}
+            stations = module._tee_dimension_stations(geometry)
+            scene = _FakeScene()
+            renderer = object.__new__(module.SectionPreviewView)
+            renderer.scene = lambda: scene
+            renderer._add_dimensions(geometry, dimensions)
+            with self.subTest(query=query):
+                self.assertEqual(set(dimensions), {"d", "bf", "tw", "tf"})
+                self.assertEqual(len(scene.text_items), 4)
+                self.assertAlmostEqual(geometry.bounds.max_y,
+                                       dict(geometry.dimension_stations)["centroid_from_top"])
+                self.assertNotAlmostEqual(geometry.bounds.max_y, -geometry.bounds.min_y)
+                self.assertAlmostEqual(
+                    stations["tw_right"] - stations["tw_left"],
+                    profile.geometry["tw"],
+                )
+                self.assertAlmostEqual(
+                    stations["tf_bottom"] - stations["tf_top"],
+                    profile.geometry["tf"],
+                )
+                self.assertAlmostEqual(
+                    stations["tw_section_bottom"], -geometry.bounds.min_y
+                )
+                tw_item = next(
+                    item for item in scene.text_items if "(tw)" in item.html
+                )
+                tf_item = next(
+                    item for item in scene.text_items if "(tf)" in item.html
+                )
+                self.assertGreater(
+                    tw_item.position[1], stations["tw_section_bottom"]
+                )
+                self.assertEqual(tf_item.position[1], (
+                    stations["tf_top"] + stations["tf_bottom"]
+                ) / 2.0)
+                self.assertGreater(tw_item.position[1], tf_item.position[1])
+                self.assertTrue(any(
+                    line[0] == line[2] == stations["tw_left"]
+                    and line[1] > stations["tw_section_bottom"]
+                    and line[3] > line[1]
+                    for line in scene.lines
+                ))
+                self.assertTrue(any(
+                    line[0] == line[2] == stations["tw_right"]
+                    and line[1] > stations["tw_section_bottom"]
+                    and line[3] > line[1]
+                    for line in scene.lines
+                ))
+
+    def test_u_renderer_uses_shared_geometry_and_four_dimensions_across_sizes(self):
+        module = _load_preview_runtime_module()
+        for query in ("U3x6.10", "U8x20.50", "U12x37.00"):
+            profile = self.library.search(query)[0]
+            geometry = build_section_geometry(profile)
+            dimensions = {row.label: row.value for row in profile_preview_dimension_rows(profile)}
+            scene = _FakeScene()
+            renderer = object.__new__(module.SectionPreviewView)
+            renderer.scene = lambda: scene
+            with self.subTest(query=query):
+                renderer._add_dimensions(geometry, dimensions)
+                self.assertEqual(set(dimensions), {"d", "bf", "tw", "tf"})
+                self.assertEqual(len(scene.text_items), 4)
+                self.assertGreaterEqual(len(scene.lines), 12)
+
+    def test_tapered_i_renderer_uses_real_geometry_and_tf_station(self):
+        module = _load_preview_runtime_module()
+        for query in ("I3x8.48", "I5x14.88", "I6x22.00"):
+            profile = self.library.search(query)[0]
+            geometry = build_section_geometry(profile)
+            dimensions = {row.label: row.value for row in profile_preview_dimension_rows(profile)}
+            scene = _FakeScene()
+            renderer = object.__new__(module.SectionPreviewView)
+            renderer.scene = lambda: scene
+            renderer._add_dimensions(geometry, dimensions)
+            x_tf, outer_y, inner_y = module._tapered_i_tf_measurement(geometry)
+            expected_tf = float(dimensions["tf"].removesuffix(" mm").replace(",", "."))
+            with self.subTest(query=query):
+                self.assertEqual(set(dimensions), {"d", "bf", "tw", "tf"})
+                self.assertEqual(len(scene.text_items), 4)
+                self.assertAlmostEqual(x_tf, profile.geometry["bf"] / 2 - profile.geometry["tl"])
+                self.assertAlmostEqual(outer_y - inner_y, expected_tf, places=8)
+                self.assertEqual(len([
+                    segment for segment in geometry.outer_path.segments
+                    if hasattr(segment, "center")
+                ]), 8)
+
+    def test_u_tf_layout_uses_physical_station_and_keeps_dimension_outside(self):
+        module = _load_preview_runtime_module()
+        for query in ("U3x6.10", "U12x37.00"):
+            profile = self.library.search(query)[0]
+            geometry = build_section_geometry(profile)
+            dimensions = {
+                row.label: row.value for row in profile_preview_dimension_rows(profile)
+            }
+            x_tf, outer_y, inner_y = module._channel_tf_measurement(geometry)
+            web_inner_x = geometry.outer_path.segments[5].start.x
+            expected_x = geometry.bounds.min_x + (
+                geometry.bounds.width + web_inner_x - geometry.bounds.min_x
+            ) / 2.0
+            expected_tf = float(dimensions["tf"].removesuffix(" mm").replace(",", "."))
+            scene = _FakeScene()
+            renderer = object.__new__(module.SectionPreviewView)
+            renderer.scene = lambda: scene
+            renderer._add_dimensions(geometry, dimensions)
+            units = renderer._scene_units_per_pixel(geometry.bounds)
+            line_x = geometry.bounds.max_x + module.TF_LINE_OFFSET_PIXELS * units
+            with self.subTest(query=query):
+                self.assertAlmostEqual(x_tf, expected_x)
+                self.assertAlmostEqual(outer_y - inner_y, expected_tf, places=8)
+                self.assertGreater(line_x, geometry.bounds.max_x)
+                self.assertTrue(any(
+                    line[:4] == (line_x, -outer_y, line_x, -inner_y)
+                    for line in scene.lines
+                ))
+                # The last two ellipses are the fixed-pixel witnesses at the real faces.
+                self.assertEqual(
+                    [item.position for item in scene.ellipse_items[-2:]],
+                    [(x_tf, -outer_y), (x_tf, -inner_y)],
+                )
 
     def test_dimension_renderer_handles_large_w_and_wide_hp(self):
         module = _load_preview_runtime_module()
@@ -614,10 +761,10 @@ class ProfileBrowserModelTests(unittest.TestCase):
             module.ProfileBrowserDialog._current_preview_mode, dialog
         )
         sequence = (
-            "W150x13", "L50x5", "U6x12.2", "L2x1/4",
+            "W150x13", "L50x5", "U6x12.2", "U3x7.44", "L2x1/4",
             "T2x1/4", "HP310x132", "W150x13",
         )
-        expected_supported = (True, True, False, True, False, True, True)
+        expected_supported = (True, True, True, False, True, True, True, True)
         for query, supported in zip(sequence, expected_supported):
             profile = self.library.search(query)[0]
             module.ProfileBrowserDialog._update_preview(dialog, profile)
@@ -628,9 +775,12 @@ class ProfileBrowserModelTests(unittest.TestCase):
                 self.assertEqual(len(dialog.preview.rendered[-1][1]), expected_dimensions)
                 self.assertEqual(dialog.preview.rendered[-1][2], "dimensions")
             else:
-                self.assertIn("não disponível", dialog.preview_message.text)
-        self.assertEqual(dialog.preview.clear_count, 2)
-        self.assertEqual(len(dialog.preview.rendered), 5)
+                if profile.geometry_status == "pending_technical_review":
+                    self.assertIn("inconsistência entre fontes técnicas Gerdau", dialog.preview_message.text)
+                else:
+                    self.assertIn("não disponível", dialog.preview_message.text)
+        self.assertEqual(dialog.preview.clear_count, 1)
+        self.assertEqual(len(dialog.preview.rendered), 7)
 
     def test_tab_mode_changes_and_profile_changes_preserve_current_mode(self):
         module = _load_browser_runtime_module()
@@ -693,6 +843,14 @@ class ProfileBrowserModelTests(unittest.TestCase):
         self.assertIn('"Eixo X-X": (1, 0, 1, 1)', source)
         self.assertIn('"Eixo Y-Y": (1, 1, 1, 1)', source)
         self.assertIn("QGridLayout(page)", source)
+
+    def test_source_tab_renders_compact_presentation_groups(self):
+        source = (ROOT / "freecad/SteelStructures/interactive/profile_browser.py").read_text("utf-8")
+        self.assertIn("profile_source_groups", source)
+        self.assertIn("def _source_widget(self, groups):", source)
+        self.assertIn("QGroupBox(group.title)", source)
+        self.assertIn("self._source_widget(profile_source_groups(profile))", source)
+        self.assertNotIn("self._rows_widget(profile_source_rows(profile))", source)
 
     def test_select_mode_accepts_only_profiles_allowed_by_its_capability(self):
         module = _load_browser_runtime_module()

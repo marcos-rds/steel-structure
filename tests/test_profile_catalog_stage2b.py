@@ -4,12 +4,16 @@ from __future__ import annotations
 
 import copy
 import json
+import math
 import unittest
 from pathlib import Path
 
 from freecad.SteelStructures import profile_catalog
 from freecad.SteelStructures.paths import CATALOGS_DIR
-from freecad.SteelStructures.profiles import CatalogValidationError, ProfileLibrary, ProfileRef
+from freecad.SteelStructures.profiles import (
+    CatalogValidationError, ProfileLibrary, ProfileRef, build_section_geometry,
+    section_geometric_properties,
+)
 from freecad.SteelStructures.profiles.validation import validate_catalog_payload
 
 
@@ -22,15 +26,20 @@ class Stage2BCatalogTests(unittest.TestCase):
     def setUpClass(cls):
         cls.raw = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
         cls.library = ProfileLibrary(CATALOGS_DIR)
-        cls.profiles = cls.library.list_profiles()
+        cls.profiles = tuple(
+            item for item in cls.library.list_profiles()
+            if item.ref.catalog_id == CATALOG_ID
+        )
         cls.by_id = {item.ref.profile_id: item for item in cls.profiles}
 
     def test_exact_global_and_series_counts_and_unique_refs(self):
         expected = {"w": 100, "hp": 8, "i": 8, "u": 12, "t": 10,
                     "equal-angle-inch": 50, "equal-angle-metric": 30}
         self.assertEqual(len(self.library.list_catalogs()), 1)
-        self.assertEqual(len(self.library.list_categories()), 1)
-        self.assertEqual(len(self.library.list_series()), 7)
+        self.assertEqual(len(tuple(item for item in self.library.list_categories()
+                                   if item.catalog_id == CATALOG_ID)), 1)
+        self.assertEqual(len(tuple(item for item in self.library.list_series()
+                                   if item.catalog_id == CATALOG_ID)), 7)
         self.assertEqual(len(self.profiles), 218)
         self.assertEqual(len({item.ref for item in self.profiles}), 218)
         self.assertEqual({sid: len(self.library.list_profiles(series_id=sid)) for sid in expected}, expected)
@@ -39,6 +48,9 @@ class Stage2BCatalogTests(unittest.TestCase):
         for designation, expected_series in (
             ("W 150 x 13,0", "Perfis W"),
             ("HP 310 x 132,0", "Perfis HP"),
+            ('I 3" x 8,48', "Perfis I"),
+            ('U 6" x 12,20', "Perfis U"),
+            ('T 2" x 1/4"', "Perfis T"),
             ('L 1/2" x 1/8"', "Cantoneiras - Polegadas"),
             ("L 40 x 3", "Cantoneiras - Métricas"),
         ):
@@ -49,9 +61,18 @@ class Stage2BCatalogTests(unittest.TestCase):
             self.assertEqual(restored, designation)
 
     def test_creation_combo_bridge_rejects_non_constructible_profile(self):
-        for profile_id in ("i-3x8.48", "u-6x12.20", "t-2x0.25"):
+        for profile_id in (
+            "u-3x7.44", "u-10x30.80", "u-12x29.76",
+        ):
             with self.subTest(profile_id=profile_id), self.assertRaises(ValueError):
                 profile_catalog.selection_for_ref(ProfileRef(CATALOG_ID, profile_id))
+
+    def test_creation_policy_has_one_catalog_backed_predicate(self):
+        released = self.by_id["u-6x12.20"]
+        pending = self.by_id["u-3x7.44"]
+        self.assertTrue(profile_catalog.is_creation_profile(released))
+        self.assertFalse(profile_catalog.is_creation_profile(pending))
+        self.assertNotIn(pending.designation, profile_catalog.profiles())
 
     def test_series_geometry_types_variants_and_notes(self):
         expected = {
@@ -64,6 +85,23 @@ class Stage2BCatalogTests(unittest.TestCase):
         series = {item.id: item for item in self.library.list_series()}
         self.assertEqual({sid: (series[sid].geometry_type, series[sid].geometry_variant) for sid in expected}, expected)
         self.assertTrue(all(series[sid].geometry_notes for sid in expected))
+        u_notes = series["u"].geometry_notes
+        for evidence in ("Gerdau 2015", "Gerdau 2023", "BIM atual", "29,76", "30,80",
+                         "sem troca silenciosa", "U 3 x 7,44", "U 10 x 30,80", "U 12 x 29,76"):
+            self.assertIn(evidence, u_notes)
+        i_notes = series["i"].geometry_notes
+        for evidence in (
+            "Perfil-I-Revit_1.zip", "Viga I Gerdau", "9,46", "r1 = 7 mm",
+            "r2 = 3 mm", "TL explícito", "AutoCAD", "I 3 x 9,68",
+            "inconsistência interna", "valores efetivos calculados",
+        ):
+            self.assertIn(evidence, i_notes)
+        t_notes = series["t"].geometry_notes
+        for evidence in (
+            "Geometria nominal retangular", "face externa da mesa", "T 7/8 x 1/8",
+            "0,33 cm4", "0,296 cm4", "sem override", "esclarecimento oficial",
+        ):
+            self.assertIn(evidence, t_notes)
 
     def assert_profile(self, profile_id, geometry, mass, area, section, centroid=None):
         item = self.by_id[profile_id]
@@ -74,21 +112,97 @@ class Stage2BCatalogTests(unittest.TestCase):
         if centroid is None:
             self.assertEqual(dict(item.centroid), {})
         else:
-            self.assertEqual(set(item.centroid), {"x"})
-            self.assertAlmostEqual(item.centroid["x"], centroid * 10.0)
+            if item.geometry_type == "tee_section":
+                self.assertEqual(dict(item.centroid), {})
+                self.assertAlmostEqual(item.centroid_from_top_flange_face, centroid * 10.0)
+            else:
+                self.assertEqual(set(item.centroid), {"x"})
+                self.assertAlmostEqual(item.centroid["x"], centroid * 10.0)
         self.assertIsNone(item.physical_properties.surface_area_per_length_m2_m)
 
     def test_complete_i_boundary_samples(self):
-        self.assert_profile("i-3x8.48", {"d":76.2,"tw":4.32,"bf":59.18,"tf":6.6}, 8.48, 10.8,
+        self.assert_profile("i-3x8.48", {"d":76.2,"tw":4.32,"bf":59.18,"tf":6.6,
+                            "tl":13.715,"flange_angle":9.46,"r1":7.0,"r2":3.0}, 8.48, 10.8,
                             {"ix":1051000.0,"wx":27600.0,"rx":31.2,"iy":189000.0,"wy":6400.0,"ry":13.3,"rt":14.5})
-        self.assert_profile("i-6x22.00", {"d":152.4,"tw":8.71,"bf":87.5,"tf":9.12}, 22.0, 27.97,
+        self.assert_profile("i-6x22.00", {"d":152.4,"tw":8.71,"bf":87.5,"tf":9.12,
+                            "tl":19.6975,"flange_angle":9.46,"r1":7.0,"r2":3.0}, 22.0, 27.97,
                             {"ix":10030000.0,"wx":131700.0,"rx":59.9,"iy":849000.0,"wy":19400.0,"ry":17.4,"rt":22.6})
 
+    def test_all_i_profiles_have_explicit_revit_geometry_parameters(self):
+        profiles = self.library.list_profiles(series_id="i")
+        self.assertEqual(len(profiles), 8)
+        for profile in profiles:
+            with self.subTest(profile=profile.designation):
+                self.assertEqual(profile.geometry["flange_angle"], 9.46)
+                self.assertEqual(profile.geometry["r1"], 7.0)
+                self.assertEqual(profile.geometry["r2"], 3.0)
+                self.assertAlmostEqual(
+                    profile.geometry["tl"],
+                    (profile.geometry["bf"] - profile.geometry["tw"]) / 4.0,
+                )
+
+    def test_i_3x9_68_effective_weak_axis_properties_come_from_one_geometry(self):
+        profile = self.by_id["i-3x9.68"]
+        geometry = build_section_geometry(profile)
+        calculated = section_geometric_properties(geometry)
+        effective = profile.section_properties
+        half_width = profile.geometry["bf"] / 2.0
+        self.assertAlmostEqual(effective["iy"], calculated.iy, places=7)
+        self.assertAlmostEqual(effective["wy"], calculated.iy / half_width, places=7)
+        self.assertAlmostEqual(
+            effective["ry"], math.sqrt(calculated.iy / calculated.area), places=10,
+        )
+        self.assertAlmostEqual(calculated.area, geometry.area, places=7)
+        self.assertNotEqual(effective["iy"], profile.reported_section_properties["iy"])
+        self.assertNotEqual(effective["wy"], profile.reported_section_properties["wy"])
+        self.assertNotEqual(effective["ry"], profile.reported_section_properties["ry"])
+
+    def test_i_3x9_68_preserves_reported_gerdau_values_and_structured_decision(self):
+        profile = self.by_id["i-3x9.68"]
+        self.assertEqual(
+            {key: profile.reported_section_properties[key] for key in ("iy", "wy", "ry")},
+            {"iy": 456000.0, "wy": 11480.0, "ry": 19.2},
+        )
+        override = profile.section_property_override
+        self.assertEqual(override.basis, "nominal_revit_geometry")
+        self.assertEqual(set(override.properties), {"iy", "wy", "ry"})
+        for evidence in (
+            "inconsistência geométrica confirmada", "decisão técnica do projeto",
+            "eventual esclarecimento da Gerdau", "valores publicados permanecem preservados",
+        ):
+            self.assertIn(evidence, override.note)
+
+    def test_other_seven_i_profiles_continue_using_reported_properties(self):
+        others = [
+            profile for profile in self.library.list_profiles(series_id="i")
+            if profile.ref.profile_id != "i-3x9.68"
+        ]
+        self.assertEqual(len(others), 7)
+        for profile in others:
+            with self.subTest(profile=profile.designation):
+                self.assertIsNone(profile.section_property_override)
+                self.assertEqual(
+                    dict(profile.section_properties),
+                    dict(profile.reported_section_properties),
+                )
+
     def test_complete_u_boundary_samples_and_centroid_semantics(self):
-        self.assert_profile("u-3x6.10", {"d":76.2,"tw":4.32,"bf":35.81,"tf":6.93}, 6.1, 7.78,
+        self.assert_profile("u-3x6.10", {"d":76.2,"tw":4.32,"bf":35.81,"tf":6.93,
+                            "r1":6.0,"r2":1.8,"flange_angle":8.3}, 6.1, 7.78,
                             {"ix":689000.0,"wx":18100.0,"rx":29.8,"iy":82000.0,"wy":3320.0,"ry":10.3}, 1.11)
-        self.assert_profile("u-12x37.00", {"d":305.0,"tw":9.8,"bf":77.0,"tf":12.7}, 37.0, 47.4,
+        self.assert_profile("u-12x37.00", {"d":305.0,"tw":9.8,"bf":77.0,"tf":12.7,
+                            "r1":16.7,"r2":4.5,"flange_angle":8.3}, 37.0, 47.4,
                             {"ix":60100000.0,"wx":394000.0,"rx":113.0,"iy":1860000.0,"wy":30900.0,"ry":19.8}, 1.71)
+        pending = {
+            item.ref.profile_id for item in self.library.list_profiles(series_id="u")
+            if item.geometry_status == "pending_technical_review"
+        }
+        self.assertEqual(pending, {"u-3x7.44", "u-10x30.80", "u-12x29.76"})
+        self.assertTrue(all(
+            item.geometry_status == "released"
+            for item in self.library.list_profiles(series_id="u")
+            if item.ref.profile_id not in pending
+        ))
 
     def test_complete_t_boundary_samples_and_published_equalities(self):
         self.assert_profile("t-0.625x0.125", {"d":15.88,"bf":15.88,"tw":3.18,"tf":3.18}, .71, .90,
@@ -98,6 +212,14 @@ class Stage2BCatalogTests(unittest.TestCase):
         for item in self.library.list_profiles(series_id="t"):
             self.assertEqual(item.geometry["d"], item.geometry["bf"])
             self.assertEqual(item.geometry["tw"], item.geometry["tf"])
+            self.assertEqual(dict(item.centroid), {})
+            self.assertIsNotNone(item.centroid_from_top_flange_face)
+
+    def test_t_7_8_preserves_official_iy_without_effective_override(self):
+        item = self.by_id["t-0.875x0.125"]
+        self.assertEqual(item.section_properties["iy"], 3300.0)
+        self.assertEqual(item.reported_section_properties["iy"], 3300.0)
+        self.assertIsNone(item.section_property_override)
 
     def test_complete_angle_samples_symmetry_and_rz_min(self):
         self.assert_profile("equal-angle-inch-0.5x0.125", {"b":12.7,"t":3.18}, .55, .70,
@@ -164,6 +286,35 @@ class GeometryValidationTests(unittest.TestCase):
             with self.subTest(profile=pid, changes=changes):
                 self.assert_invalid_geometry(pid, **changes)
 
+    def test_channel_nominal_bim_parameters_are_required_and_validated(self):
+        for changes in ({"r1": 0}, {"r2": -1}, {"flange_angle": 0}, {"flange_angle": 45}):
+            with self.subTest(changes=changes):
+                self.assert_invalid_geometry("u-3x6.10", **changes)
+        value = self.payload_for("u-3x6.10")
+        del value["profiles"][0]["geometry"]["r1"]
+        with self.assertRaises(CatalogValidationError):
+            validate_catalog_payload(value, Path("missing-u-radius.json"))
+
+    def test_tapered_i_revit_parameters_are_required_and_validated(self):
+        for changes in (
+            {"r1": 0}, {"r2": -1}, {"tl": 0}, {"tl": 28},
+            {"flange_angle": 0}, {"flange_angle": 45},
+        ):
+            with self.subTest(changes=changes):
+                self.assert_invalid_geometry("i-3x8.48", **changes)
+        for parameter in ("r1", "r2", "tl", "flange_angle"):
+            value = self.payload_for("i-3x8.48")
+            del value["profiles"][0]["geometry"][parameter]
+            with self.subTest(parameter=parameter), self.assertRaises(CatalogValidationError):
+                validate_catalog_payload(value, Path("missing-i-revit-parameter.json"))
+
+    def test_section_property_override_requires_complete_weak_axis_set(self):
+        for properties in ([], ["iy"], ["iy", "wy", "ry", "ix"]):
+            value = self.payload_for("i-3x9.68")
+            value["profiles"][0]["section_property_override"]["properties"] = properties
+            with self.subTest(properties=properties), self.assertRaises(CatalogValidationError):
+                validate_catalog_payload(value, Path("invalid-property-override.json"))
+
     def test_tee_validation_does_not_impose_catalog_specific_equalities(self):
         value = self.payload_for("t-2x0.25")
         value["profiles"][0]["geometry"].update(d=60, bf=50, tw=5, tf=6)
@@ -175,6 +326,14 @@ class GeometryValidationTests(unittest.TestCase):
         value["profiles"][0]["centroid"]["y"] = 1
         with self.assertRaises(CatalogValidationError):
             validate_catalog_payload(value, Path("invalid-centroid.json"))
+
+    def test_geometry_status_is_optional_released_and_rejects_unknown_values(self):
+        value = self.payload_for("u-3x6.10")
+        _, _, _, profiles = validate_catalog_payload(value, Path("default-status.json"))
+        self.assertEqual(profiles[0].geometry_status, "released")
+        value["profiles"][0]["geometry_status"] = "invented"
+        with self.assertRaises(CatalogValidationError):
+            validate_catalog_payload(value, Path("invalid-status.json"))
 
 
 if __name__ == "__main__":

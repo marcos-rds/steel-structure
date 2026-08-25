@@ -27,6 +27,9 @@ PROFILES = {
     "L 50 x 5": types.SimpleNamespace(
         category="Aço laminado", series="Cantoneiras - Métricas", designation="L 50 x 5"
     ),
+    'U 6" x 12,20': types.SimpleNamespace(
+        category="Aço laminado", series="Perfis U", designation='U 6" x 12,20'
+    ),
 }
 
 
@@ -54,7 +57,8 @@ def load_preferences(database):
     catalog = types.ModuleType(f"{package_name}.profile_catalog")
     catalog.categories = lambda: ["Aço laminado", "Aço dobrado"]
     catalog.series_for_category = lambda category: (
-        ["Perfis W", "Cantoneiras - Métricas"] if category == "Aço laminado" else []
+        ["Perfis W", "Perfis U", "Cantoneiras - Métricas"]
+        if category == "Aço laminado" else []
     )
     catalog.designations = lambda category=None, series=None: [
         key for key, profile in PROFILES.items()
@@ -64,7 +68,11 @@ def load_preferences(database):
     catalog.get = lambda designation: PROFILES[designation]
     catalog.insertion_options = lambda profile: (
         ("Centroide", "Quina externa", "Ponta superior", "Ponta direita", "Quina interna")
-        if profile.series == "Cantoneiras - Métricas" else tuple(member.INSERTION_OPTIONS)
+        if profile.series == "Cantoneiras - Métricas" else (
+            "Centroide", "Centro da alma", "Face externa da alma",
+            "Canto superior traseiro", "Canto inferior traseiro",
+            "Ponta superior da mesa", "Ponta inferior da mesa",
+        ) if profile.series == "Perfis U" else tuple(member.INSERTION_OPTIONS)
     )
     member = types.ModuleType(f"{package_name}.member")
     member.INSERTION_OPTIONS = [
@@ -197,6 +205,27 @@ class CreationPreferencesTests(unittest.TestCase):
         group = self.database.groups[self.preferences.MEMBER_PREFERENCES]
         self.assertEqual(group["Insertion"], "outer_corner")
         self.assertEqual(self.preferences.load_member_creation_settings(), settings)
+
+    def test_u_insertion_round_trip_uses_stable_family_ids(self):
+        expected = {
+            "Centro da alma": "web_center",
+            "Face externa da alma": "web_back",
+            "Canto superior traseiro": "rear_top",
+            "Canto inferior traseiro": "rear_bottom",
+            "Ponta superior da mesa": "flange_top_tip",
+            "Ponta inferior da mesa": "flange_bottom_tip",
+        }
+        for label, identifier in expected.items():
+            settings = self.member(
+                series="Perfis U", designation='U 6" x 12,20', insertion=label
+            )
+            with self.subTest(label=label):
+                self.preferences.save_member_creation_settings(settings)
+                group = self.database.groups[self.preferences.MEMBER_PREFERENCES]
+                self.assertEqual(group["Insertion"], identifier)
+                self.assertEqual(
+                    self.preferences.load_member_creation_settings().insertion, label
+                )
 
     def test_namespace_is_exclusively_steel_structures(self):
         self.preferences.save_member_creation_settings(self.member())

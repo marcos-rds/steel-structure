@@ -178,6 +178,122 @@ class MemberOrientationTests(unittest.TestCase):
         finally:
             self.member.profile_catalog.get = original_get
 
+    def test_u_member_uses_generic_face_placement_rotation_and_mass_pipeline(self):
+        from freecad.SteelStructures import profile_catalog as real_catalog
+        channel = real_catalog.get('U 6" x 12,20')
+        original_get = self.member.profile_catalog.get
+        self.member.profile_catalog.get = lambda _designation: channel
+        try:
+            insertions = tuple(item.label for item in self.member.section_insertion_references(
+                self.member._section_geometry(channel)
+            ))
+            self.assertEqual(len(insertions), 7)
+            for end in ((3000, 0, 0), (2000, 1500, 2500)):
+                for rotation in (0, 90):
+                    for insertion in insertions:
+                        with self.subTest(end=end, rotation=rotation, insertion=insertion):
+                            obj, proxy = self.create(
+                                (0, 0, 0), end, rotation=rotation, insertion=insertion,
+                            )
+                            expected_translation = self.member._insertion_translation(
+                                channel, insertion
+                            )
+                            self.assertVector(
+                                obj.Shape.face_translation, (*expected_translation, 0.0)
+                            )
+                            original_mass = obj.TotalMass
+                            obj.Insertion = "Centroide" if insertion != "Centroide" else "Centro da alma"
+                            proxy.execute(obj)
+                            changed_translation = self.member._insertion_translation(
+                                channel, obj.Insertion
+                            )
+                            self.assertVector(
+                                obj.Shape.face_translation, (*changed_translation, 0.0)
+                            )
+                            self.assertAlmostEqual(obj.TotalMass, original_mass)
+                            geometry = self.member._section_geometry(channel)
+                            self.assertEqual(geometry.geometry_type, "channel_section")
+                            self.assertEqual(len(self.member._section_face(channel).wire.edges), 12)
+                            length = math.sqrt(sum(value * value for value in end))
+                            self.assertAlmostEqual(
+                                obj.TotalMass, channel.mass_per_m * length / 1000.0
+                            )
+                            direction = Vector(end); direction.normalize()
+                            self.assertVector(
+                                self.transformed(obj, Vector(0, 0, 1)),
+                                (direction.x, direction.y, direction.z),
+                            )
+        finally:
+            self.member.profile_catalog.get = original_get
+
+    def test_tapered_i_member_and_column_use_generic_orientation_insertion_and_mass(self):
+        from freecad.SteelStructures import profile_catalog as real_catalog
+        tapered_i = real_catalog.get('I 5" x 14,88')
+        original_get = self.member.profile_catalog.get
+        self.member.profile_catalog.get = lambda _designation: tapered_i
+        try:
+            geometry = self.member._section_geometry(tapered_i)
+            insertions = tuple(item.label for item in self.member.section_insertion_references(geometry))
+            self.assertEqual(len(insertions), 9)
+            for element_type in ("Membro", "Pilar"):
+                for end in ((3000, 0, 0), (1800, 1200, 2400)):
+                    for rotation in (0, 90):
+                        with self.subTest(element_type=element_type, end=end, rotation=rotation):
+                            obj, proxy = self.create(
+                                (0, 0, 0), end, rotation=rotation,
+                                insertion="Canto superior direito",
+                            )
+                            obj.ElementType = element_type
+                            proxy.execute(obj)
+                            expected = self.member._insertion_translation(
+                                tapered_i, "Canto superior direito"
+                            )
+                            self.assertVector(obj.Shape.face_translation, (*expected, 0.0))
+                            self.assertEqual(len(self.member._section_face(tapered_i).wire.edges), 20)
+                            length = math.sqrt(sum(value * value for value in end))
+                            self.assertAlmostEqual(
+                                obj.TotalMass, tapered_i.mass_per_m * length / 1000.0
+                            )
+                            direction = Vector(end); direction.normalize()
+                            self.assertVector(
+                                self.transformed(obj, Vector(0, 0, 1)),
+                                (direction.x, direction.y, direction.z),
+                            )
+        finally:
+            self.member.profile_catalog.get = original_get
+
+    def test_standard_tee_member_and_column_use_generic_pipeline(self):
+        from freecad.SteelStructures import profile_catalog as real_catalog
+        tee = real_catalog.get('T 2" x 1/4"')
+        original_get = self.member.profile_catalog.get
+        self.member.profile_catalog.get = lambda _designation: tee
+        try:
+            geometry = self.member._section_geometry(tee)
+            insertions = tuple(item.label for item in self.member.section_insertion_references(geometry))
+            self.assertEqual(insertions, (
+                "Centroide", "Face superior", "Ponta inferior da alma",
+                "Canto superior esquerdo", "Canto superior direito",
+            ))
+            for element_type in ("Membro", "Pilar"):
+                for end in ((3000, 0, 0), (0, 3000, 0), (0, 0, 3000), (1800, 1200, 2400)):
+                    with self.subTest(element_type=element_type, end=end):
+                        obj, proxy = self.create(
+                            (0, 0, 0), end, rotation=37,
+                            insertion="Ponta inferior da alma",
+                        )
+                        obj.ElementType = element_type
+                        proxy.execute(obj)
+                        expected = self.member._insertion_translation(
+                            tee, "Ponta inferior da alma"
+                        )
+                        self.assertVector(obj.Shape.face_translation, (*expected, 0.0))
+                        self.assertEqual(len(self.member._section_face(tee).wire.edges), 8)
+                        self.assertAlmostEqual(obj.TotalMass, tee.mass_per_m * math.sqrt(
+                            sum(value * value for value in end)
+                        ) / 1000.0)
+        finally:
+            self.member.profile_catalog.get = original_get
+
 
 if __name__ == "__main__":
     unittest.main()

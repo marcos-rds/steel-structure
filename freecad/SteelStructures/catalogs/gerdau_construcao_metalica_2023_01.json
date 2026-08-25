@@ -13,7 +13,7 @@
       "source_revision": "01/23",
       "source_date": null,
       "source_url": "www.gerdau.com.br",
-      "notes": "Geometria 3D simplificada sem raios de concordância; a fonte mostra R, mas não fornece valor numérico. Disponibilidade standard significa apenas ausência da marca de sob encomenda nesta publicação."
+      "notes": "Famílias sem raios numéricos permanecem com geometria simplificada; as exceções com dados BIM nominais estão documentadas nas notas de suas séries. Disponibilidade standard significa apenas ausência da marca de sob encomenda nesta publicação."
     },
     "standard_references": [
       "ABNT NBR 15980",
@@ -65,7 +65,7 @@
       "family": "i",
       "geometry_type": "i_section",
       "geometry_variant": "tapered_flange",
-      "geometry_notes": "A tabela fornece dimensões principais, mas não dados suficientes para reconstrução exata das faces internas inclinadas e concordâncias."
+      "geometry_notes": "Geometria nominal conforme Biblioteca BIM oficial Gerdau, pacote Perfil-I-Revit_1.zip, família Viga I Gerdau: SA = 9,46 graus, r1 = 7 mm, r2 = 3 mm e TL explícito por tipo. Dimensões e propriedades estruturais: Gerdau - Tabela de Bitolas rev. 01/23. O arquivo AutoCAD oficial consultado apresenta contorno com inclinação/raios e área incompatíveis com a definição Revit e com as propriedades estruturais tabeladas. Por decisão do projeto, a Steel Structures utiliza a definição nominal da família Revit para a geometria estrutural. Em I 3 x 9,68, Iy, Wy e ry publicados apresentam inconsistência interna; a aplicação utiliza valores efetivos calculados da geometria nominal Revit, preservando separadamente os valores publicados enquanto aguarda eventual confirmação ou correção da Gerdau. Incorporado em 2026-08-22."
     },
     {
       "id": "u",
@@ -74,7 +74,7 @@
       "family": "u",
       "geometry_type": "channel_section",
       "geometry_variant": "tapered_flange",
-      "geometry_notes": "A tabela fornece dimensões principais, mas não dados suficientes para reconstrução exata das faces internas inclinadas e concordâncias."
+      "geometry_notes": "Geometria nominal conforme Biblioteca BIM oficial Gerdau. Dimensões principais e centroide: Catalogo-Tabela-Bitolas.pdf; inclinação de 8,3 graus e raios r1/r2: Perfil-U-Revit_1.zip. Incorporado em 2026-08-21; não representa tolerâncias reais de laminação. Há divergência entre o catálogo Gerdau 2015 e o catálogo Gerdau 2023/BIM atual na associação de 29,76 e 30,80 kg/m às alturas de 10 e 12 polegadas. A Steel Structures preserva os dados oficiais atuais sem troca silenciosa. U 3 x 7,44, U 10 x 30,80 e U 12 x 29,76 permanecem sem liberação geométrica até revisão técnica adicional."
     },
     {
       "id": "t",
@@ -83,7 +83,7 @@
       "family": "t",
       "geometry_type": "tee_section",
       "geometry_variant": "standard_tee",
-      "geometry_notes": "Não há raio numérico suficiente para reprodução integral das concordâncias."
+      "geometry_notes": "Geometria nominal retangular confirmada pelas dimensões e propriedades estruturais da Tabela de Bitolas Gerdau rev. 01/23: mesa e alma retangulares, faces paralelas e cantos vivos. Nenhuma fonte oficial consultada fornece raios, inclinação ou posição especial de tf, e os pacotes BIM/CAD oficiais consultados não contêm Perfil T. A pequena concordância física de laminação não é parametrizada. O valor x publicado é a distância vertical da face externa da mesa ao centroide. Em T 7/8 x 1/8, Iy publicado = 0,33 cm4 diverge do valor nominal geométrico aproximado de 0,296 cm4 e das relações com Wy/ry; o valor oficial é preservado sem override enquanto aguarda eventual esclarecimento oficial. Incorporado em 2026-08-22."
     },
     {
       "id": "equal-angle-inch",
@@ -4866,7 +4866,11 @@
         "d": 76.2,
         "tw": 4.32,
         "bf": 59.18,
-        "tf": 6.6
+        "tf": 6.6,
+        "tl": 13.715,
+        "flange_angle": 9.46,
+        "r1": 7.0,
+        "r2": 3.0
       },
       "physical_properties": {
         "mass_per_length": 8.48,
@@ -4899,7 +4903,11 @@
         "d": 76.2,
         "tw": 6.38,
         "bf": 61.24,
-        "tf": 6.6
+        "tf": 6.6,
+        "tl": 13.715,
+        "flange_angle": 9.46,
+        "r1": 7.0,
+        "r2": 3.0
       },
       "physical_properties": {
         "mass_per_length": 9.68,
@@ -4913,6 +4921,15 @@
         "wy": 11.48,
         "ry": 1.92,
         "rt": 1.98
+      },
+      "section_property_override": {
+        "basis": "nominal_revit_geometry",
+        "properties": [
+          "iy",
+          "wy",
+          "ry"
+        ],
+        "note": "Os valores publicados pela Gerdau para o eixo fraco — Iy = 45,60 cm4, Wy = 11,48 cm3 e ry = 1,92 cm — apresentam inconsistência geométrica confirmada. Por decisão técnica do projeto, a Steel Structures utiliza Iy, Wy e ry calculados da geometria nominal Revit validada até eventual esclarecimento da Gerdau; os valores publicados permanecem preservados como dados da fonte."
       }
     },
     {
@@ -4932,7 +4949,11 @@
         "d": 101.6,
         "tw": 4.9,
         "bf": 67.6,
-        "tf": 7.44
+        "tf": 7.44,
+        "tl": 15.675,
+        "flange_angle": 9.46,
+        "r1": 7.0,
+        "r2": 3.0
       },
       "physical_properties": {
         "mass_per_length": 11.46,
@@ -4965,7 +4986,11 @@
         "d": 101.6,
         "tw": 6.43,
         "bf": 69.2,
-        "tf": 7.44
+        "tf": 7.44,
+        "tl": 15.6925,
+        "flange_angle": 9.46,
+        "r1": 7.0,
+        "r2": 3.0
       },
       "physical_properties": {
         "mass_per_length": 12.65,
@@ -4998,7 +5023,11 @@
         "d": 127.0,
         "tw": 5.44,
         "bf": 76.3,
-        "tf": 8.28
+        "tf": 8.28,
+        "tl": 17.715,
+        "flange_angle": 9.46,
+        "r1": 7.0,
+        "r2": 3.0
       },
       "physical_properties": {
         "mass_per_length": 14.88,
@@ -5031,7 +5060,11 @@
         "d": 127.0,
         "tw": 8.81,
         "bf": 79.7,
-        "tf": 8.28
+        "tf": 8.28,
+        "tl": 17.7225,
+        "flange_angle": 9.46,
+        "r1": 7.0,
+        "r2": 3.0
       },
       "physical_properties": {
         "mass_per_length": 18.24,
@@ -5064,7 +5097,11 @@
         "d": 152.4,
         "tw": 5.89,
         "bf": 84.63,
-        "tf": 9.12
+        "tf": 9.12,
+        "tl": 19.685,
+        "flange_angle": 9.46,
+        "r1": 7.0,
+        "r2": 3.0
       },
       "physical_properties": {
         "mass_per_length": 18.6,
@@ -5097,7 +5134,11 @@
         "d": 152.4,
         "tw": 8.71,
         "bf": 87.5,
-        "tf": 9.12
+        "tf": 9.12,
+        "tl": 19.6975,
+        "flange_angle": 9.46,
+        "r1": 7.0,
+        "r2": 3.0
       },
       "physical_properties": {
         "mass_per_length": 22.0,
@@ -5130,7 +5171,10 @@
         "d": 76.2,
         "tw": 4.32,
         "bf": 35.81,
-        "tf": 6.93
+        "tf": 6.93,
+        "flange_angle": 8.3,
+        "r1": 6.0,
+        "r2": 1.8
       },
       "physical_properties": {
         "mass_per_length": 6.1,
@@ -5160,12 +5204,16 @@
       ],
       "catalog_markers": [],
       "availability_status": "standard",
+      "geometry_status": "pending_technical_review",
       "geometry_type": "channel_section",
       "geometry": {
         "d": 76.2,
         "tw": 6.55,
         "bf": 35.05,
-        "tf": 6.93
+        "tf": 6.93,
+        "flange_angle": 8.3,
+        "r1": 6.0,
+        "r2": 2.2
       },
       "physical_properties": {
         "mass_per_length": 7.44,
@@ -5200,7 +5248,10 @@
         "d": 101.6,
         "tw": 4.67,
         "bf": 40.23,
-        "tf": 7.52
+        "tf": 7.52,
+        "flange_angle": 8.3,
+        "r1": 7.1,
+        "r2": 2.0
       },
       "physical_properties": {
         "mass_per_length": 8.04,
@@ -5235,7 +5286,10 @@
         "d": 101.6,
         "tw": 6.27,
         "bf": 41.83,
-        "tf": 7.52
+        "tf": 7.52,
+        "flange_angle": 8.3,
+        "r1": 7.1,
+        "r2": 2.2
       },
       "physical_properties": {
         "mass_per_length": 9.3,
@@ -5270,7 +5324,10 @@
         "d": 152.4,
         "tw": 5.08,
         "bf": 48.77,
-        "tf": 8.71
+        "tf": 8.71,
+        "flange_angle": 8.3,
+        "r1": 9.5,
+        "r2": 2.5
       },
       "physical_properties": {
         "mass_per_length": 12.2,
@@ -5305,7 +5362,10 @@
         "d": 152.4,
         "tw": 7.98,
         "bf": 51.66,
-        "tf": 8.71
+        "tf": 8.71,
+        "flange_angle": 8.3,
+        "r1": 9.5,
+        "r2": 3.0
       },
       "physical_properties": {
         "mass_per_length": 15.62,
@@ -5340,7 +5400,10 @@
         "d": 203.2,
         "tw": 5.59,
         "bf": 57.4,
-        "tf": 9.5
+        "tf": 9.5,
+        "flange_angle": 8.3,
+        "r1": 11.9,
+        "r2": 3.0
       },
       "physical_properties": {
         "mass_per_length": 17.1,
@@ -5375,7 +5438,10 @@
         "d": 203.2,
         "tw": 7.7,
         "bf": 59.51,
-        "tf": 9.5
+        "tf": 9.5,
+        "flange_angle": 8.3,
+        "r1": 11.9,
+        "r2": 3.5
       },
       "physical_properties": {
         "mass_per_length": 20.5,
@@ -5410,7 +5476,10 @@
         "d": 254.0,
         "tw": 6.1,
         "bf": 66.04,
-        "tf": 11.1
+        "tf": 11.1,
+        "flange_angle": 8.3,
+        "r1": 14.3,
+        "r2": 3.5
       },
       "physical_properties": {
         "mass_per_length": 22.77,
@@ -5440,12 +5509,16 @@
       ],
       "catalog_markers": [],
       "availability_status": "standard",
+      "geometry_status": "pending_technical_review",
       "geometry_type": "channel_section",
       "geometry": {
         "d": 254.0,
         "tw": 7.2,
         "bf": 74.0,
-        "tf": 12.7
+        "tf": 12.7,
+        "flange_angle": 8.3,
+        "r1": 14.3,
+        "r2": 4.0
       },
       "physical_properties": {
         "mass_per_length": 30.8,
@@ -5475,12 +5548,16 @@
       ],
       "catalog_markers": [],
       "availability_status": "standard",
+      "geometry_status": "pending_technical_review",
       "geometry_type": "channel_section",
       "geometry": {
         "d": 305.0,
         "tw": 9.63,
         "bf": 69.57,
-        "tf": 11.1
+        "tf": 11.1,
+        "flange_angle": 8.3,
+        "r1": 16.7,
+        "r2": 4.0
       },
       "physical_properties": {
         "mass_per_length": 29.76,
@@ -5515,7 +5592,10 @@
         "d": 305.0,
         "tw": 9.8,
         "bf": 77.0,
-        "tf": 12.7
+        "tf": 12.7,
+        "flange_angle": 8.3,
+        "r1": 16.7,
+        "r2": 4.5
       },
       "physical_properties": {
         "mass_per_length": 37.0,

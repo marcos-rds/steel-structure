@@ -7,12 +7,13 @@ from PySide import QtCore, QtGui, QtWidgets
 
 from ..paths import CATALOGS_DIR
 from ..profiles import (
-    ProfileLibrary, ProfileNotFoundError, UnsupportedSectionGeometryError,
+    GeometryTemporarilyUnavailableError, ProfileLibrary, ProfileNotFoundError,
+    UnsupportedSectionGeometryError,
     build_section_geometry,
 )
 from ..profiles.presentation import (
     profile_dimension_rows, profile_preview_dimension_rows,
-    profile_property_groups, profile_source_rows,
+    profile_property_groups, profile_source_groups,
 )
 from .profile_browser_model import ProfileBrowserModel
 from .profile_browser_preview import (
@@ -293,6 +294,25 @@ class ProfileBrowserDialog(QtWidgets.QDialog):
         scroll.setWidget(page)
         return scroll
 
+    def _source_widget(self, groups):
+        page = QtWidgets.QWidget()
+        layout = QtWidgets.QVBoxLayout(page)
+        layout.setContentsMargins(6, 6, 6, 6)
+        layout.setSpacing(6)
+        for group in groups:
+            box = QtWidgets.QGroupBox(group.title)
+            form = QtWidgets.QFormLayout(box)
+            form.setContentsMargins(8, 5, 8, 5)
+            form.setVerticalSpacing(2)
+            form.setFieldGrowthPolicy(QtWidgets.QFormLayout.AllNonFixedFieldsGrow)
+            self._add_rows(form, group.rows)
+            layout.addWidget(box)
+        layout.addStretch(1)
+        scroll = QtWidgets.QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(page)
+        return scroll
+
     def _show_profile(self, profile):
         self.title.setText(profile.designation)
         self.subtitle.setText(_profile_subtitle(
@@ -303,7 +323,7 @@ class ProfileBrowserDialog(QtWidgets.QDialog):
         self.tabs.clear()
         self.tabs.addTab(self._rows_widget(profile_dimension_rows(profile)), "Dimensões")
         self.tabs.addTab(self._properties_widget(profile_property_groups(profile)), "Propriedades")
-        self.tabs.addTab(self._rows_widget(profile_source_rows(profile)), "Fonte")
+        self.tabs.addTab(self._source_widget(profile_source_groups(profile)), "Fonte")
         self.tabs.setCurrentIndex(min(current_tab, self.tabs.count() - 1))
         self.tabs.blockSignals(False)
         self._update_preview(profile)
@@ -332,6 +352,13 @@ class ProfileBrowserDialog(QtWidgets.QDialog):
         """Switch preview state atomically for supported and unsupported profiles."""
         try:
             geometry = build_section_geometry(profile)
+        except GeometryTemporarilyUnavailableError:
+            self.preview.clear_geometry()
+            self.preview_message.setText(
+                "Geometria temporariamente indisponível — "
+                "inconsistência entre fontes técnicas Gerdau."
+            )
+            self.preview_stack.setCurrentWidget(self.preview_message)
         except UnsupportedSectionGeometryError:
             self.preview.clear_geometry()
             self.preview_message.setText(
@@ -341,7 +368,8 @@ class ProfileBrowserDialog(QtWidgets.QDialog):
             self.preview_stack.setCurrentWidget(self.preview_message)
         else:
             self.preview.set_geometry(
-                geometry, profile_preview_dimension_rows(profile), self._current_preview_mode()
+                geometry, profile_preview_dimension_rows(profile),
+                self._current_preview_mode(),
             )
             self.preview_stack.setCurrentWidget(self.preview)
 

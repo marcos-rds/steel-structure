@@ -119,14 +119,18 @@ class CurrentCatalogTests(unittest.TestCase):
     def setUpClass(cls):
         cls.raw = payload()
         cls.library = ProfileLibrary(CATALOGS_DIR)
-        cls.profiles = cls.library.list_profiles()
+        cls.profiles = tuple(
+            item for item in cls.library.list_profiles()
+            if item.ref.catalog_id == "gerdau-construcao-metalica-2023-01"
+        )
 
     def test_identity_metadata_and_exact_profile_set(self):
         self.assertEqual(len(self.profiles), 218)
         self.assertTrue(set(EXPECTED_IDS).issubset({item.ref.profile_id for item in self.profiles}))
         self.assertTrue(all(item.ref.catalog_id == "gerdau-construcao-metalica-2023-01" for item in self.profiles))
-        self.assertEqual(self.library.list_categories()[0].id, "rolled-steel")
-        self.assertEqual(self.library.list_series()[0].id, "w")
+        self.assertTrue(any(item.id == "rolled-steel"
+                            for item in self.library.list_categories()))
+        self.assertTrue(any(item.id == "w" for item in self.library.list_series()))
         self.assertEqual(len(self.library.list_profiles(series_id="w")), 100)
         self.assertEqual(len(self.library.list_profiles(series_id="hp")), 8)
         expected_counts = {"w": 100, "hp": 8, "i": 8, "u": 12, "t": 10,
@@ -135,7 +139,8 @@ class CurrentCatalogTests(unittest.TestCase):
             {series: len(self.library.list_profiles(series_id=series)) for series in expected_counts},
             expected_counts,
         )
-        metadata = self.library.list_catalogs()[0]
+        metadata = next(item for item in self.library.list_catalogs()
+                        if item.id == "gerdau-construcao-metalica-2023-01")
         self.assertEqual(metadata.manufacturer.name, "Gerdau")
         self.assertEqual(metadata.source.source_revision, "01/23")
         self.assertIsNone(metadata.source.source_date)
@@ -293,16 +298,64 @@ class LegacyFacadeTests(unittest.TestCase):
         self.assertEqual(profile_catalog.categories(), ["Aço Laminado", "Aço dobrado"])
         self.assertEqual(
             profile_catalog.series_for_category("Aço Laminado"),
-            ["Perfis W", "Perfis HP", "Cantoneiras - Polegadas", "Cantoneiras - Métricas"],
+            ["Perfis W", "Perfis HP", "Perfis I", "Perfis U", "Perfis T", "Cantoneiras - Polegadas", "Cantoneiras - Métricas"],
         )
         self.assertEqual(profile_catalog.series_for_category("Aço dobrado"), [])
         self.assertEqual(len(profile_catalog.designations("Aço Laminado", "Perfis W")), 100)
         self.assertEqual(len(profile_catalog.designations("Aço Laminado", "Perfis HP")), 8)
-        self.assertEqual(len(profile_catalog.profiles()), 188)
+        self.assertEqual(len(profile_catalog.designations("Aço Laminado", "Perfis I")), 8)
+        self.assertEqual(len(profile_catalog.designations("Aço Laminado", "Perfis U")), 9)
+        self.assertEqual(len(profile_catalog.designations("Aço Laminado", "Perfis T")), 10)
+        self.assertEqual(len(profile_catalog.profiles()), 215)
         self.assertEqual(len(profile_catalog.designations("Aço Laminado", "Cantoneiras - Polegadas")), 50)
         self.assertEqual(len(profile_catalog.designations("Aço Laminado", "Cantoneiras - Métricas")), 30)
+        self.assertEqual(profile_catalog.get('U 3" x 6,10').family, "u")
         with self.assertRaises(KeyError):
-            profile_catalog.get('U 3" x 6,10')
+            profile_catalog.get('U 3" x 7,44')
+
+    def test_freecad_property_designations_are_quote_safe_and_lookup_is_canonical(self):
+        cases = ('U 6" x 12,20', 'U 10" x 22,77', 'T 2" x 1/4"', 'L 2" x 1/4"')
+        for canonical in cases:
+            safe = profile_catalog.property_designation(canonical)
+            with self.subTest(canonical=canonical):
+                self.assertNotIn('"', safe)
+                self.assertIn("″", safe)
+                compile(f'obj.Profile = u"{safe}"', "<freecad-property>", "exec")
+                self.assertIs(profile_catalog.get(safe), profile_catalog.get(canonical))
+                self.assertEqual(profile_catalog.canonical_designation(safe), canonical)
+                self.assertEqual(
+                    profile_catalog.ref_for_designation(safe),
+                    profile_catalog.ref_for_designation(canonical),
+                )
+
+    def test_profile_property_can_switch_between_w_and_quote_safe_u_values(self):
+        values = (
+            "W 150 x 13,0",
+            profile_catalog.property_designation('U 6" x 12,20'),
+            profile_catalog.property_designation('U 10" x 22,77'),
+            "W 310 x 32,7",
+        )
+        selected = tuple(profile_catalog.get(value) for value in values)
+        self.assertEqual(tuple(item.family for item in selected), ("w", "u", "u", "w"))
+        self.assertEqual(selected[1].designation, 'U 6" x 12,20')
+        self.assertEqual(selected[2].designation, 'U 10" x 22,77')
+
+    def test_search_normalizes_ascii_and_typographic_inch_marks_in_one_layer(self):
+        library = ProfileLibrary(CATALOGS_DIR)
+        ascii_results = library.search('U 6" x 12,20')
+        safe_results = library.search("U 6″ x 12,20")
+        self.assertEqual(tuple(item.ref for item in safe_results),
+                         tuple(item.ref for item in ascii_results))
+
+    def test_property_options_keep_w_hp_unchanged_and_protect_all_inch_families(self):
+        self.assertEqual(
+            profile_catalog.property_designations("Aço Laminado", "Perfis W"),
+            profile_catalog.designations("Aço Laminado", "Perfis W"),
+        )
+        for series in ("Perfis U", "Cantoneiras - Polegadas"):
+            options = profile_catalog.property_designations("Aço Laminado", series)
+            self.assertTrue(options)
+            self.assertTrue(all('"' not in value for value in options))
 
     def test_legacy_profile_contract_and_quantitative_values_are_preserved(self):
         item = profile_catalog.get("W 150 x 13,0")

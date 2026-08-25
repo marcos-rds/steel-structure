@@ -115,8 +115,11 @@ def load_member():
     app.Console = types.SimpleNamespace(PrintWarning=lambda *_args: None)
     part = types.ModuleType("Part"); part.Face = Face; part.Wire = Wire; part.Shape = lambda: types.SimpleNamespace(empty=True)
     part.makeLine = lambda start, end: (start, end)
+    part.Arc = lambda start, _mid, end: types.SimpleNamespace(toShape=lambda: (start, end))
     catalog = types.ModuleType(f"{package_name}.profile_catalog")
     catalog.Profile = object; catalog.get = lambda _name: PROFILE
+    catalog.property_designation = lambda value: str(value).replace('"', "″")
+    catalog.property_designations = lambda *_args: []
     paths = types.ModuleType(f"{package_name}.paths"); paths.OBJECT_ICON = "member.svg"
     injected = {package_name: package, "FreeCAD": app, "Part": part,
                 f"{package_name}.profile_catalog": catalog, f"{package_name}.paths": paths}

@@ -9,6 +9,7 @@ from typing import Dict, List
 from .paths import CATALOGS_DIR
 from .profiles import (
     ProfileLibrary, ProfileRef, build_section_geometry,
+    canonicalize_designation as canonical_designation, geometry_is_released,
     section_insertion_references,
 )
 
@@ -19,7 +20,7 @@ KNOWN_CATEGORIES = ["Aço Laminado", "Aço dobrado"]
 # Temporary application capability until geometry generators for the other
 # catalog families are integrated and validated.
 SUPPORTED_CREATION_SERIES = {
-    "w", "hp", "equal-angle-inch", "equal-angle-metric",
+    "w", "hp", "i", "u", "t", "equal-angle-inch", "equal-angle-metric",
 }
 
 
@@ -42,6 +43,14 @@ class Profile:
 
 _LIBRARY = ProfileLibrary(CATALOGS_DIR)
 _CACHE: Dict[str, Profile] | None = None
+
+
+def is_creation_profile(definition) -> bool:
+    """Central creation eligibility: supported family and released geometry."""
+    return (
+        definition.series_id in SUPPORTED_CREATION_SERIES
+        and geometry_is_released(definition)
+    )
 
 
 def _legacy_source(definition) -> str:
@@ -80,7 +89,7 @@ def _load() -> Dict[str, Profile]:
     }
     result = {}
     for definition in _LIBRARY.list_profiles():
-        if definition.series_id not in SUPPORTED_CREATION_SERIES:
+        if not is_creation_profile(definition):
             continue
         # The legacy contract has no catalog namespace. Keep its historical
         # global-designation constraint while new consumers use ProfileRef.
@@ -128,11 +137,21 @@ def designations(category: str | None = None, series: str | None = None) -> List
     return result
 
 
+def property_designation(designation: str) -> str:
+    """Return a PropertyEnumeration label that FreeCAD can serialize safely."""
+    return canonical_designation(designation).replace('"', "″")
+
+
+def property_designations(category: str | None = None, series: str | None = None) -> List[str]:
+    return [property_designation(value) for value in designations(category, series)]
+
+
 def get(designation: str) -> Profile:
     catalog = profiles()
-    if designation not in catalog:
+    canonical = canonical_designation(designation)
+    if canonical not in catalog:
         raise KeyError(f"Perfil não encontrado: {designation}")
-    return catalog[designation]
+    return catalog[canonical]
 
 
 def insertion_options(profile: Profile):
@@ -144,11 +163,11 @@ def insertion_options(profile: Profile):
 
 def ref_for_designation(designation: str) -> ProfileRef:
     """Return the stable typed identity behind a creation-profile designation."""
+    designation = canonical_designation(designation)
     if designation not in profiles():
         raise KeyError(f"Perfil não encontrado: {designation}")
     for definition in _LIBRARY.list_profiles():
-        if (definition.series_id in SUPPORTED_CREATION_SERIES
-                and definition.designation == designation):
+        if is_creation_profile(definition) and definition.designation == designation:
             return definition.ref
     raise KeyError(f"Perfil não encontrado: {designation}")
 
@@ -156,7 +175,7 @@ def ref_for_designation(designation: str) -> ProfileRef:
 def selection_for_ref(ref: ProfileRef):
     """Bridge a typed identity to the current category/series/combo values."""
     definition = _LIBRARY.get(ref)
-    if definition.series_id not in SUPPORTED_CREATION_SERIES:
+    if not is_creation_profile(definition):
         raise ValueError("A série do perfil ainda não possui geometria de criação.")
     category = next(
         item.name for item in _LIBRARY.list_categories()

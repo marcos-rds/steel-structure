@@ -245,6 +245,7 @@ class StructuralMemberProxy:
         if current_profile:
             try:
                 current_data = profile_catalog.get(current_profile)
+                current_profile = profile_catalog.property_designation(current_data.designation)
                 preferred_category = current_data.category
                 preferred_series = current_data.series
             except KeyError:
@@ -263,7 +264,7 @@ class StructuralMemberProxy:
         _set_enum(obj, "ProfileSeries", available_series, series_preference, EMPTY_SERIES)
         selected_series = str(obj.ProfileSeries)
 
-        available_profiles = profile_catalog.designations(selected_category, selected_series)
+        available_profiles = profile_catalog.property_designations(selected_category, selected_series)
         profile_preference = current_profile if current_profile in available_profiles else None
         _set_enum(obj, "Profile", available_profiles, profile_preference, EMPTY_PROFILE)
         try:
@@ -336,12 +337,18 @@ class StructuralMemberProxy:
         category = str(obj.ProfileCategory)
         _set_enum(obj, "ProfileSeries", profile_catalog.series_for_category(category), empty_text=EMPTY_SERIES)
         series = str(obj.ProfileSeries)
-        _set_enum(obj, "Profile", profile_catalog.designations(category, series), empty_text=EMPTY_PROFILE)
+        _set_enum(
+            obj, "Profile", profile_catalog.property_designations(category, series),
+            empty_text=EMPTY_PROFILE,
+        )
 
     def _refresh_profiles(self, obj):
         category = str(obj.ProfileCategory)
         series = str(obj.ProfileSeries)
-        _set_enum(obj, "Profile", profile_catalog.designations(category, series), empty_text=EMPTY_PROFILE)
+        _set_enum(
+            obj, "Profile", profile_catalog.property_designations(category, series),
+            empty_text=EMPTY_PROFILE,
+        )
 
     def _refresh_insertions(self, obj):
         try:
@@ -576,7 +583,7 @@ def create_member(
     obj.EndPoint = end
     obj.ProfileCategory = profile.category
     obj.ProfileSeries = profile.series
-    obj.Profile = designation
+    obj.Profile = profile_catalog.property_designation(profile.designation)
     obj.ElementType = element_type if element_type in ELEMENT_TYPES else "Membro"
     valid_insertions = insertion_options(profile)
     obj.Insertion = insertion if insertion in valid_insertions else valid_insertions[0]

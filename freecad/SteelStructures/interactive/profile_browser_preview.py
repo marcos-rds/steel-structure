@@ -7,6 +7,7 @@ from html import escape
 from PySide import QtCore, QtGui, QtWidgets
 
 from ..profiles import SectionGeometry2D
+from ..profiles.preview_geometry import section_outline_points
 
 
 DIMENSIONS_MODE = "dimensions"
@@ -30,6 +31,8 @@ CANVAS_MARGIN_PIXELS = 12.0
 TICK_PIXELS = 4.5
 SMALL_EXTENSION_HALF_PIXELS = 7.0
 TF_LINE_OFFSET_PIXELS = 14.0
+TEE_TW_OFFSET_PIXELS = 18.0
+TF_WITNESS_RADIUS_PIXELS = 1.8
 EXTENSION_OVERSHOOT_PIXELS = 4.0
 DIMENSION_COLOR = (128, 32, 48)
 
@@ -61,6 +64,43 @@ def _balanced_section_envelope(bounds, visual_bounds, padding):
     )
 
 
+def _channel_tf_measurement(geometry):
+    """Return the catalog tf station and its two vertical measurement points."""
+    bounds = geometry.bounds
+    web_inner_x = geometry.outer_path.segments[5].start.x
+    web_thickness = web_inner_x - bounds.min_x
+    x_tf = bounds.min_x + (bounds.width + web_thickness) / 2.0
+    slope = geometry.outer_path.segments[7]
+    ratio = (x_tf - slope.start.x) / (slope.end.x - slope.start.x)
+    inner_y = slope.start.y + ratio * (slope.end.y - slope.start.y)
+    return x_tf, bounds.max_y, inner_y
+
+
+def _tapered_i_tf_measurement(geometry):
+    """Return the explicit BIM tf station and upper vertical measurement."""
+    stations = dict(geometry.dimension_stations)
+    x_tf = stations["tf_right"]
+    slope = geometry.outer_path.segments[7]
+    ratio = (x_tf - slope.start.x) / (slope.end.x - slope.start.x)
+    inner_y = slope.start.y + ratio * (slope.end.y - slope.start.y)
+    return x_tf, geometry.bounds.max_y, inner_y
+
+
+def _tee_dimension_stations(geometry):
+    """Return real-contour stations for the T flange and web tip."""
+    segments = geometry.outer_path.segments
+    bottom_edge = segments[0]
+    flange_side = segments[3]
+    return {
+        "tw_left": bottom_edge.start.x,
+        "tw_right": bottom_edge.end.x,
+        "tw_section_bottom": -bottom_edge.start.y,
+        "tf_right": geometry.bounds.max_x,
+        "tf_top": -flange_side.end.y,
+        "tf_bottom": -flange_side.start.y,
+    }
+
+
 def _ignores_transformations_flag():
     graphics_item = QtWidgets.QGraphicsItem
     flag = getattr(graphics_item, "ItemIgnoresTransformations", None)
@@ -87,10 +127,11 @@ class SectionPreviewView(QtWidgets.QGraphicsView):
             raise ValueError("modo de preview inválido")
         self.scene().clear()
         path = QtGui.QPainterPath()
-        first = geometry.outer_path.segments[0].start
+        outline_points = section_outline_points(geometry)
+        first = outline_points[0]
         path.moveTo(first.x, -first.y)
-        for segment in geometry.outer_path.segments:
-            path.lineTo(segment.end.x, -segment.end.y)
+        for point in outline_points[1:]:
+            path.lineTo(point.x, -point.y)
         path.closeSubpath()
 
         outline = QtGui.QPen(QtGui.QColor(28, 28, 28))
@@ -109,9 +150,8 @@ class SectionPreviewView(QtWidgets.QGraphicsView):
         scene_units_per_pixel = self._scene_units_per_pixel(geometry.bounds)
         margin_x = CANVAS_MARGIN_PIXELS * scene_units_per_pixel
         margin_y = CANVAS_MARGIN_PIXELS * scene_units_per_pixel
-        if (mode == DIMENSIONS_MODE and
-                (geometry.geometry_type, geometry.geometry_variant)
-                == ("equal_angle", "equal_leg")):
+        dimension_key = (geometry.geometry_type, geometry.geometry_variant)
+        if mode == DIMENSIONS_MODE and dimension_key == ("equal_angle", "equal_leg"):
             rect = _balanced_section_envelope(
                 geometry.bounds, visual_bounds, max(margin_x, margin_y)
             )
@@ -149,8 +189,65 @@ class SectionPreviewView(QtWidgets.QGraphicsView):
         key = (geometry.geometry_type, geometry.geometry_variant)
         if key == ("i_section", "parallel_flange"):
             self._add_i_section_dimensions(geometry, dimensions)
+        elif key == ("i_section", "tapered_flange"):
+            self._add_tapered_i_dimensions(geometry, dimensions)
+        elif key == ("channel_section", "tapered_flange"):
+            self._add_channel_dimensions(geometry, dimensions)
         elif key == ("equal_angle", "equal_leg"):
             self._add_equal_angle_dimensions(geometry, dimensions)
+        elif key == ("tee_section", "standard_tee"):
+            self._add_tee_dimensions(geometry, dimensions)
+
+    def _add_tee_dimensions(self, geometry, dimensions):
+        """Dimension the real centroidal nominal T contour."""
+        pen = self._annotation_pen()
+        bounds = geometry.bounds
+        left, right = bounds.min_x, bounds.max_x
+        top, bottom = -bounds.max_y, -bounds.min_y
+        units = self._scene_units_per_pixel(bounds)
+        clearance = GEOMETRY_CLEARANCE_PIXELS * units
+        self._add_bf_dimension(
+            left, right, top, BF_OFFSET_PIXELS * units, clearance, units,
+            dimensions["bf"], pen,
+        )
+        self._add_d_dimension(
+            left, top, bottom, self._d_offset_pixels(bounds) * units,
+            clearance, units, dimensions["d"], pen,
+        )
+        stations = _tee_dimension_stations(geometry)
+        self._add_tee_tw_dimension(
+            stations["tw_left"], stations["tw_right"], dimensions["tw"], pen,
+            section_bottom=stations["tw_section_bottom"], clearance=clearance,
+            scene_units_per_pixel=units,
+        )
+        self._add_tf_dimension(
+            stations["tf_right"], stations["tf_top"], stations["tf_bottom"],
+            clearance, units, dimensions["tf"], pen,
+        )
+
+    def _add_channel_dimensions(self, geometry, dimensions):
+        """Reuse the approved four-dimension language for a right-opening U."""
+        pen = self._annotation_pen()
+        bounds = geometry.bounds
+        left, right = bounds.min_x, bounds.max_x
+        top, bottom = -bounds.max_y, -bounds.min_y
+        units = self._scene_units_per_pixel(bounds)
+        clearance = GEOMETRY_CLEARANCE_PIXELS * units
+        self._add_bf_dimension(
+            left, right, top, BF_OFFSET_PIXELS * units, clearance, units,
+            dimensions["bf"], pen,
+        )
+        self._add_d_dimension(
+            left, top, bottom, self._d_offset_pixels(bounds) * units,
+            clearance, units, dimensions["d"], pen,
+        )
+        web_inner_x = geometry.outer_path.segments[5].start.x
+        self._add_tw_dimension(left, web_inner_x, dimensions["tw"], pen)
+        x_tf, outer_y, inner_y = _channel_tf_measurement(geometry)
+        self._add_channel_tf_dimension(
+            x_tf, right, -outer_y, -inner_y, clearance, units,
+            dimensions["tf"], pen,
+        )
 
     def _add_i_section_dimensions(self, geometry, dimensions):
         """Add the four principal dimensions of a parallel-flange I section."""
@@ -183,6 +280,30 @@ class SectionPreviewView(QtWidgets.QGraphicsView):
         flange_bottom = -bottom_flange.start.y
         self._add_tf_dimension(
             right, flange_top, flange_bottom, clearance, scene_units_per_pixel,
+            dimensions["tf"], pen,
+        )
+
+    def _add_tapered_i_dimensions(self, geometry, dimensions):
+        """Dimension the real symmetric tapered I, including tf at BIM TL."""
+        pen = self._annotation_pen()
+        bounds = geometry.bounds
+        left, right = bounds.min_x, bounds.max_x
+        top, bottom = -bounds.max_y, -bounds.min_y
+        units = self._scene_units_per_pixel(bounds)
+        clearance = GEOMETRY_CLEARANCE_PIXELS * units
+        self._add_bf_dimension(
+            left, right, top, BF_OFFSET_PIXELS * units, clearance, units,
+            dimensions["bf"], pen,
+        )
+        self._add_d_dimension(
+            left, top, bottom, self._d_offset_pixels(bounds) * units,
+            clearance, units, dimensions["d"], pen,
+        )
+        web_right = geometry.outer_path.segments[5].start.x
+        self._add_tw_dimension(-web_right, web_right, dimensions["tw"], pen)
+        x_tf, outer_y, inner_y = _tapered_i_tf_measurement(geometry)
+        self._add_channel_tf_dimension(
+            x_tf, right, -outer_y, -inner_y, clearance, units,
             dimensions["tf"], pen,
         )
 
@@ -308,8 +429,7 @@ class SectionPreviewView(QtWidgets.QGraphicsView):
         self._terminator(line_x, top, pen)
         self._terminator(line_x, bottom, pen)
 
-    def _add_tw_dimension(self, web_left, web_right, value, pen):
-        line_y = 0.0
+    def _add_tw_dimension(self, web_left, web_right, value, pen, line_y=0.0):
         group = self._create_dimension_label(self._dimension_parts("tw", value), pen.color())
         self._position_label(
             group, web_right, line_y,
@@ -332,6 +452,29 @@ class SectionPreviewView(QtWidgets.QGraphicsView):
             0.0, pen,
         )
 
+    def _add_tee_tw_dimension(self, web_left, web_right, value, pen,
+                              section_bottom, clearance,
+                              scene_units_per_pixel):
+        """Place horizontal web thickness below the T web tip."""
+        line_y = section_bottom + TEE_TW_OFFSET_PIXELS * scene_units_per_pixel
+        group = self._create_dimension_label(self._dimension_parts("tw", value), pen.color())
+        self._position_label(
+            group, (web_left + web_right) / 2.0, line_y,
+            -group.width / 2.0, TEXT_LINE_GAP,
+        )
+        overshoot = EXTENSION_OVERSHOOT_PIXELS * scene_units_per_pixel
+        self._line(
+            web_left, section_bottom + clearance,
+            web_left, line_y + overshoot, pen,
+        )
+        self._line(
+            web_right, section_bottom + clearance,
+            web_right, line_y + overshoot, pen,
+        )
+        self._line(web_left, line_y, web_right, line_y, pen)
+        self._terminator(web_left, line_y, pen)
+        self._terminator(web_right, line_y, pen)
+
     def _add_tf_dimension(self, right, flange_top, flange_bottom, clearance,
                           scene_units_per_pixel, value, pen):
         line_x = right + TF_LINE_OFFSET_PIXELS * scene_units_per_pixel
@@ -351,6 +494,28 @@ class SectionPreviewView(QtWidgets.QGraphicsView):
         self._line(line_x, flange_top, line_x, flange_bottom, pen)
         self._terminator(line_x, flange_top, pen)
         self._terminator(line_x, flange_bottom, pen)
+
+    def _add_channel_tf_dimension(self, x_tf, section_right, flange_top,
+                                  flange_bottom, clearance,
+                                  scene_units_per_pixel, value, pen):
+        """Dimension vertical tf at its station, with the line outside the U."""
+        line_x = section_right + TF_LINE_OFFSET_PIXELS * scene_units_per_pixel
+        group = self._create_dimension_label(self._dimension_parts("tf", value), pen.color())
+        self._position_label(
+            group, line_x, (flange_top + flange_bottom) / 2.0,
+            TF_TEXT_OFFSET, -group.height / 2.0,
+        )
+        start_x = x_tf + clearance
+        for y in (flange_top, flange_bottom):
+            self._line(start_x, y, line_x, y, pen)
+        self._line(line_x, flange_top, line_x, flange_bottom, pen)
+        self._terminator(line_x, flange_top, pen)
+        self._terminator(line_x, flange_bottom, pen)
+        for y in (flange_top, flange_bottom):
+            self._device_ellipse(
+                x_tf, y, TF_WITNESS_RADIUS_PIXELS, pen,
+                QtGui.QBrush(QtGui.QColor(*DIMENSION_COLOR)),
+            )
 
     def _add_axes(self, geometry):
         bounds = geometry.bounds
@@ -380,6 +545,14 @@ class SectionPreviewView(QtWidgets.QGraphicsView):
 
     def _device_line(self, anchor_x, anchor_y, x1, y1, x2, y2, pen):
         item = self.scene().addLine(x1, y1, x2, y2, pen)
+        item.setPos(anchor_x, anchor_y)
+        item.setFlag(_ignores_transformations_flag(), True)
+        return item
+
+    def _device_ellipse(self, anchor_x, anchor_y, radius, pen, brush):
+        item = self.scene().addEllipse(
+            -radius, -radius, radius * 2.0, radius * 2.0, pen, brush
+        )
         item.setPos(anchor_x, anchor_y)
         item.setFlag(_ignores_transformations_flag(), True)
         return item
@@ -448,5 +621,6 @@ class SectionPreviewView(QtWidgets.QGraphicsView):
 
 __all__ = [
     "DIMENSIONS_MODE", "NEUTRAL_MODE", "PREVIEW_MODES", "PROPERTIES_MODE",
-    "SectionPreviewView", "_balanced_section_envelope",
+    "SectionPreviewView", "_balanced_section_envelope", "_channel_tf_measurement",
+    "_tapered_i_tf_measurement", "_tee_dimension_stations",
 ]

@@ -6,7 +6,7 @@ from __future__ import annotations
 import FreeCAD as App
 import Part
 
-from .geometry import LineSegment2D, Point2D, SectionGeometry2D, SectionPath2D
+from .geometry import ArcSegment2D, LineSegment2D, Point2D, SectionGeometry2D, SectionPath2D
 
 
 class FreeCADSectionGeometryError(RuntimeError):
@@ -29,14 +29,21 @@ def section_path_to_wire(path: SectionPath2D):
 
     edges = []
     for segment in path.segments:
-        if not isinstance(segment, LineSegment2D):
+        if not isinstance(segment, (LineSegment2D, ArcSegment2D)):
             raise FreeCADSectionGeometryError(
                 f"segmento ainda não suportado pelo adaptador: {type(segment).__name__}"
             )
         try:
-            edges.append(Part.makeLine(
-                point_to_vector(segment.start), point_to_vector(segment.end)
-            ))
+            if isinstance(segment, LineSegment2D):
+                edge = Part.makeLine(
+                    point_to_vector(segment.start), point_to_vector(segment.end)
+                )
+            else:
+                edge = Part.Arc(
+                    point_to_vector(segment.start), point_to_vector(segment.mid),
+                    point_to_vector(segment.end),
+                ).toShape()
+            edges.append(edge)
         except Exception as exc:
             raise FreeCADSectionGeometryError(
                 f"não foi possível converter segmento em aresta: {exc}"

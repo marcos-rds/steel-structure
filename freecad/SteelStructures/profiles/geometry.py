@@ -6,11 +6,10 @@ direction, Y is the web-height direction, and a future local Z axis is the
 member longitudinal axis.  This module deliberately has no 3D placement,
 rotation, insertion-point, FreeCAD, Part or UI concerns.
 
-The sharp-cornered I-section contour matches the historical member
-approximation, while equal-leg angles use one six-segment L contour located
-about the published centroid. Published radii are unavailable, so no
-fictitious arcs are created. ``PathSegment2D`` permits a future arc primitive
-to participate in a path without changing the path and section containers.
+The sharp-cornered parallel-flange I contour preserves the historical member
+approximation, while catalog-backed tapered I and U sections retain their
+nominal circular transitions. Equal-leg angles use one six-segment L contour
+located about the published centroid.
 """
 
 from __future__ import annotations
@@ -28,6 +27,15 @@ class SectionGeometryError(ValueError):
 
 class UnsupportedSectionGeometryError(SectionGeometryError):
     """Raised when a profile's geometry type/variant has no builder yet."""
+
+
+class GeometryTemporarilyUnavailableError(UnsupportedSectionGeometryError):
+    """Raised when catalog traceability explicitly blocks geometric use."""
+
+
+def geometry_is_released(profile: ProfileDefinition) -> bool:
+    """Return the single catalog-backed geometric release decision."""
+    return getattr(profile, "geometry_status", "released") == "released"
 
 
 def _finite(value: float, name: str) -> float:
@@ -81,6 +89,60 @@ class LineSegment2D:
 
 
 @dataclass(frozen=True)
+class ArcSegment2D:
+    """Circular arc with an explicit centre and sweep direction."""
+
+    start: Point2D
+    end: Point2D
+    center: Point2D
+    clockwise: bool = False
+
+    def __post_init__(self) -> None:
+        radii = (
+            math.hypot(self.start.x - self.center.x, self.start.y - self.center.y),
+            math.hypot(self.end.x - self.center.x, self.end.y - self.center.y),
+        )
+        if min(radii) <= 0.0 or not math.isclose(*radii, rel_tol=1e-9, abs_tol=1e-7):
+            raise SectionGeometryError("arco deve possuir raio positivo e extremidades concêntricas")
+
+    @property
+    def radius(self) -> float:
+        return math.hypot(self.start.x - self.center.x, self.start.y - self.center.y)
+
+    @property
+    def start_angle(self) -> float:
+        return math.atan2(self.start.y - self.center.y, self.start.x - self.center.x)
+
+    @property
+    def sweep(self) -> float:
+        delta = math.atan2(self.end.y - self.center.y, self.end.x - self.center.x) - self.start_angle
+        if self.clockwise:
+            return delta - 2.0 * math.pi if delta >= 0.0 else delta
+        return delta + 2.0 * math.pi if delta <= 0.0 else delta
+
+    @property
+    def mid(self) -> Point2D:
+        angle = self.start_angle + self.sweep / 2.0
+        return Point2D(
+            self.center.x + self.radius * math.cos(angle),
+            self.center.y + self.radius * math.sin(angle),
+        )
+
+    @property
+    def length(self) -> float:
+        return abs(self.sweep) * self.radius
+
+    def sampled_points(self, count: int = 12) -> tuple[Point2D, ...]:
+        return tuple(
+            Point2D(
+                self.center.x + self.radius * math.cos(self.start_angle + self.sweep * index / count),
+                self.center.y + self.radius * math.sin(self.start_angle + self.sweep * index / count),
+            )
+            for index in range(1, count + 1)
+        )
+
+
+@dataclass(frozen=True)
 class SectionPath2D:
     """An ordered, continuous path with explicit closure state."""
 
@@ -107,10 +169,22 @@ class SectionPath2D:
         """Return shoelace signed area; CCW closed paths are positive."""
         if not self.closed:
             raise SectionGeometryError("área requer caminho fechado")
-        return 0.5 * sum(
-            segment.start.x * segment.end.y - segment.end.x * segment.start.y
-            for segment in self.segments
-        )
+        total = 0.0
+        for segment in self.segments:
+            if isinstance(segment, ArcSegment2D):
+                theta1 = segment.start_angle
+                theta2 = theta1 + segment.sweep
+                radius = segment.radius
+                total += 0.5 * (
+                    radius * segment.center.x * (math.sin(theta2) - math.sin(theta1))
+                    - radius * segment.center.y * (math.cos(theta2) - math.cos(theta1))
+                    + radius * radius * segment.sweep
+                )
+            else:
+                total += 0.5 * (
+                    segment.start.x * segment.end.y - segment.end.x * segment.start.y
+                )
+        return total
 
     @property
     def area(self) -> float:
@@ -151,6 +225,7 @@ class SectionGeometry2D:
     inner_paths: tuple[SectionPath2D, ...]
     bounds: SectionBounds2D
     origin: Point2D
+    dimension_stations: tuple[tuple[str, float], ...] = ()
 
     def __post_init__(self) -> None:
         if not self.geometry_type or not self.geometry_variant:
@@ -165,6 +240,11 @@ class SectionGeometry2D:
             raise SectionGeometryError("bounds deve ser SectionBounds2D")
         if not isinstance(self.origin, Point2D):
             raise SectionGeometryError("origin deve ser Point2D")
+        stations = tuple((str(name), _finite(value, name))
+                         for name, value in self.dimension_stations)
+        if len({name for name, _value in stations}) != len(stations):
+            raise SectionGeometryError("estações de dimensão devem possuir nomes únicos")
+        object.__setattr__(self, "dimension_stations", stations)
 
     @property
     def signed_area(self) -> float:
@@ -230,6 +310,105 @@ def build_parallel_flange_i_section(
     )
 
 
+def build_tapered_flange_i_section(
+    *, d: float, bf: float, tw: float, tf: float, flange_angle: float,
+    r1: float, r2: float, tl: float,
+) -> SectionGeometry2D:
+    """Build Gerdau's nominal Revit tapered-flange I section.
+
+    The section is doubly symmetric about its centroid. ``tf`` is the vertical
+    thickness at the explicit BIM station ``tl`` measured inward from either
+    flange tip; it is deliberately not interpreted as a normal distance.
+    """
+    values = {
+        name: _finite(value, name) for name, value in (
+            ("d", d), ("bf", bf), ("tw", tw), ("tf", tf),
+            ("flange_angle", flange_angle), ("r1", r1), ("r2", r2),
+            ("tl", tl),
+        )
+    }
+    d, bf, tw, tf = (values[name] for name in ("d", "bf", "tw", "tf"))
+    flange_angle, r1, r2, tl = (
+        values[name] for name in ("flange_angle", "r1", "r2", "tl")
+    )
+    if min(d, bf, tw, tf, r1, r2, tl) <= 0.0:
+        raise SectionGeometryError("dimensões, raios e TL do perfil I devem ser positivos")
+    if tw >= bf or 2.0 * tf >= d or not 0.0 < flange_angle < 45.0:
+        raise SectionGeometryError("proporções inválidas para perfil I de mesas inclinadas")
+    if tl >= (bf - tw) / 2.0:
+        raise SectionGeometryError("TL deve ficar entre a ponta da mesa e a alma")
+
+    angle = math.radians(flange_angle)
+    slope = math.tan(angle)
+    sine, cosine = math.sin(angle), math.cos(angle)
+    half_b, half_d, half_tw = bf / 2.0, d / 2.0, tw / 2.0
+    x_tf = half_b - tl
+    intercept = half_d - tf - slope * x_tf
+
+    root_line_x = half_tw + r1 - r1 * sine
+    root_center_x = half_tw + r1
+    root_line_y = slope * root_line_x + intercept
+    root_center_y = root_line_y - r1 * cosine
+    toe_line_x = half_b - r2 + r2 * sine
+    toe_center_x = half_b - r2
+    toe_line_y = slope * toe_line_x + intercept
+    toe_center_y = toe_line_y + r2 * cosine
+    if not half_tw < root_line_x < toe_line_x < half_b:
+        raise SectionGeometryError("raios do perfil I não cabem entre alma e extremidade")
+    if not 0.0 < root_center_y < toe_center_y < half_d:
+        raise SectionGeometryError("faces internas do perfil I excedem os limites externos")
+
+    left_bottom = Point2D(-half_b, -half_d)
+    right_bottom = Point2D(half_b, -half_d)
+    bottom_toe = Point2D(half_b, -toe_center_y)
+    bottom_toe_line = Point2D(toe_line_x, -toe_line_y)
+    bottom_root_line = Point2D(root_line_x, -root_line_y)
+    bottom_web = Point2D(half_tw, -root_center_y)
+    top_web = Point2D(half_tw, root_center_y)
+    top_root_line = Point2D(root_line_x, root_line_y)
+    top_toe_line = Point2D(toe_line_x, toe_line_y)
+    top_toe = Point2D(half_b, toe_center_y)
+    right_top = Point2D(half_b, half_d)
+    first_half = (
+        LineSegment2D(left_bottom, right_bottom),
+        LineSegment2D(right_bottom, bottom_toe),
+        ArcSegment2D(bottom_toe, bottom_toe_line,
+                     Point2D(toe_center_x, -toe_center_y)),
+        LineSegment2D(bottom_toe_line, bottom_root_line),
+        ArcSegment2D(bottom_root_line, bottom_web,
+                     Point2D(root_center_x, -root_center_y), True),
+        LineSegment2D(bottom_web, top_web),
+        ArcSegment2D(top_web, top_root_line,
+                     Point2D(root_center_x, root_center_y), True),
+        LineSegment2D(top_root_line, top_toe_line),
+        ArcSegment2D(top_toe_line, top_toe,
+                     Point2D(toe_center_x, toe_center_y)),
+        LineSegment2D(top_toe, right_top),
+    )
+
+    def rotate(point):
+        return Point2D(-point.x, -point.y)
+
+    def rotate_segment(segment):
+        if isinstance(segment, ArcSegment2D):
+            return ArcSegment2D(
+                rotate(segment.start), rotate(segment.end),
+                rotate(segment.center), segment.clockwise,
+            )
+        return LineSegment2D(rotate(segment.start), rotate(segment.end))
+
+    segments = first_half + tuple(rotate_segment(segment) for segment in first_half)
+    return SectionGeometry2D(
+        geometry_type="i_section",
+        geometry_variant="tapered_flange",
+        outer_path=SectionPath2D(segments, True),
+        inner_paths=(),
+        bounds=SectionBounds2D(-half_b, half_b, -half_d, half_d),
+        origin=Point2D(0.0, 0.0),
+        dimension_stations=(("tf_left", -x_tf), ("tf_right", x_tf)),
+    )
+
+
 def build_equal_angle_section(
     *, b: float, t: float, centroid_x: float
 ) -> SectionGeometry2D:
@@ -263,15 +442,164 @@ def build_equal_angle_section(
     )
 
 
+def build_standard_tee_section(
+    *, d: float, bf: float, tw: float, tf: float
+) -> SectionGeometry2D:
+    """Build one sharp-cornered nominal T section about its own centroid."""
+    d, bf, tw, tf = (
+        _finite(value, name)
+        for name, value in (("d", d), ("bf", bf), ("tw", tw), ("tf", tf))
+    )
+    if min(d, bf, tw, tf) <= 0.0:
+        raise SectionGeometryError("d, bf, tw e tf devem ser positivos")
+    if tw >= bf:
+        raise SectionGeometryError("tw deve ser menor que bf")
+    if tf >= d:
+        raise SectionGeometryError("tf deve ser menor que d")
+
+    web_height = d - tf
+    web_area = tw * web_height
+    flange_area = bf * tf
+    area = web_area + flange_area
+    centroid_y = (
+        web_area * web_height / 2.0
+        + flange_area * (web_height + tf / 2.0)
+    ) / area
+    half_tw, half_b = tw / 2.0, bf / 2.0
+
+    def point(x, y):
+        return Point2D(x, y - centroid_y)
+
+    points = (
+        point(-half_tw, 0.0),
+        point(half_tw, 0.0),
+        point(half_tw, web_height),
+        point(half_b, web_height),
+        point(half_b, d),
+        point(-half_b, d),
+        point(-half_b, web_height),
+        point(-half_tw, web_height),
+    )
+    return SectionGeometry2D(
+        geometry_type="tee_section",
+        geometry_variant="standard_tee",
+        outer_path=_closed_polygon(points),
+        inner_paths=(),
+        bounds=SectionBounds2D(-half_b, half_b, -centroid_y, d - centroid_y),
+        origin=Point2D(0.0, 0.0),
+        dimension_stations=(("centroid_from_top", d - centroid_y),),
+    )
+
+
+def build_tapered_flange_channel_section(
+    *, d: float, bf: float, tw: float, tf: float, flange_angle: float,
+    r1: float, r2: float, centroid_x: float,
+) -> SectionGeometry2D:
+    """Build Gerdau's nominal tapered-flange U section about its centroid.
+
+    ``tf`` is imposed at TL=(bf-tw)/2 from the flange tip.  The physical
+    datum x=0 is the external rear web face and the opening points toward +X.
+    """
+    values = {
+        name: _finite(value, name) for name, value in (
+            ("d", d), ("bf", bf), ("tw", tw), ("tf", tf),
+            ("flange_angle", flange_angle), ("r1", r1), ("r2", r2),
+            ("centroid_x", centroid_x),
+        )
+    }
+    d, bf, tw, tf = (values[name] for name in ("d", "bf", "tw", "tf"))
+    flange_angle, r1, r2, centroid_x = (
+        values[name] for name in ("flange_angle", "r1", "r2", "centroid_x")
+    )
+    if min(d, bf, tw, tf, r1, r2, centroid_x) <= 0.0:
+        raise SectionGeometryError("dimensões, raios e centroide do perfil U devem ser positivos")
+    if tw >= bf or 2.0 * tf >= d or not 0.0 < flange_angle < 45.0:
+        raise SectionGeometryError("proporções inválidas para perfil U de mesas inclinadas")
+    if centroid_x >= bf:
+        raise SectionGeometryError("centroid_x deve estar entre a alma traseira e a abertura")
+
+    angle = math.radians(flange_angle)
+    slope = math.tan(angle)
+    cosine = math.cos(angle)
+    sine = math.sin(angle)
+    half_d = d / 2.0
+    tl = (bf - tw) / 2.0
+    x_tf = bf - tl
+    intercept = half_d - tf - slope * x_tf
+
+    root_line_x = tw + r1 - r1 * sine
+    root_center_x = tw + r1
+    root_line_y = slope * root_line_x + intercept
+    root_center_y = root_line_y - r1 * cosine
+    toe_line_x = bf - r2 + r2 * sine
+    toe_center_x = bf - r2
+    toe_line_y = slope * toe_line_x + intercept
+    toe_center_y = toe_line_y + r2 * cosine
+    if not tw < root_line_x < toe_line_x < bf:
+        raise SectionGeometryError("raios do perfil U não cabem entre alma e extremidade")
+    if not 0.0 < root_center_y < toe_center_y < half_d:
+        raise SectionGeometryError("faces internas do perfil U excedem os limites externos")
+
+    def point(x, y):
+        return Point2D(x - centroid_x, y)
+
+    rear_bottom = point(0.0, -half_d)
+    outer_bottom_tip = point(bf, -half_d)
+    bottom_toe = point(bf, -toe_center_y)
+    bottom_toe_line = point(toe_line_x, -toe_line_y)
+    bottom_root_line = point(root_line_x, -root_line_y)
+    bottom_root = point(tw, -root_center_y)
+    top_root = point(tw, root_center_y)
+    top_root_line = point(root_line_x, root_line_y)
+    top_toe_line = point(toe_line_x, toe_line_y)
+    top_toe = point(bf, toe_center_y)
+    outer_top_tip = point(bf, half_d)
+    rear_top = point(0.0, half_d)
+
+    segments = (
+        LineSegment2D(rear_bottom, outer_bottom_tip),
+        LineSegment2D(outer_bottom_tip, bottom_toe),
+        ArcSegment2D(bottom_toe, bottom_toe_line, point(toe_center_x, -toe_center_y)),
+        LineSegment2D(bottom_toe_line, bottom_root_line),
+        ArcSegment2D(bottom_root_line, bottom_root, point(root_center_x, -root_center_y), True),
+        LineSegment2D(bottom_root, top_root),
+        ArcSegment2D(top_root, top_root_line, point(root_center_x, root_center_y), True),
+        LineSegment2D(top_root_line, top_toe_line),
+        ArcSegment2D(top_toe_line, top_toe, point(toe_center_x, toe_center_y)),
+        LineSegment2D(top_toe, outer_top_tip),
+        LineSegment2D(outer_top_tip, rear_top),
+        LineSegment2D(rear_top, rear_bottom),
+    )
+    return SectionGeometry2D(
+        geometry_type="channel_section",
+        geometry_variant="tapered_flange",
+        outer_path=SectionPath2D(segments, True),
+        inner_paths=(),
+        bounds=SectionBounds2D(-centroid_x, bf - centroid_x, -half_d, half_d),
+        origin=Point2D(0.0, 0.0),
+    )
 def build_section_geometry(profile: ProfileDefinition) -> SectionGeometry2D:
     """Dispatch a typed profile by geometry type and variant."""
+    if getattr(profile, "geometry_status", "released") == "pending_technical_review":
+        raise GeometryTemporarilyUnavailableError(
+            "geometria temporariamente indisponível: inconsistência entre fontes técnicas Gerdau"
+        )
     key = (profile.geometry_type, profile.geometry_variant)
     if key == ("i_section", "parallel_flange"):
         names = ("d", "bf", "tw", "tf")
         builder = build_parallel_flange_i_section
+    elif key == ("i_section", "tapered_flange"):
+        names = ("d", "bf", "tw", "tf", "flange_angle", "r1", "r2", "tl")
+        builder = build_tapered_flange_i_section
     elif key == ("equal_angle", "equal_leg"):
         names = ("b", "t")
         builder = build_equal_angle_section
+    elif key == ("tee_section", "standard_tee"):
+        names = ("d", "bf", "tw", "tf")
+        builder = build_standard_tee_section
+    elif key == ("channel_section", "tapered_flange"):
+        names = ("d", "bf", "tw", "tf", "flange_angle", "r1", "r2")
+        builder = build_tapered_flange_channel_section
     else:
         raise UnsupportedSectionGeometryError(
             f"geometria de seção ainda não suportada: {key[0]!r} / {key[1]!r}"
@@ -279,6 +607,8 @@ def build_section_geometry(profile: ProfileDefinition) -> SectionGeometry2D:
     try:
         dimensions = {name: profile.geometry[name] for name in names}
         if key == ("equal_angle", "equal_leg"):
+            dimensions["centroid_x"] = profile.centroid["x"]
+        elif key == ("channel_section", "tapered_flange"):
             dimensions["centroid_x"] = profile.centroid["x"]
     except KeyError as exc:
         raise SectionGeometryError(f"dimensão ausente: {exc.args[0]}") from exc
@@ -288,6 +618,10 @@ def build_section_geometry(profile: ProfileDefinition) -> SectionGeometry2D:
 __all__ = [
     "LineSegment2D", "PathSegment2D", "Point2D", "SectionBounds2D",
     "SectionGeometry2D", "SectionGeometryError", "SectionPath2D",
-    "UnsupportedSectionGeometryError", "build_equal_angle_section",
+    "GeometryTemporarilyUnavailableError", "geometry_is_released",
+    "UnsupportedSectionGeometryError", "ArcSegment2D", "build_equal_angle_section",
+    "build_standard_tee_section",
+    "build_tapered_flange_i_section",
+    "build_tapered_flange_channel_section",
     "build_parallel_flange_i_section", "build_section_geometry",
 ]

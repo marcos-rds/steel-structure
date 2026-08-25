@@ -16,6 +16,7 @@ from .models import (
     PhysicalProperties,
     ProfileDefinition,
     ProfileRef,
+    SectionPropertyOverride,
     SeriesDefinition,
     immutable_mapping,
 )
@@ -46,6 +47,8 @@ SECTION_PROPERTY_QUANTITIES = {
     "ry": "radius_of_gyration",
     "rt": "radius_of_gyration",
     "rz_min": "radius_of_gyration",
+    "r0": "radius_of_gyration",
+    "x0": "centroid",
     "cw": "warping_constant",
     "slenderness_flange": "dimensionless",
     "slenderness_web": "dimensionless",
@@ -253,6 +256,34 @@ def validate_catalog_payload(payload, path: Path):
                 raise _error(path, catalog_id, f"perfil {profile_id}: 2*tf deve ser menor que d")
             if geometry_type == "tee_section" and geometry["tf"] >= geometry["d"]:
                 raise _error(path, catalog_id, f"perfil {profile_id}: tf deve ser menor que d")
+            if geometry_type == "channel_section" and series_definition.geometry_variant == "tapered_flange":
+                for parameter in ("r1", "r2"):
+                    geometry[parameter] = convert_to_canonical(
+                        _number(geometry_raw.get(parameter), path, catalog_id,
+                                f"profiles[{index}].geometry.{parameter}", True),
+                        "length", units["length"],
+                    )
+                geometry["flange_angle"] = _number(
+                    geometry_raw.get("flange_angle"), path, catalog_id,
+                    f"profiles[{index}].geometry.flange_angle", True,
+                )
+                if not 0.0 < geometry["flange_angle"] < 45.0:
+                    raise _error(path, catalog_id, f"perfil {profile_id}: flange_angle deve estar entre 0 e 45 graus")
+            if geometry_type == "i_section" and series_definition.geometry_variant == "tapered_flange":
+                for parameter in ("r1", "r2", "tl"):
+                    geometry[parameter] = convert_to_canonical(
+                        _number(geometry_raw.get(parameter), path, catalog_id,
+                                f"profiles[{index}].geometry.{parameter}", True),
+                        "length", units["length"],
+                    )
+                geometry["flange_angle"] = _number(
+                    geometry_raw.get("flange_angle"), path, catalog_id,
+                    f"profiles[{index}].geometry.flange_angle", True,
+                )
+                if not 0.0 < geometry["flange_angle"] < 45.0:
+                    raise _error(path, catalog_id, f"perfil {profile_id}: flange_angle deve estar entre 0 e 45 graus")
+                if geometry["tl"] >= (geometry["bf"] - geometry["tw"]) / 2.0:
+                    raise _error(path, catalog_id, f"perfil {profile_id}: TL deve ficar antes da alma")
         elif geometry_type == "equal_angle":
             for parameter in ("b", "t"):
                 geometry[parameter] = convert_to_canonical(
@@ -294,15 +325,55 @@ def validate_catalog_payload(payload, path: Path):
                 _number(value, path, catalog_id, f"profiles[{index}].section_properties.{key}", True),
                 quantity, units[quantity],
             )
+        override_raw = raw.get("section_property_override")
+        override = None
+        if override_raw is not None:
+            override_raw = _mapping(
+                override_raw, path, catalog_id,
+                f"profiles[{index}].section_property_override",
+            )
+            basis = _string(
+                override_raw.get("basis"), path, catalog_id,
+                f"profiles[{index}].section_property_override.basis",
+            )
+            if basis != "nominal_revit_geometry":
+                raise _error(path, catalog_id, f"perfil {profile_id}: base efetiva não suportada")
+            names_raw = _list(
+                override_raw.get("properties"), path, catalog_id,
+                f"profiles[{index}].section_property_override.properties",
+            )
+            names = tuple(_string(
+                value, path, catalog_id,
+                f"profiles[{index}].section_property_override.properties",
+            ) for value in names_raw)
+            if not names or len(names) != len(set(names)) or set(names) != {"iy", "wy", "ry"}:
+                raise _error(path, catalog_id, f"perfil {profile_id}: override deve abranger iy, wy e ry")
+            if any(name not in section for name in names):
+                raise _error(path, catalog_id, f"perfil {profile_id}: propriedade publicada ausente")
+            if (geometry_type, series_definition.geometry_variant) != ("i_section", "tapered_flange"):
+                raise _error(path, catalog_id, f"perfil {profile_id}: override geométrico incompatível")
+            override = SectionPropertyOverride(
+                basis=basis,
+                properties=names,
+                note=_string(
+                    override_raw.get("note"), path, catalog_id,
+                    f"profiles[{index}].section_property_override.note",
+                ),
+            )
         centroid_raw = _mapping(raw.get("centroid", {}), path, catalog_id, f"profiles[{index}].centroid")
         centroid = {}
+        centroid_from_top_flange_face = None
         for key, value in centroid_raw.items():
             if key != "x":
                 raise _error(path, catalog_id, f"coordenada de centroide desconhecida: {key!r}")
-            centroid[key] = convert_to_canonical(
+            converted_centroid = convert_to_canonical(
                 _number(value, path, catalog_id, f"profiles[{index}].centroid.{key}", True),
                 "centroid", units.get("centroid", units["length"]),
             )
+            if geometry_type == "tee_section":
+                centroid_from_top_flange_face = converted_centroid
+            else:
+                centroid[key] = converted_centroid
         aliases_raw = _list(raw.get("aliases", []), path, catalog_id, f"profiles[{index}].aliases")
         aliases = tuple(_string(value, path, catalog_id, f"profiles[{index}].aliases") for value in aliases_raw)
         markers_raw = _list(raw.get("catalog_markers", []), path, catalog_id, f"profiles[{index}].catalog_markers")
@@ -312,6 +383,12 @@ def validate_catalog_payload(payload, path: Path):
         availability = _string(raw.get("availability_status"), path, catalog_id, f"profiles[{index}].availability_status")
         if availability not in AVAILABILITY_STATUSES:
             raise _error(path, catalog_id, f"perfil {profile_id}: availability_status inválido: {availability!r}")
+        geometry_status = _string(
+            raw.get("geometry_status", "released"), path, catalog_id,
+            f"profiles[{index}].geometry_status",
+        )
+        if geometry_status not in {"released", "pending_technical_review"}:
+            raise _error(path, catalog_id, f"perfil {profile_id}: geometry_status inválido: {geometry_status!r}")
         profiles.append(ProfileDefinition(
             ref=ProfileRef(catalog_id, profile_id),
             designation=designation,
@@ -319,15 +396,20 @@ def validate_catalog_payload(payload, path: Path):
             aliases=aliases,
             catalog_markers=markers,
             availability_status=availability,
+            geometry_status=geometry_status,
             series_id=series_id,
             category_id=series_definition.category_id,
             manufacturer=manufacturer,
             family=series_definition.family,
             geometry_type=geometry_type,
             geometry_variant=series_definition.geometry_variant,
+            geometry_notes=series_definition.geometry_notes,
             geometry=immutable_mapping(geometry),
             physical_properties=physical,
             section_properties=immutable_mapping(section),
+            reported_section_properties=immutable_mapping(section),
+            section_property_override=override,
+            centroid_from_top_flange_face=centroid_from_top_flange_face,
             centroid=immutable_mapping(centroid),
             catalog=metadata,
         ))
