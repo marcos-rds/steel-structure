@@ -425,6 +425,61 @@ class ProfileBrowserModelTests(unittest.TestCase):
                     [(x_tf, -outer_y), (x_tf, -inner_y)],
                 )
 
+    def test_u_insertion_marker_maps_all_shared_references_and_changes_position(self):
+        module = _load_preview_runtime_module()
+        geometry = build_section_geometry(self.library.search("U6x12.2")[0])
+        labels = (
+            "Centroide", "Centro da alma", "Face externa da alma",
+            "Canto superior traseiro", "Canto inferior traseiro",
+            "Ponta superior da mesa", "Ponta inferior da mesa",
+        )
+        positions = []
+        for label in labels:
+            scene = _FakeScene()
+            renderer = object.__new__(module.SectionPreviewView)
+            renderer.scene = lambda: scene
+            self.assertTrue(renderer._add_insertion_marker(geometry, label))
+            point = insertion_reference(geometry, label).point
+            positions.append(scene.ellipse_items[0].position)
+            with self.subTest(label=label):
+                self.assertEqual(scene.ellipse_items[0].position, (point.x, -point.y))
+                self.assertEqual(
+                    scene.ellipse_items[0].args[:4],
+                    (-module.INSERTION_MARKER_RADIUS_PIXELS,) * 2
+                    + (module.INSERTION_MARKER_RADIUS_PIXELS * 2.0,) * 2,
+                )
+                self.assertTrue(all(item.flag == (1, True) for item in scene.ellipse_items))
+        self.assertEqual(len(set(positions)), len(labels))
+
+    def test_u_marker_rejects_insertion_from_another_family(self):
+        module = _load_preview_runtime_module()
+        geometry = build_section_geometry(self.library.search("U6x12.2")[0])
+        scene = _FakeScene()
+        renderer = object.__new__(module.SectionPreviewView)
+        renderer.scene = lambda: scene
+        self.assertFalse(renderer._add_insertion_marker(geometry, "Face superior"))
+        self.assertEqual(scene.ellipses, [])
+
+    def test_u_tf_extension_leaves_clearance_around_selected_upper_tip(self):
+        module = _load_preview_runtime_module()
+        profile = self.library.search("U6x12.2")[0]
+        geometry = build_section_geometry(profile)
+        dimensions = {
+            row.label: row.value for row in profile_preview_dimension_rows(profile)
+        }
+        scene = _FakeScene()
+        renderer = object.__new__(module.SectionPreviewView)
+        renderer.scene = lambda: scene
+        renderer._add_dimensions(geometry, dimensions, "Ponta superior da mesa")
+        marker = insertion_reference(geometry, "Ponta superior da mesa").point
+        marker_y = -marker.y
+        crossing = [
+            line for line in scene.lines
+            if line[1] == line[3] == marker_y
+            and min(line[0], line[2]) < marker.x < max(line[0], line[2])
+        ]
+        self.assertEqual(crossing, [])
+
     def test_dimension_renderer_handles_large_w_and_wide_hp(self):
         module = _load_preview_runtime_module()
         cases = {
@@ -727,8 +782,8 @@ class ProfileBrowserModelTests(unittest.TestCase):
                 self.rendered = []
                 self.clear_count = 0
 
-            def set_geometry(self, geometry, dimensions, mode):
-                self.rendered.append((geometry, tuple(dimensions), mode))
+            def set_geometry(self, geometry, dimensions, mode, insertion=None):
+                self.rendered.append((geometry, tuple(dimensions), mode, insertion))
 
             def clear_geometry(self):
                 self.clear_count += 1
@@ -774,6 +829,7 @@ class ProfileBrowserModelTests(unittest.TestCase):
                 expected_dimensions = 2 if profile.geometry_type == "equal_angle" else 4
                 self.assertEqual(len(dialog.preview.rendered[-1][1]), expected_dimensions)
                 self.assertEqual(dialog.preview.rendered[-1][2], "dimensions")
+                self.assertIsNone(dialog.preview.rendered[-1][3])
             else:
                 if profile.geometry_status == "pending_technical_review":
                     self.assertIn("inconsistência entre fontes técnicas Gerdau", dialog.preview_message.text)
@@ -782,6 +838,38 @@ class ProfileBrowserModelTests(unittest.TestCase):
         self.assertEqual(dialog.preview.clear_count, 1)
         self.assertEqual(len(dialog.preview.rendered), 7)
 
+    def test_select_context_forwards_insertion_while_isolated_catalog_does_not(self):
+        module = _load_browser_runtime_module()
+
+        class Preview:
+            def __init__(self): self.insertions = []
+            def set_geometry(self, _geometry, _dimensions, _mode, insertion=None):
+                self.insertions.append(insertion)
+            def clear_geometry(self): pass
+
+        base = dict(
+            preview=Preview(),
+            preview_stack=types.SimpleNamespace(setCurrentWidget=lambda _widget: None),
+            preview_message=types.SimpleNamespace(setText=lambda _text: None),
+            tabs=types.SimpleNamespace(currentIndex=lambda: 0),
+        )
+        isolated = types.SimpleNamespace(**base)
+        isolated._current_preview_mode = types.MethodType(
+            module.ProfileBrowserDialog._current_preview_mode, isolated
+        )
+        profile = self.library.search("U6x12.2")[0]
+        module.ProfileBrowserDialog._update_preview(isolated, profile)
+        self.assertEqual(isolated.preview.insertions[-1], None)
+
+        selection = types.SimpleNamespace(**{
+            **base, "preview": Preview(), "insertion": "Centro da alma"
+        })
+        selection._current_preview_mode = types.MethodType(
+            module.ProfileBrowserDialog._current_preview_mode, selection
+        )
+        module.ProfileBrowserDialog._update_preview(selection, profile)
+        self.assertEqual(selection.preview.insertions[-1], "Centro da alma")
+
     def test_tab_mode_changes_and_profile_changes_preserve_current_mode(self):
         module = _load_browser_runtime_module()
 
@@ -789,7 +877,7 @@ class ProfileBrowserModelTests(unittest.TestCase):
             def __init__(self):
                 self.modes = []
 
-            def set_geometry(self, _geometry, _dimensions, mode):
+            def set_geometry(self, _geometry, _dimensions, mode, _insertion=None):
                 self.modes.append(mode)
 
             def clear_geometry(self):

@@ -6,7 +6,10 @@ from html import escape
 
 from PySide import QtCore, QtGui, QtWidgets
 
-from ..profiles import SectionGeometry2D
+from ..profiles import (
+    SectionGeometry2D, insertion_reference,
+    section_insertion_references,
+)
 from ..profiles.preview_geometry import section_outline_points
 
 
@@ -35,6 +38,10 @@ TEE_TW_OFFSET_PIXELS = 18.0
 TF_WITNESS_RADIUS_PIXELS = 1.8
 EXTENSION_OVERSHOOT_PIXELS = 4.0
 DIMENSION_COLOR = (128, 32, 48)
+INSERTION_MARKER_COLOR = (0, 112, 132)
+INSERTION_MARKER_RADIUS_PIXELS = 5.0
+INSERTION_MARKER_CROSSHAIR_PIXELS = 8.0
+INSERTION_MARKER_CENTER_PIXELS = 1.4
 
 
 @dataclass
@@ -120,7 +127,8 @@ class SectionPreviewView(QtWidgets.QGraphicsView):
         self.setMinimumHeight(190)
         self.setMaximumHeight(260)
 
-    def set_geometry(self, geometry, dimension_rows=(), mode=DIMENSIONS_MODE):
+    def set_geometry(self, geometry, dimension_rows=(), mode=DIMENSIONS_MODE,
+                     insertion=None):
         if not isinstance(geometry, SectionGeometry2D):
             raise TypeError("geometry deve ser SectionGeometry2D")
         if mode not in PREVIEW_MODES:
@@ -142,9 +150,13 @@ class SectionPreviewView(QtWidgets.QGraphicsView):
 
         dimensions = {row.label: row.value for row in dimension_rows}
         if mode == DIMENSIONS_MODE and dimensions:
-            self._add_dimensions(geometry, dimensions)
+            self._add_dimensions(geometry, dimensions, insertion)
         elif mode == PROPERTIES_MODE:
             self._add_axes(geometry)
+        if (insertion and
+                (geometry.geometry_type, geometry.geometry_variant) ==
+                ("channel_section", "tapered_flange")):
+            self._add_insertion_marker(geometry, insertion)
 
         visual_bounds = self.scene().itemsBoundingRect()
         scene_units_per_pixel = self._scene_units_per_pixel(geometry.bounds)
@@ -184,7 +196,7 @@ class SectionPreviewView(QtWidgets.QGraphicsView):
         growth = _clamp((bounds.height - 180.0) / 448.0, 0.0, 1.0)
         return D_OFFSET_PIXELS + growth * D_MAX_COMPENSATION_PIXELS
 
-    def _add_dimensions(self, geometry, dimensions, _palette=None):
+    def _add_dimensions(self, geometry, dimensions, insertion=None, _palette=None):
         """Dispatch annotations by section typology without rebuilding contours."""
         key = (geometry.geometry_type, geometry.geometry_variant)
         if key == ("i_section", "parallel_flange"):
@@ -192,7 +204,7 @@ class SectionPreviewView(QtWidgets.QGraphicsView):
         elif key == ("i_section", "tapered_flange"):
             self._add_tapered_i_dimensions(geometry, dimensions)
         elif key == ("channel_section", "tapered_flange"):
-            self._add_channel_dimensions(geometry, dimensions)
+            self._add_channel_dimensions(geometry, dimensions, insertion)
         elif key == ("equal_angle", "equal_leg"):
             self._add_equal_angle_dimensions(geometry, dimensions)
         elif key == ("tee_section", "standard_tee"):
@@ -225,7 +237,7 @@ class SectionPreviewView(QtWidgets.QGraphicsView):
             clearance, units, dimensions["tf"], pen,
         )
 
-    def _add_channel_dimensions(self, geometry, dimensions):
+    def _add_channel_dimensions(self, geometry, dimensions, insertion=None):
         """Reuse the approved four-dimension language for a right-opening U."""
         pen = self._annotation_pen()
         bounds = geometry.bounds
@@ -244,9 +256,16 @@ class SectionPreviewView(QtWidgets.QGraphicsView):
         web_inner_x = geometry.outer_path.segments[5].start.x
         self._add_tw_dimension(left, web_inner_x, dimensions["tw"], pen)
         x_tf, outer_y, inner_y = _channel_tf_measurement(geometry)
+        marker_point = None
+        references = section_insertion_references(geometry)
+        if insertion and any(
+            insertion in (reference.id, reference.label) for reference in references
+        ):
+            point = insertion_reference(geometry, insertion).point
+            marker_point = (point.x, -point.y)
         self._add_channel_tf_dimension(
             x_tf, right, -outer_y, -inner_y, clearance, units,
-            dimensions["tf"], pen,
+            dimensions["tf"], pen, marker_point,
         )
 
     def _add_i_section_dimensions(self, geometry, dimensions):
@@ -497,7 +516,8 @@ class SectionPreviewView(QtWidgets.QGraphicsView):
 
     def _add_channel_tf_dimension(self, x_tf, section_right, flange_top,
                                   flange_bottom, clearance,
-                                  scene_units_per_pixel, value, pen):
+                                  scene_units_per_pixel, value, pen,
+                                  marker_point=None):
         """Dimension vertical tf at its station, with the line outside the U."""
         line_x = section_right + TF_LINE_OFFSET_PIXELS * scene_units_per_pixel
         group = self._create_dimension_label(self._dimension_parts("tf", value), pen.color())
@@ -506,8 +526,17 @@ class SectionPreviewView(QtWidgets.QGraphicsView):
             TF_TEXT_OFFSET, -group.height / 2.0,
         )
         start_x = x_tf + clearance
+        marker_gap = (
+            INSERTION_MARKER_CROSSHAIR_PIXELS + 2.0
+        ) * scene_units_per_pixel
         for y in (flange_top, flange_bottom):
-            self._line(start_x, y, line_x, y, pen)
+            if (marker_point is not None
+                    and abs(marker_point[1] - y) <= 1e-9
+                    and start_x < marker_point[0] < line_x):
+                self._line(start_x, y, marker_point[0] - marker_gap, y, pen)
+                self._line(marker_point[0] + marker_gap, y, line_x, y, pen)
+            else:
+                self._line(start_x, y, line_x, y, pen)
         self._line(line_x, flange_top, line_x, flange_bottom, pen)
         self._terminator(line_x, flange_top, pen)
         self._terminator(line_x, flange_bottom, pen)
@@ -516,6 +545,31 @@ class SectionPreviewView(QtWidgets.QGraphicsView):
                 x_tf, y, TF_WITNESS_RADIUS_PIXELS, pen,
                 QtGui.QBrush(QtGui.QColor(*DIMENSION_COLOR)),
             )
+
+    def _add_insertion_marker(self, geometry, value):
+        """Draw the shared insertion reference as a scale-independent target."""
+        if not any(
+            value in (reference.id, reference.label)
+            for reference in section_insertion_references(geometry)
+        ):
+            return False
+        point = insertion_reference(geometry, value).point
+        x, y = point.x, -point.y
+        pen = QtGui.QPen(QtGui.QColor(*INSERTION_MARKER_COLOR))
+        pen.setCosmetic(True)
+        pen.setWidthF(1.25)
+        self._device_ellipse(
+            x, y, INSERTION_MARKER_RADIUS_PIXELS, pen,
+            QtGui.QBrush(QtGui.QColor(255, 255, 255)),
+        )
+        arm = INSERTION_MARKER_CROSSHAIR_PIXELS
+        self._device_line(x, y, -arm, 0.0, arm, 0.0, pen)
+        self._device_line(x, y, 0.0, -arm, 0.0, arm, pen)
+        self._device_ellipse(
+            x, y, INSERTION_MARKER_CENTER_PIXELS, pen,
+            QtGui.QBrush(QtGui.QColor(*INSERTION_MARKER_COLOR)),
+        )
+        return True
 
     def _add_axes(self, geometry):
         bounds = geometry.bounds

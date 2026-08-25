@@ -38,7 +38,8 @@ class ProfileBrowserDialog(QtWidgets.QDialog):
     SELECT_MODE = "select"
 
     def __init__(self, parent=None, mode=BROWSE_MODE, library=None,
-                 initial_profile_ref=None, is_profile_selectable=None):
+                 initial_profile_ref=None, is_profile_selectable=None,
+                 insertion=None):
         super().__init__(parent)
         if mode not in (self.BROWSE_MODE, self.SELECT_MODE):
             raise ValueError("modo inválido para o Catálogo de Perfis")
@@ -46,6 +47,7 @@ class ProfileBrowserDialog(QtWidgets.QDialog):
         self.library = library or ProfileLibrary(CATALOGS_DIR)
         self.model = ProfileBrowserModel(self.library)
         self._is_profile_selectable = is_profile_selectable or (lambda _profile: True)
+        self.insertion = insertion if mode == self.SELECT_MODE else None
         self._series = {item.id: item for item in self.library.list_series()}
         self.setWindowTitle("Catálogo de Perfis")
         self.setModal(True)
@@ -369,7 +371,7 @@ class ProfileBrowserDialog(QtWidgets.QDialog):
         else:
             self.preview.set_geometry(
                 geometry, profile_preview_dimension_rows(profile),
-                self._current_preview_mode(),
+                self._current_preview_mode(), getattr(self, "insertion", None),
             )
             self.preview_stack.setCurrentWidget(self.preview)
 

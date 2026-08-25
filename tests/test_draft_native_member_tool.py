@@ -66,10 +66,20 @@ class DraftNativeArchitectureTests(unittest.TestCase):
         self.assertIn("self.profile.currentData()", self.options)
 
     def test_profile_widget_integrates_the_shared_browser_once(self):
-        self.assertIn('QPushButton("Selecionar Perfil...")', self.options)
+        self.assertIn("profile_browser_button = QtWidgets.QToolButton()", self.options)
+        self.assertIn('profile_browser_button.setText("...")', self.options)
+        self.assertIn("QtCore.Qt.ToolButtonTextOnly", self.options)
+        self.assertIn('setToolTip("Abrir Catálogo de Perfis")', self.options)
+        self.assertIn('setAccessibleName("Abrir Catálogo de Perfis")', self.options)
         self.assertIn("ProfileBrowserDialog.SELECT_MODE", self.options)
         self.assertIn("initial_profile_ref=self._current_profile_ref()", self.options)
         self.assertEqual(self.options.count("def _open_profile_browser"), 1)
+
+    def test_profile_color_control_remains_conventional_and_accessible(self):
+        self.assertIn('self.color_button = QtWidgets.QPushButton("")', self.options)
+        self.assertIn('self.color_button.setToolTip("Escolher cor")', self.options)
+        self.assertIn('self.color_button.setAccessibleName("Escolher cor")', self.options)
+        self.assertIn("self.color_button.clicked.connect(self._choose_color)", self.options)
 
     def test_browser_selection_updates_combos_atomically_and_notifies_profile_once(self):
         method = self.options.split("    def set_profile_ref", 1)[1].split(
@@ -137,12 +147,13 @@ class DraftNativeArchitectureTests(unittest.TestCase):
 
     def test_profile_widget_has_no_internal_stage_label_or_empty_wrapper(self):
         self.assertIn("class ProfileOptionsWidget(QtWidgets.QGroupBox):", self.options)
-        self.assertNotIn("QtWidgets.QLabel", self.options)
         self.assertNotIn("set_stage_text", self.options)
         self.assertNotIn("set_point_stage", self.options)
         self.assertNotIn("_stage_label", self.options)
         self.assertNotIn("stage_font", self.options)
-        self.assertIn("form = QtWidgets.QFormLayout(self)", self.options)
+        self.assertIn('QtWidgets.QGroupBox("Identificação")', self.options)
+        self.assertIn('QtWidgets.QGroupBox("Seleção do perfil")', self.options)
+        self.assertIn("_OrientationPanel(", self.options)
 
     def test_continue_restores_first_point_status_without_rebuilding_widget(self):
         reset = self.source.split("    def _reset_segment_for_continue", 1)[1].split(

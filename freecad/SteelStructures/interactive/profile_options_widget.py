@@ -1,17 +1,192 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 """Structural profile controls embedded below the native Draft point UI."""
 
-from PySide import QtGui, QtWidgets
+from PySide import QtCore, QtGui, QtWidgets
 
 from .. import profile_catalog
 from ..member import ELEMENT_TYPES, INSERTION_OPTIONS
 from ..preferences import MemberCreationSettings
+from ..profiles import build_section_geometry
 from .member_controller import MemberCreationOptions, compact_profile_designation, next_default_label
+from .section_orientation_preview import SectionOrientationPreview
 
 
 def member_creation_element_types(valid_types=ELEMENT_TYPES):
     """Return model types offered by the generic new-member workflow."""
     return tuple(value for value in valid_types if value != "Pilar")
+
+
+def orientation_uses_columns(available_width, preview_minimum,
+                             controls_minimum, spacing):
+    """Choose columns only when both areas fit in the actual useful width."""
+    return available_width >= preview_minimum + controls_minimum + spacing
+
+
+def catalog_button_safe_width(native_width, line_spacing):
+    """Return a comfortable DPI-aware width for the catalog text tool button."""
+    return max(int(native_width), round(float(line_spacing) * 2.4), 36)
+
+
+def _color_luminance(color):
+    channels = (color.redF(), color.greenF(), color.blueF())
+    linear = tuple(
+        value / 12.92 if value <= 0.04045
+        else ((value + 0.055) / 1.055) ** 2.4
+        for value in channels
+    )
+    return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+
+
+def _contrast_ratio(first, second):
+    lighter, darker = sorted((_color_luminance(first), _color_luminance(second)), reverse=True)
+    return (lighter + 0.05) / (darker + 0.05)
+
+
+def catalog_button_foreground(palette):
+    """Choose the palette foreground with the best contrast against a button."""
+    background = palette.color(QtGui.QPalette.Button)
+    candidates = (
+        palette.color(QtGui.QPalette.ButtonText),
+        palette.color(QtGui.QPalette.Text),
+        palette.color(QtGui.QPalette.WindowText),
+    )
+    return max(candidates, key=lambda color: _contrast_ratio(color, background))
+
+
+class _InsertionMenuButton(QtWidgets.QPushButton):
+    """Compact textual mirror of the insertion combo using a standard menu."""
+
+    def __init__(self, combo, parent=None):
+        super().__init__(parent)
+        self.combo = combo
+        self._full_text = ""
+        self._menu = QtWidgets.QMenu(self)
+        self.setMenu(self._menu)
+        self.setMinimumWidth(0)
+        self.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        self.combo.currentTextChanged.connect(self.refresh)
+        self.refresh()
+
+    def refresh(self, _value=None):
+        current = self.combo.currentText()
+        self._full_text = "Inserção: %s" % current
+        self.setToolTip(self._full_text)
+        self.setAccessibleName(self._full_text)
+        self._menu.clear()
+        for index in range(self.combo.count()):
+            label = self.combo.itemText(index)
+            action = self._menu.addAction(label)
+            action.setCheckable(True)
+            action.setChecked(label == current)
+            action.triggered.connect(
+                lambda _checked=False, value=label: self.combo.setCurrentText(value)
+            )
+        self._update_elided_text()
+
+    def _update_elided_text(self):
+        margin = self.fontMetrics().lineSpacing() * 2
+        width = max(self.width() - margin, 1)
+        self.setText(self.fontMetrics().elidedText(
+            self._full_text, QtCore.Qt.ElideRight, width
+        ))
+
+    def resizeEvent(self, event):
+        self._update_elided_text()
+        super().resizeEvent(event)
+
+
+class _OrientationPanel(QtWidgets.QGroupBox):
+    """Responsive owner of existing preview and orientation controls."""
+
+    def __init__(self, preview, insertion_selector, rotation, color_button, parent=None):
+        super().__init__("Orientação da seção", parent)
+        self.preview = preview
+        self.insertion_selector = insertion_selector
+        self.rotation = rotation
+        self.color_button = color_button
+        self._horizontal = None
+        self._grid = QtWidgets.QGridLayout(self)
+        self._preview_area = QtWidgets.QWidget()
+        self._preview_layout = QtWidgets.QVBoxLayout(self._preview_area)
+        self._preview_layout.setContentsMargins(0, 0, 0, 0)
+        self._preview_layout.setSpacing(0)
+        self._preview_layout.addWidget(preview, 1)
+        self._preview_layout.addWidget(insertion_selector)
+        self._controls = QtWidgets.QWidget()
+        self._controls_grid = QtWidgets.QGridLayout(self._controls)
+        self._controls_grid.setContentsMargins(0, 0, 0, 0)
+        self._labels = [
+            QtWidgets.QLabel("Rotação da seção:"),
+            QtWidgets.QLabel("Cor:"),
+        ]
+        self._widgets = [rotation, color_button]
+        self._apply_layout(False)
+
+    @property
+    def layout_mode(self):
+        return "horizontal" if self._horizontal else "vertical"
+
+    def _spacing(self):
+        value = self._grid.horizontalSpacing()
+        if value >= 0:
+            return value
+        return self.style().pixelMetric(QtWidgets.QStyle.PM_LayoutHorizontalSpacing)
+
+    def _use_columns(self):
+        margins = self._grid.contentsMargins()
+        available = self.width() - margins.left() - margins.right()
+        line = self.fontMetrics().lineSpacing()
+        preview_minimum = max(self.preview.minimumSizeHint().width(), line * 11)
+        controls_minimum = max(self.rotation.minimumSizeHint().width(), line * 7)
+        return orientation_uses_columns(
+            available, preview_minimum, controls_minimum, self._spacing()
+        )
+
+    def _clear_grid(self, layout):
+        while layout.count():
+            layout.takeAt(0)
+
+    def _apply_layout(self, horizontal):
+        horizontal = bool(horizontal)
+        if self._horizontal is horizontal:
+            return
+        self._horizontal = horizontal
+        self._clear_grid(self._grid)
+        self._clear_grid(self._controls_grid)
+        self._grid.setColumnStretch(0, 0)
+        self._grid.setColumnStretch(1, 0)
+        self._controls_grid.setColumnStretch(0, 0)
+        self._controls_grid.setColumnStretch(1, 0)
+        for row in range(8):
+            self._controls_grid.setRowMinimumHeight(row, 0)
+        if horizontal:
+            line = self.fontMetrics().lineSpacing()
+            self._controls_grid.setVerticalSpacing(max(round(line * 0.22), 2))
+            for row, (label, widget) in enumerate(zip(self._labels, self._widgets)):
+                base = row * 3
+                self._controls_grid.addWidget(label, base, 0)
+                self._controls_grid.addWidget(widget, base + 1, 0)
+                if row < len(self._widgets) - 1:
+                    self._controls_grid.setRowMinimumHeight(
+                        base + 2, max(round(line * 0.45), 6)
+                    )
+            self._grid.addWidget(self._preview_area, 0, 0)
+            self._grid.addWidget(self._controls, 0, 1, QtCore.Qt.AlignTop)
+            self._grid.setColumnStretch(0, 2)
+            self._grid.setColumnStretch(1, 1)
+        else:
+            self._controls_grid.setVerticalSpacing(self._spacing())
+            for row, (label, widget) in enumerate(zip(self._labels, self._widgets)):
+                self._controls_grid.addWidget(label, row, 0)
+                self._controls_grid.addWidget(widget, row, 1)
+            self._controls_grid.setColumnStretch(1, 1)
+            self._grid.addWidget(self._preview_area, 0, 0)
+            self._grid.addWidget(self._controls, 1, 0)
+            self._grid.setColumnStretch(0, 1)
+
+    def resizeEvent(self, event):
+        self._apply_layout(self._use_columns())
+        super().resizeEvent(event)
 
 
 class ProfileOptionsWidget(QtWidgets.QGroupBox):
@@ -25,7 +200,11 @@ class ProfileOptionsWidget(QtWidgets.QGroupBox):
         self._name_custom = False
         self._programmatic_name = False
         self._color = QtGui.QColor(184, 184, 194)
-        form = QtWidgets.QFormLayout(self)
+        root = QtWidgets.QVBoxLayout(self)
+        identity = QtWidgets.QGroupBox("Identificação")
+        identity_form = QtWidgets.QFormLayout(identity)
+        selection = QtWidgets.QGroupBox("Seleção do perfil")
+        selection_form = QtWidgets.QFormLayout(selection)
         self.name_edit = QtWidgets.QLineEdit()
         self.name_edit.textEdited.connect(self._mark_custom_name)
         self.element_type = QtWidgets.QComboBox()
@@ -41,25 +220,75 @@ class ProfileOptionsWidget(QtWidgets.QGroupBox):
         self.profile = QtWidgets.QComboBox()
         self.profile.currentTextChanged.connect(self.refresh_automatic_name)
         self.profile.currentIndexChanged.connect(self._profile_changed)
-        self.profile_browser_button = QtWidgets.QPushButton("Selecionar Perfil...")
+        self.profile_browser_button = QtWidgets.QToolButton()
+        self.profile_browser_button.setObjectName("profileCatalogButton")
+        self.profile_browser_button.setText("...")
+        self.profile_browser_button.setToolButtonStyle(QtCore.Qt.ToolButtonTextOnly)
         self.profile_browser_button.setToolTip("Abrir Catálogo de Perfis")
+        self.profile_browser_button.setAccessibleName("Abrir Catálogo de Perfis")
+        self.profile_browser_button.setSizePolicy(
+            QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed
+        )
         self.profile_browser_button.clicked.connect(self._open_profile_browser)
         self.insertion = QtWidgets.QComboBox()
         self.insertion.addItems(INSERTION_OPTIONS)
+        self.insertion.setVisible(False)
+        self.insertion_selector = _InsertionMenuButton(self.insertion)
+        self.orientation_preview = SectionOrientationPreview()
+        self.orientation_preview.referenceSelected.connect(self._select_insertion_reference)
+        self.insertion.currentTextChanged.connect(self.orientation_preview.set_insertion)
         self.rotation = QtWidgets.QDoubleSpinBox()
         self.rotation.setRange(-3600.0, 3600.0)
         self.rotation.setDecimals(2)
         self.rotation.setSuffix("°")
-        self.color_button = QtWidgets.QPushButton("Escolher cor")
+        self.rotation.valueChanged.connect(self.orientation_preview.set_rotation)
+        self.color_button = QtWidgets.QPushButton("")
+        self.color_button.setToolTip("Escolher cor")
+        self.color_button.setAccessibleName("Escolher cor")
+        self.color_button.setSizePolicy(
+            QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Fixed
+        )
+        swatch_height = self.profile.sizeHint().height()
+        self.color_button.setFixedSize(
+            max(self.fontMetrics().lineSpacing() * 4, swatch_height), swatch_height
+        )
         self.color_button.clicked.connect(self._choose_color)
         self._update_color_button()
-        for label, widget in (("Nome:", self.name_edit), ("Tipo do elemento:", self.element_type),
-            ("Categoria do perfil:", self.category), ("Série do perfil:", self.series),
-            ("Perfil:", self.profile), ("Inserção:", self.insertion),
-            ("Rotação da seção:", self.rotation), ("Cor:", self.color_button)):
-            form.addRow(label, widget)
-            if widget is self.profile:
-                form.addRow("", self.profile_browser_button)
+        identity_form.addRow("Nome:", self.name_edit)
+        identity_form.addRow("Tipo do elemento:", self.element_type)
+        selection_form.addRow("Categoria do perfil:", self.category)
+        selection_form.addRow("Série do perfil:", self.series)
+        profile_row = QtWidgets.QWidget()
+        profile_layout = QtWidgets.QHBoxLayout(profile_row)
+        profile_layout.setContentsMargins(0, 0, 0, 0)
+        profile_layout.addWidget(self.profile, 1)
+        button_width = catalog_button_safe_width(
+            self.profile_browser_button.sizeHint().width(),
+            self.profile_browser_button.fontMetrics().lineSpacing(),
+        )
+        self.profile_browser_button.setMinimumWidth(button_width)
+        self.profile_browser_button.setMaximumWidth(button_width)
+        self.profile_browser_button.setMinimumHeight(max(
+            self.profile.sizeHint().height(),
+            self.profile_browser_button.minimumSizeHint().height(),
+        ))
+        self.profile_browser_button.ensurePolished()
+        catalog_foreground = catalog_button_foreground(
+            self.profile_browser_button.palette()
+        )
+        self.profile_browser_button.setStyleSheet(
+            "QToolButton#profileCatalogButton { color: %s; }"
+            % catalog_foreground.name()
+        )
+        profile_layout.addWidget(self.profile_browser_button)
+        selection_form.addRow("Perfil:", profile_row)
+        self.orientation_panel = _OrientationPanel(
+            self.orientation_preview, self.insertion_selector,
+            self.rotation, self.color_button
+        )
+        root.addWidget(identity)
+        root.addWidget(selection)
+        root.addWidget(self.orientation_panel)
         self._category_changed(self.category.currentText())
         self.refresh_automatic_name()
 
@@ -75,9 +304,8 @@ class ProfileOptionsWidget(QtWidgets.QGroupBox):
             parent=self,
             mode=ProfileBrowserDialog.SELECT_MODE,
             initial_profile_ref=self._current_profile_ref(),
-            is_profile_selectable=lambda profile: (
-                profile.series_id in profile_catalog.SUPPORTED_CREATION_SERIES
-            ),
+            is_profile_selectable=profile_catalog.is_creation_profile,
+            insertion=self.insertion.currentText(),
         )
 
     def _open_profile_browser(self):
@@ -144,9 +372,25 @@ class ProfileOptionsWidget(QtWidgets.QGroupBox):
         self.profile.blockSignals(False)
         self._refresh_insertion_options()
         self.refresh_automatic_name()
+        self._update_orientation_preview()
 
     def _profile_changed(self, _index=None):
         self._refresh_insertion_options()
+        self._update_orientation_preview()
+
+    def _select_insertion_reference(self, identifier):
+        label = self.orientation_preview.reference_label(identifier)
+        self.insertion.setCurrentText(label)
+
+    def _update_orientation_preview(self):
+        try:
+            profile = profile_catalog.get(self.profile_designation)
+            geometry = build_section_geometry(profile.definition)
+        except (AttributeError, KeyError, RuntimeError, TypeError, ValueError):
+            geometry = None
+        self.orientation_preview.set_geometry(
+            geometry, self.insertion.currentText(), self.rotation.value()
+        )
 
     def _refresh_insertion_options(self, preferred=None):
         current = preferred or self.insertion.currentText()
@@ -163,6 +407,8 @@ class ProfileOptionsWidget(QtWidgets.QGroupBox):
             self.insertion.setCurrentText(current if current in options else options[0])
         finally:
             self.insertion.blockSignals(False)
+        if hasattr(self, "insertion_selector"):
+            self.insertion_selector.refresh()
 
     @property
     def profile_designation(self):
@@ -180,7 +426,11 @@ class ProfileOptionsWidget(QtWidgets.QGroupBox):
             self._update_color_button()
 
     def _update_color_button(self):
-        self.color_button.setStyleSheet("QPushButton { background-color: %s; }" % self._color.name())
+        border = self.palette().color(QtGui.QPalette.Mid).name()
+        self.color_button.setStyleSheet(
+            "QPushButton { background-color: %s; border: 1px solid %s; }"
+            % (self._color.name(), border)
+        )
 
     def refresh_automatic_name(self, _value=None):
         if self._name_custom or not self.profile_designation:
@@ -225,6 +475,7 @@ class ProfileOptionsWidget(QtWidgets.QGroupBox):
         self._update_color_button()
         self._name_custom = False
         self.refresh_automatic_name()
+        self._update_orientation_preview()
 
     def creation_settings(self):
         return MemberCreationSettings(
@@ -261,3 +512,4 @@ class ProfileOptionsWidget(QtWidgets.QGroupBox):
         self._name_custom = state["name_custom"]
         self._set_name(state["name"])
         self.setChecked(state["expanded"])
+        self._update_orientation_preview()
