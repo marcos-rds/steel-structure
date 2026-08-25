@@ -1,13 +1,30 @@
 # Changelog
 
-## Não lançado
+## 0.5.0 — 2026-08-25
 
-- Liberada a criação 3D das 80 cantoneiras de abas iguais, com referências próprias de inserção derivadas da geometria centroidal.
-- Adicionado suporte geométrico 2D e preview cotado e espaçado nas duas abas para as 80 cantoneiras de abas iguais, com extensões curtas e independentes do texto na cota de espessura, centroide X/Y e criação 3D ainda desabilitada.
-- Integrado o Catálogo de Perfis a Criar Membro e Criar Pilar como seletor complementar, mantendo consulta das 218 bitolas e confirmação restrita a W/HP.
+### Adicionado
 
-- Adicionado o Catálogo de Perfis nativo, com navegação das sete séries, busca, propriedades técnicas e pré-visualização 2D para W/HP.
-- Migração integral da identidade atual de Metal Structure para Steel Structures, incluindo pacote Python, workbench, comandos e recursos, sem alterar a versão.
+- Grid Estrutural paramétrico com painel visual, preview e propriedades persistentes.
+- Ferramenta Criar Pilar com posicionamento interativo, preview do perfil e orientação no eixo global Z.
+- Catálogo de Perfis nativo com busca, propriedades técnicas, fontes e preview 2D das 218 bitolas do catálogo Gerdau.
+- Suporte paramétrico aos perfis W, HP, I laminado, U laminado, T, cantoneiras de abas iguais e U Enrijecido (Ue) conforme ABNT NBR 6355:2012.
+- Mini-preview interativo para orientação da seção e seleção visual dos pontos de inserção.
+- Pontos de inserção específicos para as novas famílias de perfis.
+- Paleta rápida de cores estruturais nos fluxos de criação.
+
+### Melhorado
+
+- Geometria, propriedades técnicas e apresentação das famílias de perfis suportadas.
+- Fluxos de Criar Membro e Criar Pilar, com preferências persistentes e integração ao Catálogo de Perfis.
+- Previews técnicos com cotas, centroide, fontes dos dados e indicação da referência de inserção.
+- Preservação do `Placement` e das propriedades paramétricas durante recomputes e atualizações geométricas.
+- Identidade da bancada consolidada como Steel Structures em pacote, comandos e recursos.
+
+### Corrigido
+
+- Persistência e restauração dos pontos de inserção selecionados nas ferramentas de criação.
+- Robustez das transformações e do `Placement` para membros e grids.
+- Inconsistências de geometria, cotas e apresentação nas famílias de perfis suportadas.
 
 ## 0.4.0 — 31/07/2026
 

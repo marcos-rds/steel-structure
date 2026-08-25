@@ -2,32 +2,22 @@
 
 Bancada paramétrica dedicada à modelagem de estruturas metálicas no FreeCAD.
 
-## Versão 0.4.0
+## Versão 0.5.0
 
-- Comandos dedicados criam membros, pilares e grids estruturais sob a identidade `SteelStructures_*`.
-- A ferramenta reutiliza a Linha nativa do Draft para escolher dois pontos, pelo mouse ou pelos controles numéricos do Draft.
-- Snaps, restrições, Relativo e Global seguem diretamente as configurações nativas do Draft.
-- O modo **Continuar** cria vários membros na mesma sessão.
-- As opções estruturais ficam integradas ao painel: nome, tipo, perfil, inserção, rotação e cor.
-- O tipo do elemento pode ser escolhido entre **Membro**, **Pilar**, **Viga** e **Contraventamento**.
-- Seleção hierárquica por **Categoria do perfil → Série do perfil → Perfil**.
-- Categorias iniciais: **Aço laminado** e **Aço dobrado**.
-- Série disponível nesta versão: **Perfis W**.
-- Designações compactas na interface, como `W150x13,0` e `W200x26,6`.
-- A designação canônica original do catálogo, como `W 150 x 13,0`, permanece armazenada internamente nos objetos para preservar a compatibilidade.
-- Campo **Nome** nas opções do perfil e nas propriedades do objeto.
-- Numeração automática legível: `Membro 001 - W150x13,0` e `Pilar 001 - W200x26,6`.
-- Propriedade **Length** editável, sincronizada com `StartPoint`, `EndPoint` e `MemberLength`.
-- Correção da orientação entre quaisquer pontos X, Y e Z.
-- Correção da propriedade **Rotação da seção**.
-- Correção do erro de inicialização da propriedade `Manufacturer` no FreeCAD 1.1.3.
-- Migração básica de membros criados na versão 0.1.0.
+- **Grid Estrutural paramétrico**, com painel visual, e comandos dedicados **Criar Membro** e **Criar Pilar** sob a identidade `SteelStructures_*`.
+- **Criar Membro** reutiliza a Linha nativa do Draft para entrada por dois pontos, com snaps, restrições e modo **Continuar**; **Criar Pilar** oferece inserção interativa vertical com preview.
+- **Catálogo de Perfis** nativo com busca, propriedades técnicas e preview 2D das 218 bitolas do catálogo Gerdau.
+- Criação paramétrica com perfis **W**, **HP**, **I laminado**, **U laminado**, **T**, **cantoneiras de abas iguais** e **U Enrijecido (Ue) conforme ABNT NBR 6355:2012**.
+- Seleção hierárquica por **Categoria do perfil → Série do perfil → Perfil**, preservando nos objetos as designações e fontes do catálogo.
+- Pontos de inserção específicos por família, com mini-preview interativo da seção, orientação, rotação e referência selecionada.
+- Preferências e propriedades persistentes para perfil, inserção, rotação, tipo e cor, incluindo paleta rápida de cores estruturais.
+- Membros orientados entre pontos nos eixos X, Y, Z ou em direções inclinadas, com `Length`, `StartPoint`, `EndPoint` e `MemberLength` sincronizados.
 
 ## Instalação
 
 1. Feche o FreeCAD.
 2. Remova a pasta antiga `BancadaFC_Steel_v0.1.0` de `%APPDATA%\FreeCAD\Mod\`.
-3. Extraia a pasta `SteelStructures_v0.4.0` dentro de `%APPDATA%\FreeCAD\Mod\`.
+3. Extraia a pasta `SteelStructures_v0.5.0` dentro de `%APPDATA%\FreeCAD\Mod\`.
 4. Reinicie o FreeCAD e selecione **Steel Structures**.
 
 ## Testes recomendados
